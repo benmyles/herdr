@@ -1,0 +1,56 @@
+id = "crush"
+version = "2026.08.18.1"
+min_engine_version = 3
+updated_at = "2026-08-18T00:00:00Z"
+
+# Crush draws a full-screen TUI with a status header on top, the transcript
+# in the middle, and a multi-line editor plus hint bar anchored at the very
+# bottom. It emits no OSC title-state or OSC progress, so these screen rules
+# are the only state evidence. Rules are verified against live
+# `herdr agent read` captures of the real UI.
+#
+# Bottom-anchored chrome (invariant regardless of scrollback length):
+# - idle editor placeholders: " :::" rows plus the hint bar
+#   "tab focus chat • ctrl+p commands ..." (or "/ or ctrl+p commands ..."
+#   when the editor is empty).
+# - working hint bar: "esc cancel • tab focus chat • / or ctrl+p commands ..."
+# - blocked permission dialog: bordered box with a "Permission Required"
+#   title, buttons "Allow      Allow for Session      Deny", and a
+#   "←/→ choose • enter confirm • esc exit" footer. In narrow panes the box
+#   reflows taller than 12 rows, so the dialog gate uses the whole recent
+#   window; the gated strings are dialog-only and vanish when it closes.
+
+[[rules]]
+id = "busy_hint_bar"
+state = "working"
+priority = 400
+region = "bottom_non_empty_lines(4)"
+visible_working = true
+contains = ["esc cancel"]
+not = [
+  { contains = ["Allow for Session"] },
+  { contains = ["Permission Required"] },
+  { contains = ["←/→ choose"] },
+]
+
+[[rules]]
+id = "idle_editor_hints"
+state = "idle"
+priority = 500
+region = "bottom_non_empty_lines(4)"
+visible_idle = true
+contains = ["ctrl+p commands"]
+not = [
+  { contains = ["esc cancel"] },
+  { contains = ["Allow for Session"] },
+  { contains = ["Permission Required"] },
+  { contains = ["←/→ choose"] },
+]
+
+[[rules]]
+id = "permission_dialog"
+state = "blocked"
+priority = 700
+region = "whole_recent"
+visible_blocker = true
+contains = ["Allow for Session", "Permission Required"]

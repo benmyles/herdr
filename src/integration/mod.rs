@@ -294,6 +294,12 @@ const GROK_HOOK_ASSET: &str = if cfg!(windows) {
     include_str!("assets/grok/herdr-agent-state.sh")
 };
 const GROK_INTEGRATION_VERSION: u32 = 1;
+// Crush executes hooks through its embedded POSIX shell on every platform,
+// so the same POSIX hook script is installed on Windows and Unix alike.
+const CRUSH_HOOK_INSTALL_NAME: &str = "herdr-agent-state.sh";
+const CRUSH_HOOK_CONFIG_INSTALL_NAME: &str = "herdr.json";
+const CRUSH_HOOK_ASSET: &str = include_str!("assets/crush/herdr-agent-state.sh");
+const CRUSH_INTEGRATION_VERSION: u32 = 1;
 
 pub(crate) const INSTALL_WARNING_PREFIX: &str = "warning:";
 

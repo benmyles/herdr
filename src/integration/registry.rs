@@ -25,6 +25,7 @@ pub(crate) fn integration_target_label(
         crate::api::schema::IntegrationTarget::Mastracode => "mastracode",
         crate::api::schema::IntegrationTarget::AntigravityCli => "antigravity-cli",
         crate::api::schema::IntegrationTarget::Grok => "grok",
+        crate::api::schema::IntegrationTarget::Crush => "crush",
     }
 }
 
@@ -55,6 +56,7 @@ pub(crate) fn integration_target_command_names(
         crate::api::schema::IntegrationTarget::Mastracode => &["mastracode"],
         crate::api::schema::IntegrationTarget::AntigravityCli => &["agy"],
         crate::api::schema::IntegrationTarget::Grok => &["grok"],
+        crate::api::schema::IntegrationTarget::Crush => &["crush"],
     }
 }
 
@@ -84,6 +86,7 @@ pub(crate) fn integration_target_supported(target: crate::api::schema::Integrati
                 | crate::api::schema::IntegrationTarget::Cursor
                 | crate::api::schema::IntegrationTarget::Mastracode
                 | crate::api::schema::IntegrationTarget::Grok
+                | crate::api::schema::IntegrationTarget::Crush
         )
     }
 
@@ -267,7 +270,7 @@ fn integration_specs() -> [(
     crate::api::schema::IntegrationTarget,
     io::Result<PathBuf>,
     u32,
-); 17] {
+); 18] {
     [
         (
             crate::api::schema::IntegrationTarget::Pi,
@@ -360,6 +363,11 @@ fn integration_specs() -> [(
             grok_dir().map(|dir| dir.join("hooks").join(super::GROK_HOOK_INSTALL_NAME)),
             super::GROK_INTEGRATION_VERSION,
         ),
+        (
+            crate::api::schema::IntegrationTarget::Crush,
+            crush_dir().map(|dir| dir.join("hooks").join(super::CRUSH_HOOK_INSTALL_NAME)),
+            super::CRUSH_INTEGRATION_VERSION,
+        ),
     ]
 }
 
@@ -413,6 +421,19 @@ fn grok_hook_config_is_valid(hook_path: &Path) -> bool {
         .is_some_and(|config| config == super::targets::grok_hook_config(hook_path))
 }
 
+/// Whether the Herdr-owned Crush hook fragment exactly matches the installed
+/// integration. Crush only fires the hook when the fragment registers it.
+fn crush_hook_config_is_valid(hook_path: &Path) -> bool {
+    let Some(hooks_dir) = hook_path.parent() else {
+        return false;
+    };
+    let config_path = hooks_dir.join(super::CRUSH_HOOK_CONFIG_INSTALL_NAME);
+    fs::read_to_string(config_path)
+        .ok()
+        .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
+        .is_some_and(|config| config == super::targets::crush_hook_config(hook_path))
+}
+
 fn opencode_tui_integration_is_valid(plugin_path: &Path, expected_version: u32) -> bool {
     let Some(config_dir) = plugin_path.parent().and_then(Path::parent) else {
         return false;
@@ -460,6 +481,12 @@ pub(crate) fn integration_status_at(
     if target == crate::api::schema::IntegrationTarget::Grok
         && state == super::IntegrationStatusKind::Current
         && !grok_hook_config_is_valid(&path)
+    {
+        state = super::IntegrationStatusKind::Outdated;
+    }
+    if target == crate::api::schema::IntegrationTarget::Crush
+        && state == super::IntegrationStatusKind::Current
+        && !crush_hook_config_is_valid(&path)
     {
         state = super::IntegrationStatusKind::Outdated;
     }

@@ -91,6 +91,7 @@ pub fn is_reserved_native_state_source(source: &str, agent: &str) -> bool {
             | ("herdr:qwen", "qwen")
             | ("herdr:cursor", "cursor")
             | ("herdr:grok", "grok")
+            | ("herdr:crush", "crush")
     )
 }
 
@@ -207,6 +208,13 @@ pub fn plan(source: &str, agent: &str, session_ref: &AgentSessionRef) -> Option<
         ("herdr:grok", "grok", AgentSessionRefKind::Id) => {
             vec!["grok".into(), "--resume".into(), session_ref.value.clone()]
         }
+        ("herdr:crush", "crush", AgentSessionRefKind::Id) => {
+            vec![
+                "crush".into(),
+                "--session".into(),
+                session_ref.value.clone(),
+            ]
+        }
         _ => return None,
     };
 
@@ -244,6 +252,7 @@ pub(crate) fn is_official_agent_source(source: &str, agent: &str) -> bool {
             | ("herdr:cursor", "cursor")
             | ("herdr:antigravity_cli", "agy")
             | ("herdr:grok", "grok")
+            | ("herdr:crush", "crush")
     )
 }
 
@@ -275,6 +284,7 @@ mod tests {
         assert!(is_reserved_native_state_source("herdr:claude", "claude"));
         assert!(is_reserved_native_state_source("herdr:codex", "codex"));
         assert!(is_reserved_native_state_source("herdr:devin", "devin"));
+        assert!(is_reserved_native_state_source("herdr:crush", "crush"));
         assert!(!is_reserved_native_state_source("herdr:kimi", "kimi"));
         assert!(!is_reserved_native_state_source(
             "herdr:opencode",
@@ -464,6 +474,16 @@ mod tests {
             .argv,
             vec!["grok", "--resume", "grok-session"]
         );
+        assert_eq!(
+            plan(
+                "herdr:crush",
+                "crush",
+                &AgentSessionRef::id("crush-session").unwrap()
+            )
+            .unwrap()
+            .argv,
+            vec!["crush", "--session", "crush-session"]
+        );
     }
 
     #[test]
@@ -595,6 +615,11 @@ mod tests {
             session_ref_from_report("herdr:qwen", "qwen", Some("qwen-id".into()), None).unwrap();
         assert_eq!(session_ref.kind, AgentSessionRefKind::Id);
         assert_eq!(session_ref.value, "qwen-id");
+
+        let session_ref =
+            session_ref_from_report("herdr:crush", "crush", Some("crush-id".into()), None).unwrap();
+        assert_eq!(session_ref.kind, AgentSessionRefKind::Id);
+        assert_eq!(session_ref.value, "crush-id");
 
         let session_ref =
             session_ref_from_report("herdr:antigravity_cli", "agy", Some("agy-id".into()), None)

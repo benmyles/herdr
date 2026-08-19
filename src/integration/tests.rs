@@ -185,6 +185,7 @@ fn windows_supports_portable_integrations() {
     assert!(integration_target_supported(IntegrationTarget::Devin));
     assert!(integration_target_supported(IntegrationTarget::Mastracode));
     assert!(integration_target_supported(IntegrationTarget::Grok));
+    assert!(integration_target_supported(IntegrationTarget::Crush));
 
     assert!(integration_target_supported(IntegrationTarget::Pi));
     assert!(integration_target_supported(IntegrationTarget::Omp));
@@ -230,6 +231,7 @@ fn windows_availability_includes_native_integrations() {
     assert!(integration_target_available(IntegrationTarget::Devin));
     assert!(integration_target_available(IntegrationTarget::Mastracode));
     assert!(integration_target_available(IntegrationTarget::Grok));
+    assert!(integration_target_available(IntegrationTarget::Crush));
 
     if let Some(path) = original_path {
         std::env::set_var("PATH", path);
@@ -4088,6 +4090,199 @@ fn grok_status_reports_outdated_when_hook_config_missing_or_broken() {
     install_grok().unwrap();
     assert_eq!(grok_state(), IntegrationStatusKind::Current);
 
+    clear_integration_path_env();
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn install_crush_writes_hook_and_config() {
+    let _lock = integration_env_lock();
+    let base = unique_base();
+    let crush_dir = base.join(".config").join("crush");
+    fs::create_dir_all(&crush_dir).unwrap();
+    std::env::set_var(CRUSH_CONFIG_DIR_ENV_VAR, &crush_dir);
+
+    let installed = install_crush().unwrap();
+
+    let hooks_dir = crush_dir.join("hooks");
+    assert_eq!(installed.hook_path, hooks_dir.join(CRUSH_HOOK_INSTALL_NAME));
+    assert_eq!(
+        installed.config_path,
+        hooks_dir.join(CRUSH_HOOK_CONFIG_INSTALL_NAME)
+    );
+    assert_eq!(
+        fs::read_to_string(&installed.hook_path).unwrap(),
+        CRUSH_HOOK_ASSET
+    );
+
+    let config: Value =
+        serde_json::from_str(&fs::read_to_string(&installed.config_path).unwrap()).unwrap();
+    assert_eq!(config, crush_hook_config(&installed.hook_path));
+    let session_start = config["hooks"]["SessionStart"].as_array().unwrap();
+    assert_eq!(session_start.len(), 1);
+    assert_eq!(session_start[0]["name"], "herdr-session-identity");
+    assert_eq!(session_start[0]["timeout"], 10);
+    // Crush runs hooks via its embedded POSIX shell on every platform, so
+    // the command is always the quoted script path plus `session`.
+    let command = session_start[0]["command"].as_str().unwrap();
+    assert!(command.starts_with('\''));
+    assert!(command.contains("herdr-agent-state.sh"));
+    assert!(command.ends_with("' session"));
+
+    std::env::remove_var(CRUSH_CONFIG_DIR_ENV_VAR);
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn install_crush_is_idempotent() {
+    let _lock = integration_env_lock();
+    let base = unique_base();
+    let crush_dir = base.join(".config").join("crush");
+    fs::create_dir_all(&crush_dir).unwrap();
+    std::env::set_var(CRUSH_CONFIG_DIR_ENV_VAR, &crush_dir);
+
+    install_crush().unwrap();
+    let first =
+        fs::read_to_string(crush_dir.join("hooks").join(CRUSH_HOOK_CONFIG_INSTALL_NAME)).unwrap();
+    install_crush().unwrap();
+    let second =
+        fs::read_to_string(crush_dir.join("hooks").join(CRUSH_HOOK_CONFIG_INSTALL_NAME)).unwrap();
+    assert_eq!(first, second);
+
+    std::env::remove_var(CRUSH_CONFIG_DIR_ENV_VAR);
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn uninstall_crush_removes_files() {
+    let _lock = integration_env_lock();
+    let base = unique_base();
+    let crush_dir = base.join(".config").join("crush");
+    fs::create_dir_all(&crush_dir).unwrap();
+    std::env::set_var(CRUSH_CONFIG_DIR_ENV_VAR, &crush_dir);
+
+    install_crush().unwrap();
+    let result = uninstall_crush().unwrap();
+    assert!(result.removed_hook_file);
+    assert!(result.removed_config_file);
+    assert!(!result.hook_path.is_file());
+    assert!(!result.config_path.is_file());
+
+    // Uninstalling again is a no-op.
+    let again = uninstall_crush().unwrap();
+    assert!(!again.removed_hook_file);
+    assert!(!again.removed_config_file);
+
+    std::env::remove_var(CRUSH_CONFIG_DIR_ENV_VAR);
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn crush_v1_integration_status_is_current() {
+    let _lock = integration_env_lock();
+    let base = unique_base();
+    let crush_dir = base.join(".config").join("crush");
+    fs::create_dir_all(&crush_dir).unwrap();
+    std::env::set_var(CRUSH_CONFIG_DIR_ENV_VAR, &crush_dir);
+    // A real install writes both the hook script and hooks/herdr.json.
+    install_crush().unwrap();
+
+    let statuses = installed_integration_statuses();
+    let crush = statuses
+        .iter()
+        .find(|status| status.target == crate::api::schema::IntegrationTarget::Crush)
+        .expect("crush integration status");
+    assert_eq!(crush.state, IntegrationStatusKind::Current);
+    assert_eq!(crush.installed_version, Some(CRUSH_INTEGRATION_VERSION));
+
+    clear_integration_path_env();
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn crush_status_reports_outdated_when_hook_config_missing_or_broken() {
+    let _lock = integration_env_lock();
+    let base = unique_base();
+    let crush_dir = base.join(".config").join("crush");
+    fs::create_dir_all(&crush_dir).unwrap();
+    std::env::set_var(CRUSH_CONFIG_DIR_ENV_VAR, &crush_dir);
+    install_crush().unwrap();
+    let config_path = crush_dir.join("hooks").join(CRUSH_HOOK_CONFIG_INSTALL_NAME);
+
+    let crush_state = || {
+        installed_integration_statuses()
+            .into_iter()
+            .find(|status| status.target == crate::api::schema::IntegrationTarget::Crush)
+            .expect("crush integration status")
+            .state
+    };
+
+    // Missing config: crush never runs the hook, so the install is not current.
+    fs::remove_file(&config_path).unwrap();
+    assert_eq!(crush_state(), IntegrationStatusKind::Outdated);
+
+    // Corrupt config.
+    fs::write(&config_path, "{not json").unwrap();
+    assert_eq!(crush_state(), IntegrationStatusKind::Outdated);
+
+    // Config that registers a different command: crush will not invoke the
+    // herdr hook script.
+    fs::write(
+        &config_path,
+        r#"{"hooks":{"SessionStart":[{"name":"waldo","command":"echo other"}]}}"#,
+    )
+    .unwrap();
+    assert_eq!(crush_state(), IntegrationStatusKind::Outdated);
+
+    // Config that invokes the script without the required `session` action
+    // is nonfunctional because the hook exits early.
+    let hook_path = crush_dir.join("hooks").join(CRUSH_HOOK_INSTALL_NAME);
+    let script = shell_single_quote(&hook_path.display().to_string());
+    fs::write(
+        &config_path,
+        format!(
+            r#"{{"hooks":{{"SessionStart":[{{"name":"herdr-session-identity","command":{script}}}]}}}}"#
+        ),
+    )
+    .unwrap();
+    assert_eq!(crush_state(), IntegrationStatusKind::Outdated);
+
+    // Reinstall repairs both files.
+    install_crush().unwrap();
+    assert_eq!(crush_state(), IntegrationStatusKind::Current);
+
+    clear_integration_path_env();
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn crush_dir_honors_crush_global_config_and_seam() {
+    let _lock = integration_env_lock();
+    let base = unique_base();
+    let global_dir = base.join("crush-config");
+    fs::create_dir_all(&global_dir).unwrap();
+    std::env::remove_var(CRUSH_CONFIG_DIR_ENV_VAR);
+    std::env::set_var(CRUSH_GLOBAL_CONFIG_ENV_VAR, &global_dir);
+
+    // The crush CLI reads its global config (and hooks/) from
+    // $CRUSH_GLOBAL_CONFIG, so the integration must install there too.
+    let installed = install_crush().unwrap();
+    assert_eq!(
+        installed.hook_path,
+        global_dir.join("hooks").join(CRUSH_HOOK_INSTALL_NAME)
+    );
+
+    // The herdr-level test seam still wins over CRUSH_GLOBAL_CONFIG.
+    let seam_dir = base.join("seam");
+    fs::create_dir_all(&seam_dir).unwrap();
+    std::env::set_var(CRUSH_CONFIG_DIR_ENV_VAR, &seam_dir);
+    let installed = install_crush().unwrap();
+    assert_eq!(
+        installed.hook_path,
+        seam_dir.join("hooks").join(CRUSH_HOOK_INSTALL_NAME)
+    );
+
+    std::env::remove_var(CRUSH_GLOBAL_CONFIG_ENV_VAR);
     clear_integration_path_env();
     let _ = fs::remove_dir_all(base);
 }

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+### Added
+- Added Crush detection for idle, working, and blocked screen states, plus native session restore through Crush's SessionStart hook.
+
 ## [0.8.1] - 2026-08-18
 
 ### Added
