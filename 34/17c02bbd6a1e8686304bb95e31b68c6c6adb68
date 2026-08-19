@@ -1,0 +1,14 @@
+install.sh
+  h_9b4a5c940a23e2 1-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "3417c02bbd6a1e8686304bb95e31b68c6c6adb68",
+  "prompts": {},
+  "humans": {
+    "h_9b4a5c940a23e2": {
+      "author": "Ben Myles <ben@2q31.com>"
+    }
+  }
+}
