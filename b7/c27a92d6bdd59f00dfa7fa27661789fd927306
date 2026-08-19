@@ -1,0 +1,99 @@
+docs/next/CHANGELOG.md
+  s_e82c6b847451e1::t_2c3478d2439189 5-7
+docs/next/api/herdr-api.schema.json
+  s_e82c6b847451e1::t_bd85a9f30eb762 2124-2125,7181-7182
+docs/next/website/src/content/docs/agent-automation.mdx
+  s_e82c6b847451e1::t_e42f3d0e41f338 44
+docs/next/website/src/content/docs/agents.mdx
+  s_e82c6b847451e1::t_a80716fa5051fc 24
+docs/next/website/src/content/docs/cli-reference.mdx
+  s_e82c6b847451e1::t_ae50598841ae1d 308,379,396
+docs/next/website/src/content/docs/integrations.mdx
+  s_e82c6b847451e1::t_a7d73939ef1763 3,30,53,63,94,96,278-291
+docs/next/website/src/content/docs/ja/agent-automation.mdx
+  s_e82c6b847451e1::t_00f817f55eb35d 44
+docs/next/website/src/content/docs/ja/agents.mdx
+  s_e82c6b847451e1::t_53f23c38616a5b 24
+docs/next/website/src/content/docs/ja/cli-reference.mdx
+  s_e82c6b847451e1::t_0738af5b2d0fec 345,361
+docs/next/website/src/content/docs/ja/integrations.mdx
+  s_e82c6b847451e1::t_5a4c778c6fb632 3,32,55,65,96,98,280-293
+docs/next/website/src/content/docs/ja/session-state.mdx
+  s_e82c6b847451e1::t_022ae4bee864f7 80
+docs/next/website/src/content/docs/session-state.mdx
+  s_e82c6b847451e1::t_2fd45f93655a4e 80
+docs/next/website/src/content/docs/zh-cn/agent-automation.mdx
+  s_e82c6b847451e1::t_7256d747af2b5c 44
+docs/next/website/src/content/docs/zh-cn/agents.mdx
+  s_e82c6b847451e1::t_b4620752c8b2ae 24
+docs/next/website/src/content/docs/zh-cn/cli-reference.mdx
+  s_e82c6b847451e1::t_959ebf64f01c87 345,361
+docs/next/website/src/content/docs/zh-cn/integrations.mdx
+  s_e82c6b847451e1::t_bfae7d2c2ff3d1 3,32,55,65,96,98,280-293
+docs/next/website/src/content/docs/zh-cn/session-state.mdx
+  s_e82c6b847451e1::t_0eabf5d655d57a 80
+docs/next/website/src/data/config-reference.json
+  s_e82c6b847451e1::t_040a84bfa72aef 1153-1163,1247
+llm/plans/crush-integration.md
+  s_9829ab33b248cf::t_ad9da187e908c0 1-119
+src/agent_resume.rs
+  s_e82c6b847451e1::t_60dbd9f73916fa 94,211-217,255,287,477-486,619-623
+src/api/schema/integrations.rs
+  s_e82c6b847451e1::t_fd0f04bb110377 33,37,55
+src/config/model.rs
+  s_e82c6b847451e1::t_f2219460cee62b 1006
+src/config/sidebar.rs
+  s_e82c6b847451e1::t_6148349d8c2005 626
+src/config/sound.rs
+  s_e82c6b847451e1::t_d937413b943f00 48,146,187
+src/detect/manifest.rs
+  s_e82c6b847451e1::t_b295c24a00c5cf 245
+src/detect/mod.rs
+  s_e82c6b847451e1::t_e5ad17e3431be9 66,70,93,96,117,145,179,217,316-319,746,773,818,849
+src/integration/actions.rs
+  s_e82c6b847451e1::t_924b0b7b5414c9 5-11,257-269,723-749
+src/integration/assets/crush/herdr-agent-state.sh
+  s_e82c6b847451e1::t_42b5f1bd052e85 1-34
+src/integration/env.rs
+  s_e82c6b847451e1::t_4d74caa1699f68 27-32,198-222
+src/integration/mod.rs
+  s_e82c6b847451e1::t_4ec48266601f94 297-302
+src/integration/registry.rs
+  s_e82c6b847451e1::t_e0dab63634e4a0 28,59,89,273,366-370,424-436,487-492
+src/integration/targets.rs
+  s_e82c6b847451e1::t_80cc0417dec1e3 20-22,33-39,46-51,1487-1563
+src/integration/tests.rs
+  s_e82c6b847451e1::t_86938791b4fb40 188,234,4097-4289
+src/integration/types.rs
+  s_e82c6b847451e1::t_23ff29bcbde819 116-129
+src/main.rs
+  s_e82c6b847451e1::t_8c4825af76109c 462
+website/agent-detection/crush.toml
+  s_e82c6b847451e1::t_b07d028d929144 1-56
+website/agent-detection/index.toml
+  s_e82c6b847451e1::t_3cbae6c2e89798 82-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "b7c27a92d6bdd59f00dfa7fa27661789fd927306",
+  "prompts": {},
+  "sessions": {
+    "s_9829ab33b248cf": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e82ef020-5527-4337-9925-d675c6f720a7",
+        "model": "claude-fable-5"
+      },
+      "human_author": "Ben Myles <ben@2q31.com>"
+    },
+    "s_e82c6b847451e1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a01353-c8b0-7470-996b-05342fe2aae6",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ben Myles <ben@2q31.com>"
+    }
+  }
+}
