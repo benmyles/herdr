@@ -1,0 +1,448 @@
+README.zh-CN.md
+  s_1b9946058014c9::t_a1b3e01a27bfb7 45
+docs/versions/0.8.2/website/src/content/docs/ja/how-to-work.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-103
+docs/next/website/src/data/config-reference.json
+  s_1b9946058014c9::t_a1b3e01a27bfb7 174-401
+docs/versions/manifest.json
+  s_1b9946058014c9::t_a1b3e01a27bfb7 4,6-11
+src/app/input/clipboard.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 41,47,223-297
+  s_1b9946058014c9::t_68613bc37d4da1 298-299
+docs/next/website/src/content/docs/zh-cn/install.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 22-27
+docs/versions/0.8.2/website/src/content/docs/zh-cn/socket-api.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-748
+docs/versions/0.8.2/website/src/content/docs/zh-cn/troubleshooting.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-95
+src/app/api_helpers.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 26
+docs/versions/0.8.2/website/src/content/docs/ja/socket-api.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-752
+src/app/input/terminal.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 157-158,285,1045-1093
+  s_1b9946058014c9::t_77ded0e07d0c8d 1094-1095
+src/cli/pane.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1167,1169-1181,1190,1249-1250,1253-1260,1264-1267,1297,1299-1310,1318,1369-1370,1373-1380,1384-1387
+src/cli.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 11-24,211
+src/detect/mod.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 390-392,402-431,942-996
+  s_1b9946058014c9::t_40f031b7b06bd3 997
+src/pane.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 43-44,52,81,1677,2690,2697-2720,2858,2868,2901,3105-3113
+  s_1b9946058014c9::t_62b274cdcf89c1 3114
+src/platform/windows.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 18-23
+src/server/headless.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 360-361,414-422,704,4008,4093-4094,4096,4098-4117,4119,7245,7289-7314,7317,7333,7352,7371,7387,9726,9819-9822,9829,9837,9845-9850
+src/app/runtime_mutations.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 5-7,65,70-76
+tests/cli/panes.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 571-639
+  s_1b9946058014c9::t_5146a0f17cde02 570
+src/app/input/navigate.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 83-89,217,446,448,492,1175-1211,2843-2898,3520-3535
+  s_1b9946058014c9::t_5a0ed270ce4028 3536
+tests/cli/sessions.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 392,425,437,447,461,466
+src/platform/linux.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 19-20,743-746,750-800,1071-1297
+  s_1b9946058014c9::t_a2844d050fdadb 1298
+skills/herdr/SKILL.md
+  s_1b9946058014c9::t_a1b3e01a27bfb7 120,128
+docs/versions/0.8.2/website/src/content/docs/ja/concepts.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-85
+website/assets/favicon.svg
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-6
+website/install.cmd
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-21
+website/src/components/MarketingLayout.astro
+  s_1b9946058014c9::t_a1b3e01a27bfb7 49-50
+docs/next/README.zh-CN.md
+  s_1b9946058014c9::t_a1b3e01a27bfb7 45
+docs/next/website/src/content/docs/troubleshooting.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 73-89
+src/app/api.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 303-304,1426,1451-1452
+website/src/components/SiteLayout.astro
+  s_1b9946058014c9::t_a1b3e01a27bfb7 62-63
+docs/versions/0.8.2/website/src/content/docs/zh-cn/cli-reference.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-446
+src/input/encode.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 19-22
+docs/versions/0.8.2/website/src/content/docs/zh-cn/config-reference.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-26
+website/latest.json
+  s_1b9946058014c9::t_a1b3e01a27bfb7 2-4,6-10,13-17,20-37
+docs/versions/0.8.2/website/src/content/docs/zh-cn/plugins.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-330
+docs/versions/0.8.2/website/src/content/docs/zh-cn/concepts.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-85
+src/pane/terminal.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 10,117,133,391,396-419,1492-1494,1496-1499,1501-1502,1505-1513,1678-1728,1735-1737,1800,4492-4498,4502,4516-4537
+.agents/skills/herdr-pre-release-audit/references/pre-release-audit.md
+  s_1b9946058014c9::t_a1b3e01a27bfb7 47-52,54,90
+website/scripts/prepare-docs.mjs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 71,76
+docs/versions/0.8.2/website/src/content/docs/zh-cn/integrations.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-376
+CHANGELOG.md
+  s_1b9946058014c9::t_a1b3e01a27bfb7 5,15,31-33
+docs/versions/0.8.2/website/src/content/docs/ja/cli-reference.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-446
+src/app/tab_bar_status.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 280-281,285-348,768,773-812
+  s_1b9946058014c9::t_5ce8ea6207f543 813
+src/detect/manifests/claude.toml
+  s_1b9946058014c9::t_a1b3e01a27bfb7 2,4,16-59
+  s_1b9946058014c9::t_4cd3bff9c38c66 60
+docs/next/CHANGELOG.md
+  s_1b9946058014c9::t_a1b3e01a27bfb7 7,9-29,39,55-58
+src/app/input/mouse.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1764,3397
+website/agent-detection/claude.toml
+  s_1b9946058014c9::t_a1b3e01a27bfb7 2,4,16-59
+  s_1b9946058014c9::t_284740f9c23763 60
+scripts/release_perf_smoke.sh
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-92
+docs/next/website/src/content/docs/ja/cli-reference.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 120,142
+docs/versions/0.8.2/website/src/content/docs/ja/integrations.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-376
+src/api/schema/workspaces.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 20-26
+website/_headers
+  s_1b9946058014c9::t_a1b3e01a27bfb7 9-17,26-32
+  s_1b9946058014c9::t_c73c285730501f 33
+docs/versions/0.8.2/website/src/content/docs/quick-start.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-69
+tests/client_mode.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 86-93,106,394-509
+  s_1b9946058014c9::t_f78a57f75eacfb 85,510
+src/render_signal.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 19-25,38-39,42,46,48-49,52-53,55,58-59,61-62,65-67,69-76,82-83,86,92,95,101-102,106,122,131-155,189
+website/install.ps1
+  s_1b9946058014c9::t_a1b3e01a27bfb7 219-262,279-290,744,763,792
+src/app/mod.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 340,357-359,368,370-385,388,391,721,1085-1086,2827-2837,2885-2932
+  s_1b9946058014c9::t_f3307d90c27162 2933
+src/detect/manifest.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 288-317
+src/events.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 131
+src/terminal/runtime.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 316-318,323-341
+  s_1b9946058014c9::t_396a56c929bb10 342
+src/client/input/windows_vti.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 590,592-608,2041-2211,2214
+  s_1b9946058014c9::t_49c5f2d67a8ea6 2212-2213,2215
+src/app/input/modal.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 736,741-744,753,1120-1121,1251,2146,2155,2175,2310-2352
+  s_1b9946058014c9::t_99234c9f636caa 2353
+docs/versions/0.8.2/website/src/content/docs/windows-beta.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-148
+docs/versions/0.8.2/website/src/content/docs/index.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-77
+src/ghostty/bindings.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 2577-2578
+AGENTS.md
+  s_1b9946058014c9::t_a1b3e01a27bfb7 61-64,192,198-202
+docs/versions/0.8.2/website/src/content/docs/marketplace.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-54
+tests/api_ping.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 307,1497-1502
+docs/versions/0.8.2/website/src/content/docs/agents.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-157
+src/config/theme.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 122-150,315-341
+  s_1b9946058014c9::t_450b9282dcc7f2 342-343
+tests/cli/agents.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 3-31
+docs/preview/website/src/content/docs/zh-cn/integrations.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 180-182
+docs/versions/0.8.2/website/src/content/docs/persistence-remote.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-163
+src/app/actions.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1680,1970,1975,1978-1979,1982,1984,1986-2012,2016-2018,2185,2255,2753-2755,5794
+docs/versions/0.8.2/website/src/content/docs/zh-cn/agents.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-157
+scripts/release_perf_case.sh
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-149
+docs/preview/website/src/content/docs/integrations.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 178-180
+src/app/input/mod.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 598-599,602,604-612
+docs/versions/0.8.2/website/src/content/docs/integrations.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-374
+src/platform/fallback.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 6-15
+docs/versions/0.8.2/website/src/content/docs/ja/quick-start.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-69
+docs/versions/0.8.2/website/src/content/docs/install.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-154
+src/api/server.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 694,697-709,711,713-715
+src/app/api/worktrees.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 2184-2245
+  s_1b9946058014c9::t_159044582a6851 2183
+src/input/mod.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 12-13,15-16
+docs/preview/website/src/content/docs/windows-beta.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 48
+src/app/input/lease.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 60-64,83,260-272,352-423
+  s_1b9946058014c9::t_5e876d0bc545aa 424
+docs/next/website/src/content/docs/socket-api.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 121-127,415-416,812-813
+docs/preview/website/src/content/docs/zh-cn/windows-beta.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 48
+docs/versions/0.8.2/website/src/content/docs/zh-cn/windows-beta.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-148
+docs/next/website/src/content/docs/ja/socket-api.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 114,302-303,640
+docs/next/website/src/content/docs/configuration.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 280-296,319
+docs/versions/0.8.2/website/src/content/docs/zh-cn/install.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-154
+docs/next/website/src/content/docs/ja/troubleshooting.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 73-89
+docs/versions/0.8.2/website/src/content/docs/zh-cn/configuration.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-539
+src/cli/agent.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 5-6,121-135
+docs/versions/0.8.2/website/src/content/docs/ja/session-state.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-108
+src/detect/manifest_update.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 172-174,178,194,199-227,230,247,307-311,591-594,597,735-904
+  s_1b9946058014c9::t_c1e717a05895dd 905
+src/cli/completion.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 38,41
+src/input/model.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 298,309,311
+src/kitty_graphics.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 21,229,233-237,245,248-254,274,283-289,363-388,512-525,531,599-603,612,614-621,627,631,634-638,652-659,670-678,687,689-691,822,910,920,926-939,1068,1128,1130-1136,1163-1181,2578-2582,2605,2636,2650-3222
+  s_1b9946058014c9::t_b05fe9b3c6df2a 3223
+Cargo.toml
+  s_1b9946058014c9::t_a1b3e01a27bfb7 3
+src/server/terminal_attach.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 5
+src/ui/sidebar.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 5,751-758,798,800,807,1260,1796-1884
+  s_1b9946058014c9::t_b1861291e911d7 1885
+docs/next/website/src/content/docs/integrations.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 180-182
+tests/broken_pipe.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-49
+docs/versions/0.8.2/website/src/content/docs/ja/agent-skill.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-67
+src/ghostty/mod.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1037-1040,3642-3651
+  s_1b9946058014c9::t_511f4f83874b3c 3652
+docs/versions/0.8.2/website/src/content/docs/ja/windows-beta.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-148
+docs/versions/0.8.2/website/src/content/docs/cli-reference.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-497
+docs/next/README.md
+  s_1b9946058014c9::t_a1b3e01a27bfb7 47
+src/platform/unix_common.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 3-21,231-236,241-251
+  s_1b9946058014c9::t_cabed8652211bf 252
+scripts/release_perf_producer.pl
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-26
+docs/versions/0.8.2/website/src/content/docs/keyboard.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-112
+src/raw_input.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 111-122,126,1430-1433
+justfile
+  s_1b9946058014c9::t_a1b3e01a27bfb7 76-80,138,142
+docs/versions/0.8.2/website/src/content/docs/concepts.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-85
+src/integration/assets/herdr-agent-state.test.ts
+  s_1b9946058014c9::t_a1b3e01a27bfb7 501-539
+tests/cli/workspace.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 220-295
+  s_1b9946058014c9::t_ed7b15a3336cf3 219
+docs/next/website/src/content/docs/install.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 22-27
+website/index.html
+  s_1b9946058014c9::t_a1b3e01a27bfb7 50-51,479
+website/agent-guide.md
+  s_1b9946058014c9::t_a1b3e01a27bfb7 35,42-45
+  s_1b9946058014c9::t_f4924c0ce5de28 46-48
+src/integration/mod.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 30
+docs/next/website/src/content/docs/zh-cn/troubleshooting.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 73-89
+docs/next/api/herdr-api.schema.json
+  s_1b9946058014c9::t_a1b3e01a27bfb7 3,4149-4162,4740
+docs/next/website/src/content/docs/ja/configuration.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 276-292
+scripts/test_ui_hot_path_architecture.py
+  s_1b9946058014c9::t_a1b3e01a27bfb7 14-17,19-26,28,138-149,152,161-171,197-205
+  s_1b9946058014c9::t_9850d259cf6bd4 206
+docs/versions/0.8.2/website/src/content/docs/zh-cn/session-state.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-108
+website/preview.json
+  s_1b9946058014c9::t_a1b3e01a27bfb7 4-7,9,12-13,16-17,20-21,24-25,28-29,34-63
+README.md
+  s_1b9946058014c9::t_a1b3e01a27bfb7 47
+docs/versions/0.8.2/website/src/content/docs/zh-cn/quick-start.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-69
+src/config.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 36
+scripts/test_docs_translation_parity.py
+  s_1b9946058014c9::t_a1b3e01a27bfb7 59
+scripts/windows_install_conpty_package_test.ps1
+  s_1b9946058014c9::t_a1b3e01a27bfb7 10-19,30-42,102,141,162,164,167-170,491
+src/api/wait.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 677-684
+docs/next/website/src/content/docs/ja/windows-beta.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 16-21,54
+docs/next/website/src/content/docs/zh-cn/socket-api.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 114,302-303,636
+docs/versions/0.8.2/website/src/content/docs/ja/marketplace.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-52
+docs/versions/0.8.2/website/src/content/docs/session-state.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-108
+docs/versions/0.8.2/website/src/content/docs/plugins.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-374
+docs/versions/0.8.2/website/src/content/docs/troubleshooting.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-95
+docs/versions/0.8.2/website/src/content/docs/zh-cn/index.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-77
+src/cli/spec.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 67,70-74,106,1091,1205,1313
+src/integration/assets/omp/herdr-agent-state.ts
+  s_1b9946058014c9::t_a1b3e01a27bfb7 5,445-447
+  s_1b9946058014c9::t_baf77ab80740ab 448-449
+docs/preview/website/src/content/docs/ja/integrations.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 180-182
+docs/versions/0.8.2/website/src/content/docs/zh-cn/agent-automation.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-123
+docs/next/website/src/content/docs/zh-cn/configuration.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 276-292
+docs/versions/0.8.2/website/src/content/docs/agent-automation.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-123
+src/platform/mod.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 201-208
+tests/support/mod.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 18
+docs/versions/0.8.2/website/src/data/config-reference.json
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-1261
+docs/versions/0.8.2/website/src/content/docs/zh-cn/keyboard.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-112
+docs/versions/0.8.2/website/src/content/docs/ja/persistence-remote.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-130
+src/client/mod.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 117,140-147,360-361,363-364,396,1297,1541-1547,3153-3183
+  s_1b9946058014c9::t_24b0ef4cd03b71 3184
+docs/next/website/src/content/docs/windows-beta.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 16-21,54
+docs/next/website/src/content/docs/zh-cn/integrations.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 182-184
+docs/preview/website/src/content/docs/ja/windows-beta.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 48
+docs/versions/0.8.2/website/src/content/docs/ja/config-reference.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-27
+src/app/api/plugins/panes.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 19,21,29,52,54,58-66,105,107,128,194,240,245
+docs/next/website/src/content/docs/zh-cn/windows-beta.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 16-21,54
+docs/versions/0.8.2/website/src/content/docs/ja/keyboard.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-112
+docs/versions/0.8.2/website/src/content/docs/agent-skill.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-67
+docs/versions/0.8.2/website/src/content/docs/zh-cn/persistence-remote.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-130
+src/cli/runtime.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 5-6,45-46
+src/api/subscriptions.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 4-6,113,115-121,123-160,605-613,638-666,677
+src/app/state.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 648-709,1448-1449,1681-1700,1709,1841
+src/main.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 140-148,626,742,748,754
+src/protocol/wire.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 16
+src/api/schema.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 83
+.github/workflows/preview.yml
+  s_1b9946058014c9::t_a1b3e01a27bfb7 347-392,398,410-416
+  s_1b9946058014c9::t_91f27df6972e50 417
+docs/versions/0.8.2/website/src/content/docs/how-to-work.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-103
+docs/next/website/src/content/docs/cli-reference.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 124,146
+docs/next/website/src/content/docs/ja/install.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 22-27
+docs/next/website/src/content/docs/zh-cn/cli-reference.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 120,142
+docs/versions/0.8.2/website/src/content/docs/configuration.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-544
+docs/versions/0.8.2/website/src/content/docs/ja/configuration.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-539
+website/astro.config.mjs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 74,113-118
+docs/next/website/src/content/docs/ja/integrations.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 182-184
+src/cli/workspace.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 228-234,237-240,251
+docs/versions/0.8.2/website/src/content/docs/ja/troubleshooting.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-95
+docs/versions/0.8.2/website/src/content/docs/socket-api.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-934
+src/app/api/workspaces.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 4-5,298-304,307,309-323,325,329-337,467-591,594-595,599-601,608-609,622,624
+src/platform/macos.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 19-20
+docs/versions/0.8.2/website/src/content/docs/ja/index.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-77
+src/api/schema/tests.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 65-91
+  s_1b9946058014c9::t_58113249099ecd 64
+src/app/worktrees.rs
+  s_1b9946058014c9::t_a1b3e01a27bfb7 971,983-985
+docs/versions/0.8.2/website/src/content/docs/zh-cn/marketplace.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-44
+docs/versions/0.8.2/website/src/content/docs/ja/install.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-154
+docs/versions/0.8.2/website/src/content/docs/zh-cn/how-to-work.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-103
+docs/versions/0.8.2/website/src/content/docs/ja/agent-automation.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-123
+docs/versions/0.8.2/website/src/content/docs/ja/agents.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-157
+docs/versions/0.8.2/website/src/content/docs/zh-cn/agent-skill.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-67
+docs/versions/0.8.2/website/src/content/docs/config-reference.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-21
+docs/versions/0.8.2/website/src/content/docs/ja/plugins.mdx
+  s_1b9946058014c9::t_a1b3e01a27bfb7 1-370
+Cargo.lock
+  s_1b9946058014c9::t_d39468e8b02973 674
+vendor/libghostty-vt.patches.md
+  s_1b9946058014c9::t_203c10e835c420 41-77
+vendor/libghostty-vt/include/ghostty/vt/terminal.h
+  s_1b9946058014c9::t_2c8326512814f4 1200-1206
+vendor/libghostty-vt/src/terminal/c/terminal.zig
+  s_1b9946058014c9::t_38d88b1d54cee6 760,767-772,908,1664-1689
+vendor/patches/libghostty-vt/0002-expose-modify-other-keys-mode.patch
+  s_1b9946058014c9::t_e3c8d53126cce0 1-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "4bfd532f35e9491fc7e72ae68a295ec782015fa4",
+  "prompts": {},
+  "sessions": {
+    "s_1b9946058014c9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a03aed-6c56-7480-b652-08cc81476b3d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ben Myles <ben@2q31.com>"
+    }
+  }
+}
