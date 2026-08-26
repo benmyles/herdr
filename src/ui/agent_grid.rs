@@ -122,7 +122,6 @@ fn live_agent_targets(
         let Some(workspace) = app.workspaces.get(ws_idx) else {
             continue;
         };
-        let workspace_label = workspace.display_name_from(&app.terminals, terminal_runtimes);
         let multi_tab = workspace.tabs.len() > 1;
         for (tab_idx, tab) in workspace.tabs.iter().enumerate() {
             let tab_label = multi_tab
@@ -148,10 +147,11 @@ fn live_agent_targets(
                     .or_else(|| terminal.agent_name.clone())
                     .or_else(|| terminal.effective_agent_label().map(str::to_string))
                     .unwrap_or_else(|| "agent".to_string());
+                let pane_label = workspace.display_name_for_cwd(&terminal.cwd);
                 let context = tab_label
                     .as_ref()
-                    .map(|tab| format!("{workspace_label}/{tab}"))
-                    .unwrap_or_else(|| workspace_label.clone());
+                    .map(|tab| format!("{pane_label}/{tab}"))
+                    .unwrap_or(pane_label);
                 targets.push(LiveAgentTarget {
                     ws_idx,
                     pane_id,
@@ -799,6 +799,57 @@ mod tests {
             .map(|pane| pane.label.as_str())
             .collect::<Vec<_>>();
         assert_eq!(labels, ["planner · one/review", "claude · two"]);
+    }
+
+    #[tokio::test]
+    async fn agent_grid_title_uses_target_pane_cwd_for_workspace_context() {
+        let mut workspace = Workspace::test_new("workspace");
+        workspace.custom_name = None;
+        let root_pane = workspace.tabs[0].root_pane;
+        workspace.insert_test_runtime(
+            root_pane,
+            crate::terminal::TerminalRuntime::test_with_screen_bytes(20, 5, b"PLAIN-SHELL"),
+        );
+        let agent_tab = workspace.test_add_tab(Some("review"));
+        let agent_pane = workspace.tabs[agent_tab].root_pane;
+        workspace.insert_test_runtime(
+            agent_pane,
+            crate::terminal::TerminalRuntime::test_with_screen_bytes(20, 5, b"DROID-LIVE"),
+        );
+
+        let mut app = AppState::test_new();
+        app.workspaces = vec![workspace];
+        app.ensure_test_terminals();
+        let root_terminal_id = app.workspaces[0]
+            .terminal_id(root_pane)
+            .cloned()
+            .expect("root terminal id");
+        app.terminals
+            .get_mut(&root_terminal_id)
+            .expect("root terminal")
+            .cwd = "/projects/dsv4-flash-pd-verda".into();
+        let agent_terminal_id = app.workspaces[0]
+            .terminal_id(agent_pane)
+            .cloned()
+            .expect("agent terminal id");
+        let agent_terminal = app
+            .terminals
+            .get_mut(&agent_terminal_id)
+            .expect("agent terminal");
+        agent_terminal.cwd = "/projects/pyshiftup.gil-free-rust-html-md".into();
+        agent_terminal.detected_agent = Some(Agent::Droid);
+        app.active = Some(0);
+        app.main_surface = MainSurface::LiveAgents;
+
+        crate::ui::compute_view(&mut app, Rect::new(0, 0, 120, 40));
+
+        let labels = app
+            .view
+            .agent_grid_panes
+            .iter()
+            .map(|pane| pane.label.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(labels, ["droid · pyshiftup.gil-free-rust-html-md/review"]);
     }
 
     #[tokio::test]

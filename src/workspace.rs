@@ -1115,21 +1115,13 @@ impl Workspace {
 
     #[cfg(test)]
     pub fn display_name(&self) -> String {
-        if let Some(name) = &self.custom_name {
-            return name.clone();
-        }
-
-        self.automatic_display_name_for_cwd(&self.identity_cwd)
+        self.display_name_for_cwd(&self.identity_cwd)
     }
 
     pub(crate) fn display_name_from_terminals(
         &self,
         terminals: &HashMap<TerminalId, TerminalState>,
     ) -> String {
-        if let Some(name) = &self.custom_name {
-            return name.clone();
-        }
-
         let cwd = self
             .tabs
             .first()
@@ -1137,7 +1129,7 @@ impl Workspace {
             .and_then(|terminal_id| terminals.get(terminal_id))
             .map(|terminal| &terminal.cwd)
             .unwrap_or(&self.identity_cwd);
-        self.automatic_display_name_for_cwd(cwd)
+        self.display_name_for_cwd(cwd)
     }
 
     pub fn display_name_from(
@@ -1145,13 +1137,17 @@ impl Workspace {
         terminals: &HashMap<TerminalId, TerminalState>,
         terminal_runtimes: &TerminalRuntimeRegistry,
     ) -> String {
+        self.resolved_identity_cwd_from(terminals, terminal_runtimes)
+            .map(|cwd| self.display_name_for_cwd(&cwd))
+            .unwrap_or_else(|| "workspace".into())
+    }
+
+    pub(crate) fn display_name_for_cwd(&self, cwd: &std::path::Path) -> String {
         if let Some(name) = &self.custom_name {
             return name.clone();
         }
 
-        self.resolved_identity_cwd_from(terminals, terminal_runtimes)
-            .map(|cwd| self.automatic_display_name_for_cwd(&cwd))
-            .unwrap_or_else(|| "workspace".into())
+        self.automatic_display_name_for_cwd(cwd)
     }
 
     fn automatic_display_name_for_cwd(&self, cwd: &std::path::Path) -> String {
