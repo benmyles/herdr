@@ -1,0 +1,34 @@
+src/ui/agent_grid.rs
+  s_09407638104e48::t_7ed18a71902bd1 697-725,727-732,734,736-742
+  s_09407638104e48::t_4f67840b62d219 3
+  s_09407638104e48::t_72cddf213ad6d3 733,735
+  s_09407638104e48::t_d8c4c560d7376e 249-254,256-270
+  s_09407638104e48::t_6e0128943c9fe1 726
+  s_09407638104e48::t_c794feff4f2bff 255
+  s_09407638104e48::t_7173fce382964a 289-296,304,308,311,314-316
+  s_54eeeec3cf9c67::t_fb9274d8de0a11 696
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "ec0fc29e1df67abba753661c4809258302a16d4b",
+  "prompts": {},
+  "sessions": {
+    "s_09407638104e48": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "dbcf5c26-0b93-4832-838b-6f0ec80bbf08",
+        "model": "kimi-k3"
+      },
+      "human_author": null
+    },
+    "s_54eeeec3cf9c67": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "9f841248-d6fa-4289-8a1b-657b26d3c4bb",
+        "model": "custom:fireworks/kimi-k3-fast"
+      },
+      "human_author": "Ben Myles <ben@2q31.com>"
+    }
+  }
+}
