@@ -600,6 +600,19 @@ impl AppState {
                         return None;
                     }
 
+                    if self.on_agent_grid_toggle(mouse.column, mouse.row) {
+                        self.toggle_agent_grid();
+                        if self.main_surface == crate::app::state::MainSurface::LiveAgents {
+                            if let Some((ws_idx, pane_id, terminal_id)) =
+                                self.preferred_live_agent_grid_target(terminal_runtimes)
+                            {
+                                self.agent_grid_selected_terminal = Some(terminal_id);
+                                return Some(MouseAction::FocusPane { ws_idx, pane_id });
+                            }
+                        }
+                        return None;
+                    }
+
                     if self.on_agent_panel_sort_toggle(mouse.column, mouse.row) {
                         self.agent_panel_sort = match self.agent_panel_sort {
                             AgentPanelSort::Spaces => AgentPanelSort::Priority,
@@ -1446,7 +1459,13 @@ impl AppState {
     }
 
     pub(super) fn pane_at(&self, col: u16, row: u16) -> Option<&PaneInfo> {
-        self.view.pane_infos.iter().find(|p| {
+        let grid = self
+            .view
+            .agent_grid_panes
+            .iter()
+            .map(|pane| &pane.pane_info);
+        let workspace = self.view.pane_infos.iter();
+        grid.chain(workspace).find(|p| {
             col >= p.inner_rect.x
                 && col < p.inner_rect.x + p.inner_rect.width
                 && row >= p.inner_rect.y
@@ -1484,6 +1503,7 @@ impl AppState {
         tab_press: Option<TabPressState>,
     ) -> Option<MouseAction> {
         if let Some(press) = workspace_press {
+            self.show_workspace_surface();
             self.mode = Mode::Terminal;
             return Some(MouseAction::FocusWorkspace {
                 ws_idx: press.ws_idx,
@@ -1491,6 +1511,7 @@ impl AppState {
         }
         if let Some(press) = tab_press {
             if self.active == Some(press.ws_idx) {
+                self.show_workspace_surface();
                 self.mode = Mode::Terminal;
                 return Some(MouseAction::FocusTab {
                     tab_idx: press.tab_idx,
@@ -1524,7 +1545,7 @@ impl AppState {
     }
 
     fn mouse_pane_focus_action(&self, pane_id: crate::layout::PaneId) -> Option<MouseAction> {
-        let ws_idx = self.active?;
+        let ws_idx = self.surface_workspace_idx_for_pane(pane_id)?;
         (self
             .workspaces
             .get(ws_idx)
@@ -1534,16 +1555,26 @@ impl AppState {
     }
 
     pub(crate) fn pane_info_by_id(&self, pane_id: crate::layout::PaneId) -> Option<&PaneInfo> {
-        self.view.pane_infos.iter().find(|info| info.id == pane_id)
+        self.view
+            .agent_grid_panes
+            .iter()
+            .map(|pane| &pane.pane_info)
+            .chain(self.view.pane_infos.iter())
+            .find(|info| info.id == pane_id)
     }
 
     pub(super) fn pane_frame_at(&self, col: u16, row: u16) -> Option<&PaneInfo> {
-        self.view.pane_infos.iter().find(|p| {
-            col >= p.rect.x
-                && col < p.rect.x + p.rect.width
-                && row >= p.rect.y
-                && row < p.rect.y + p.rect.height
-        })
+        self.view
+            .agent_grid_panes
+            .iter()
+            .map(|pane| &pane.pane_info)
+            .chain(self.view.pane_infos.iter())
+            .find(|p| {
+                col >= p.rect.x
+                    && col < p.rect.x + p.rect.width
+                    && row >= p.rect.y
+                    && row < p.rect.y + p.rect.height
+            })
     }
 
     pub(super) fn focus_pane(&mut self, pane_id: crate::layout::PaneId) {
@@ -1584,7 +1615,7 @@ impl AppState {
         pane_id: crate::layout::PaneId,
         lines: usize,
     ) {
-        if let Some(ws_idx) = self.active {
+        if let Some(ws_idx) = self.surface_workspace_idx_for_pane(pane_id) {
             if let Some(rt) = self.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, pane_id)
             {
                 rt.scroll_up(lines);
@@ -1598,7 +1629,7 @@ impl AppState {
         pane_id: crate::layout::PaneId,
         lines: usize,
     ) {
-        if let Some(ws_idx) = self.active {
+        if let Some(ws_idx) = self.surface_workspace_idx_for_pane(pane_id) {
             if let Some(rt) = self.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, pane_id)
             {
                 rt.scroll_down(lines);
@@ -1611,7 +1642,7 @@ impl AppState {
         terminal_runtimes: &TerminalRuntimeRegistry,
         pane_id: crate::layout::PaneId,
     ) -> Option<crate::pane::ScrollMetrics> {
-        self.active
+        self.surface_workspace_idx_for_pane(pane_id)
             .and_then(|i| self.runtime_for_pane_in_workspace(terminal_runtimes, i, pane_id))
             .and_then(crate::terminal::TerminalRuntime::scroll_metrics)
     }
@@ -1780,7 +1811,7 @@ impl AppState {
         info: &PaneInfo,
         mouse: MouseEvent,
     ) -> bool {
-        let Some(ws_idx) = self.active else {
+        let Some(ws_idx) = self.surface_workspace_idx_for_pane(info.id) else {
             return false;
         };
         let Some(rt) = self.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, info.id)
@@ -1806,7 +1837,7 @@ impl AppState {
         info: &PaneInfo,
         mouse: MouseEvent,
     ) -> bool {
-        let Some(ws_idx) = self.active else {
+        let Some(ws_idx) = self.surface_workspace_idx_for_pane(info.id) else {
             return false;
         };
         let Some(rt) = self.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, info.id)
@@ -1831,7 +1862,7 @@ impl AppState {
         info: &PaneInfo,
         mouse: MouseEvent,
     ) -> bool {
-        let Some(ws_idx) = self.active else {
+        let Some(ws_idx) = self.surface_workspace_idx_for_pane(info.id) else {
             return false;
         };
         let Some(rt) = self.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, info.id)
@@ -1861,7 +1892,7 @@ impl AppState {
         info: &PaneInfo,
         mouse: MouseEvent,
     ) -> bool {
-        let Some(ws_idx) = self.active else {
+        let Some(ws_idx) = self.surface_workspace_idx_for_pane(info.id) else {
             return false;
         };
         let Some(rt) = self.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, info.id)
@@ -1908,15 +1939,21 @@ impl AppState {
         col: u16,
         row: u16,
     ) -> Option<(crate::layout::PaneId, ScrollbarClickTarget)> {
-        let ws_idx = self.active?;
-        let info = self.view.pane_infos.iter().find(|info| {
-            crate::ui::pane_scrollbar_rect(info).is_some_and(|track| {
-                col >= track.x
-                    && col < track.x + track.width
-                    && row >= track.y
-                    && row < track.y + track.height
-            })
-        })?;
+        let info = self
+            .view
+            .agent_grid_panes
+            .iter()
+            .map(|pane| &pane.pane_info)
+            .chain(self.view.pane_infos.iter())
+            .find(|info| {
+                crate::ui::pane_scrollbar_rect(info).is_some_and(|track| {
+                    col >= track.x
+                        && col < track.x + track.width
+                        && row >= track.y
+                        && row < track.y + track.height
+                })
+            })?;
+        let ws_idx = self.surface_workspace_idx_for_pane(info.id)?;
         let rt = self.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, info.id)?;
         let metrics = rt.scroll_metrics()?;
         if metrics.max_offset_from_bottom == 0 {
@@ -1942,12 +1979,8 @@ impl AppState {
         row: u16,
         grab_row_offset: u16,
     ) -> Option<usize> {
-        let ws_idx = self.active?;
-        let info = self
-            .view
-            .pane_infos
-            .iter()
-            .find(|info| info.id == pane_id)?;
+        let ws_idx = self.surface_workspace_idx_for_pane(pane_id)?;
+        let info = self.pane_info_by_id(pane_id)?;
         let track = crate::ui::pane_scrollbar_rect(info)?;
         let rt = self.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, pane_id)?;
         let metrics = rt.scroll_metrics()?;

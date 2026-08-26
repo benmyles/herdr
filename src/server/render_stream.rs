@@ -402,14 +402,51 @@ pub(crate) fn visible_hyperlinks(
     app_state: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,
 ) -> Vec<((u16, u16), String, String)> {
-    crate::ui::tab_surface_hyperlinks(app_state, terminal_runtimes, app_state.view.tab_surface())
+    if app_state.main_surface == crate::app::state::MainSurface::LiveAgents {
+        crate::ui::agent_grid_hyperlinks(app_state, terminal_runtimes)
+    } else {
+        crate::ui::tab_surface_hyperlinks(
+            app_state,
+            terminal_runtimes,
+            app_state.view.tab_surface(),
+        )
+    }
 }
 
 pub(crate) fn focused_terminal_cursor(
     app_state: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,
 ) -> Option<CursorState> {
-    crate::ui::tab_surface_cursor(app_state, terminal_runtimes, app_state.view.tab_surface())
+    if app_state.main_surface == crate::app::state::MainSurface::LiveAgents {
+        crate::ui::agent_grid_cursor(app_state, terminal_runtimes)
+    } else {
+        crate::ui::tab_surface_cursor(app_state, terminal_runtimes, app_state.view.tab_surface())
+    }
+}
+
+fn focused_surface_runtime<'a>(
+    app_state: &'a AppState,
+    terminal_runtimes: &'a TerminalRuntimeRegistry,
+) -> Option<(
+    usize,
+    crate::layout::PaneId,
+    &'a crate::terminal::TerminalRuntime,
+)> {
+    if app_state.main_surface == crate::app::state::MainSurface::LiveAgents {
+        let grid = app_state.agent_grid_selected_pane()?;
+        return app_state
+            .runtime_for_pane_in_workspace(terminal_runtimes, grid.ws_idx, grid.pane_info.id)
+            .map(|runtime| (grid.ws_idx, grid.pane_info.id, runtime));
+    }
+    let ws_idx = app_state.active?;
+    let info = app_state
+        .view
+        .pane_infos
+        .iter()
+        .find(|info| info.is_focused)?;
+    app_state
+        .runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, info.id)
+        .map(|runtime| (ws_idx, info.id, runtime))
 }
 
 fn focused_terminal_owns_host_cursor(
@@ -420,24 +457,14 @@ fn focused_terminal_owns_host_cursor(
         return false;
     }
 
-    let Some(ws_idx) = app_state.active else {
-        return false;
-    };
-    let Some(info) = app_state
-        .view
-        .pane_infos
-        .iter()
-        .find(|info| info.is_focused)
+    let Some((ws_idx, pane_id, _runtime)) = focused_surface_runtime(app_state, terminal_runtimes)
     else {
         return false;
     };
-    if !app_state.pane_exposes_host_cursor(ws_idx, info.id) {
+    if !app_state.pane_exposes_host_cursor(ws_idx, pane_id) {
         return false;
     }
-
-    app_state
-        .runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, info.id)
-        .is_some()
+    true
 }
 
 fn focused_terminal_suppresses_host_cursor(
@@ -448,24 +475,14 @@ fn focused_terminal_suppresses_host_cursor(
         return false;
     }
 
-    let Some(ws_idx) = app_state.active else {
-        return false;
-    };
-    let Some(info) = app_state
-        .view
-        .pane_infos
-        .iter()
-        .find(|info| info.is_focused)
+    let Some((ws_idx, pane_id, runtime)) = focused_surface_runtime(app_state, terminal_runtimes)
     else {
         return false;
     };
-    if !app_state.pane_exposes_host_cursor(ws_idx, info.id) {
+    if !app_state.pane_exposes_host_cursor(ws_idx, pane_id) {
         return false;
     }
-
-    app_state
-        .runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, info.id)
-        .is_some_and(crate::terminal::TerminalRuntime::synchronized_output_active)
+    runtime.synchronized_output_active()
 }
 
 #[cfg(test)]
@@ -546,6 +563,35 @@ mod render_scale_benchmark {
         app_with(vec![workspace])
     }
 
+    fn app_with_agent_grid(agent_count: usize) -> AppState {
+        let history = history();
+        let workspaces = (0..agent_count)
+            .map(|index| {
+                let mut workspace = Workspace::test_new(&format!("agent-{}", index + 1));
+                let root_pane = workspace.tabs[0].root_pane;
+                workspace.tabs[0]
+                    .runtimes
+                    .insert(root_pane, runtime(&history));
+                workspace
+            })
+            .collect();
+        let mut app = app_with(workspaces);
+        app.ensure_test_terminals();
+        for workspace in &app.workspaces {
+            let pane_id = workspace.tabs[0].root_pane;
+            let terminal_id = workspace
+                .terminal_id(pane_id)
+                .cloned()
+                .expect("agent benchmark terminal");
+            app.terminals
+                .get_mut(&terminal_id)
+                .expect("agent benchmark state")
+                .detected_agent = Some(crate::detect::Agent::Pi);
+        }
+        app.main_surface = crate::app::state::MainSurface::LiveAgents;
+        app
+    }
+
     fn app_with(workspaces: Vec<Workspace>) -> AppState {
         let mut app = AppState::test_new();
         app.mode = Mode::Terminal;
@@ -622,6 +668,17 @@ mod render_scale_benchmark {
             "background workspaces",
         );
         assert_full_render_avoids_aggregate_input_state(app_with_active_panes(15), "active panes");
+        assert_full_render_avoids_aggregate_input_state(app_with_agent_grid(15), "live-agent grid");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn empty_agent_grid_has_no_hidden_workspace_cursor_owner() {
+        let mut app = app_with_workspaces(1);
+        app.main_surface = crate::app::state::MainSurface::LiveAgents;
+        crate::ui::compute_view(&mut app, AREA);
+
+        assert!(app.view.agent_grid_panes.is_empty());
+        assert!(focused_surface_runtime(&app, &TerminalRuntimeRegistry::new()).is_none());
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -634,6 +691,10 @@ mod render_scale_benchmark {
         print_profiles(
             "active panes (one workspace)",
             profile_cardinalities(app_with_active_panes),
+        );
+        print_profiles(
+            "live-agent grid (one agent per workspace)",
+            profile_cardinalities(app_with_agent_grid),
         );
     }
 }

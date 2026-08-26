@@ -89,6 +89,16 @@ pub(crate) fn agent_panel_toggle_rect(area: Rect, sort: AgentPanelSort) -> Rect 
     agent_panel_header_label_rect(area, agent_panel_sort_label(sort))
 }
 
+pub(crate) fn agent_panel_title_rect(area: Rect, control_label: &str) -> Rect {
+    if area.width == 0 || area.height < 2 {
+        return Rect::default();
+    }
+    let control = agent_panel_header_label_rect(area, control_label);
+    let available = control.x.saturating_sub(area.x);
+    let width = display_width_u16(" agents").min(available);
+    Rect::new(area.x, area.y + 1, width, 1)
+}
+
 fn agent_panel_header_label_rect(area: Rect, label: &str) -> Rect {
     if area.width == 0 || area.height < 2 {
         return Rect::default();
@@ -146,41 +156,41 @@ fn collect_agent_panel_entries_with_runtimes(
         }
     };
 
-    app.workspaces
-        .iter()
-        .enumerate()
-        .flat_map(|(ws_idx, ws)| {
-            let multi_tab = ws.tabs.len() > 1;
-            let workspace_label = ws.display_name_from(&app.terminals, terminal_runtimes);
-            ws.pane_details(&app.terminals)
-                .into_iter()
-                .map(move |detail| {
-                    let show_tab = multi_tab
-                        || ws
-                            .tabs
-                            .get(detail.tab_idx)
-                            .is_some_and(|tab| !tab.is_auto_named());
-                    AgentPanelEntry {
-                        ws_idx,
-                        tab_idx: detail.tab_idx,
-                        pane_id: detail.pane_id,
-                        primary_label: workspace_label.clone(),
-                        primary_tab_label: show_tab.then_some(detail.tab_label),
-                        pane_label: detail.pane_label,
-                        terminal_title: detail.terminal_title,
-                        terminal_title_stripped: detail.terminal_title_stripped,
-                        agent_label: Some(detail.agent_label),
-                        agent_kind_label: detail.agent_kind_label,
-                        agent: detail.agent,
-                        state: detail.state,
-                        seen: detail.seen,
-                        last_agent_state_change_seq: detail.last_agent_state_change_seq,
-                        state_labels: detail.state_labels,
-                        tokens: detail.tokens,
-                    }
-                })
-        })
-        .collect()
+    let spaces = super::space_colors::SpacePresentation::new(app);
+    let mut entries = Vec::new();
+    for &ws_idx in spaces.workspace_order() {
+        let Some(ws) = app.workspaces.get(ws_idx) else {
+            continue;
+        };
+        let multi_tab = ws.tabs.len() > 1;
+        let workspace_label = ws.display_name_from(&app.terminals, terminal_runtimes);
+        for detail in ws.pane_details(&app.terminals) {
+            let show_tab = multi_tab
+                || ws
+                    .tabs
+                    .get(detail.tab_idx)
+                    .is_some_and(|tab| !tab.is_auto_named());
+            entries.push(AgentPanelEntry {
+                ws_idx,
+                tab_idx: detail.tab_idx,
+                pane_id: detail.pane_id,
+                primary_label: workspace_label.clone(),
+                primary_tab_label: show_tab.then_some(detail.tab_label),
+                pane_label: detail.pane_label,
+                terminal_title: detail.terminal_title,
+                terminal_title_stripped: detail.terminal_title_stripped,
+                agent_label: Some(detail.agent_label),
+                agent_kind_label: detail.agent_kind_label,
+                agent: detail.agent,
+                state: detail.state,
+                seen: detail.seen,
+                last_agent_state_change_seq: detail.last_agent_state_change_seq,
+                state_labels: detail.state_labels,
+                tokens: detail.tokens,
+            });
+        }
+    }
+    entries
 }
 
 pub(super) fn agent_panel_status_key(state: AgentState, seen: bool) -> &'static str {
@@ -765,6 +775,7 @@ pub(super) fn render_sidebar_collapsed(app: &AppState, frame: &mut Frame, area: 
     let is_navigating = matches!(app.mode, Mode::Navigate);
 
     let p = &app.palette;
+    let spaces = super::space_colors::SpacePresentation::new(app);
     frame
         .buffer_mut()
         .set_style(area, Style::default().bg(p.sidebar_bg));
@@ -795,6 +806,7 @@ pub(super) fn render_sidebar_collapsed(app: &AppState, frame: &mut Frame, area: 
         let (icon, icon_style) = state_icon(agg_state, agg_seen, app.status_indicators, p);
         let is_selected = visible_idx == app.selected && is_navigating;
         let is_active = Some(visible_idx) == app.active;
+        let space_color = spaces.color(visible_idx);
         let selection_bg = workspace_selection_background(p, is_active);
         let row_style = if is_selected {
             Style::default().bg(selection_bg)
@@ -804,11 +816,17 @@ pub(super) fn render_sidebar_collapsed(app: &AppState, frame: &mut Frame, area: 
             Style::default()
         };
         let num_style = if is_selected {
-            Style::default().fg(p.overlay1).bg(selection_bg)
+            Style::default()
+                .fg(space_color)
+                .bg(selection_bg)
+                .add_modifier(Modifier::BOLD)
         } else if is_active {
-            Style::default().fg(p.text).bg(p.active_row_bg)
+            Style::default()
+                .fg(space_color)
+                .bg(p.active_row_bg)
+                .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(p.overlay0)
+            Style::default().fg(space_color)
         };
 
         if is_selected || is_active {
@@ -854,10 +872,14 @@ pub(super) fn render_sidebar_collapsed(app: &AppState, frame: &mut Frame, area: 
             }
             let position = detail_idx + 1;
             let is_active = app.is_active_pane(detail.ws_idx, detail.tab_idx, detail.pane_id);
+            let space_color = spaces.color(detail.ws_idx);
             let position_style = if is_active {
-                Style::default().fg(p.text).bg(p.active_row_bg)
+                Style::default()
+                    .fg(space_color)
+                    .bg(p.active_row_bg)
+                    .add_modifier(Modifier::BOLD)
             } else {
-                Style::default().fg(p.overlay0)
+                Style::default().fg(space_color)
             };
             let (icon, icon_style) =
                 state_icon(detail.state, detail.seen, app.status_indicators, p);
@@ -1003,9 +1025,17 @@ pub(super) fn render_sidebar(
     }
 
     let (ws_area, detail_area) = expanded_sidebar_sections(area, app.sidebar_section_split);
+    let spaces = super::space_colors::SpacePresentation::new(app);
 
-    render_workspace_list(app, terminal_runtimes, frame, ws_area, is_navigating);
-    render_agent_detail(app, terminal_runtimes, frame, detail_area);
+    render_workspace_list_with_spaces(
+        app,
+        terminal_runtimes,
+        frame,
+        ws_area,
+        is_navigating,
+        &spaces,
+    );
+    render_agent_detail_with_spaces(app, terminal_runtimes, frame, detail_area, &spaces);
     render_sidebar_toggle(app, frame, area, false, p);
 }
 
@@ -1206,12 +1236,25 @@ fn apply_token_style(mut style: Style, patch: crate::config::SidebarTokenStyle) 
     style
 }
 
+#[cfg(test)]
 fn render_workspace_list(
     app: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,
     frame: &mut Frame,
     area: Rect,
     is_navigating: bool,
+) {
+    let spaces = super::space_colors::SpacePresentation::new(app);
+    render_workspace_list_with_spaces(app, terminal_runtimes, frame, area, is_navigating, &spaces);
+}
+
+fn render_workspace_list_with_spaces(
+    app: &AppState,
+    terminal_runtimes: &TerminalRuntimeRegistry,
+    frame: &mut Frame,
+    area: Rect,
+    is_navigating: bool,
+    spaces: &super::space_colors::SpacePresentation,
 ) {
     let p = &app.palette;
     let dragged_ws_idx = match app.drag.as_ref().map(|drag| &drag.target) {
@@ -1253,6 +1296,7 @@ fn render_workspace_list(
         let is_active = Some(i) == app.active;
         let is_dragged = dragged_ws_idx == Some(i);
         let highlighted = selected || is_active || is_dragged;
+        let space_color = spaces.color(i);
         let (agg_state, agg_seen) = ws.aggregate_state(&app.terminals);
 
         if highlighted {
@@ -1274,10 +1318,12 @@ fn render_workspace_list(
             }
         }
 
-        let name_style = if selected || is_active || is_dragged {
-            Style::default().fg(p.text).add_modifier(Modifier::BOLD)
+        let name_style = if highlighted {
+            Style::default()
+                .fg(space_color)
+                .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(p.subtext0)
+            Style::default().fg(space_color)
         };
 
         let label = ws.display_name_from(&app.terminals, terminal_runtimes);
@@ -1308,11 +1354,11 @@ fn render_workspace_list(
         let state_text_style = Style::default()
             .fg(state_label_color(display_state, display_seen, p))
             .add_modifier(Modifier::DIM);
-        let branch_style = Style::default().fg(if selected || is_active {
-            p.mauve
+        let branch_style = if highlighted {
+            Style::default().fg(space_color)
         } else {
-            p.overlay0
-        });
+            Style::default().fg(space_color).add_modifier(Modifier::DIM)
+        };
         let token_values = ws.metadata_tokens.values();
         let rows = tokens::space_rows(
             &app.sidebar_spaces,
@@ -1336,14 +1382,14 @@ fn render_workspace_list(
                 if row_index == 0 {
                     spans.push(Span::styled(
                         if is_last_child { "└─ " } else { "├─ " },
-                        Style::default().fg(p.overlay0),
+                        Style::default().fg(space_color),
                     ));
                     6
                 } else if is_last_child {
                     spans.push(Span::raw("     "));
                     8
                 } else {
-                    spans.push(Span::styled("│", Style::default().fg(p.overlay0)));
+                    spans.push(Span::styled("│", Style::default().fg(space_color)));
                     spans.push(Span::raw("    "));
                     8
                 }
@@ -1381,7 +1427,7 @@ fn render_workspace_list(
             frame.render_widget(
                 Paragraph::new(Span::styled(
                     if collapsed { "▸" } else { "▾" },
-                    Style::default().fg(p.accent),
+                    Style::default().fg(space_color),
                 )),
                 workspace_group_chevron_rect(card),
             );
@@ -1429,11 +1475,23 @@ fn render_workspace_list(
     }
 }
 
+#[cfg(test)]
 fn render_agent_detail(
     app: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,
     frame: &mut Frame,
     area: Rect,
+) {
+    let spaces = super::space_colors::SpacePresentation::new(app);
+    render_agent_detail_with_spaces(app, terminal_runtimes, frame, area, &spaces);
+}
+
+fn render_agent_detail_with_spaces(
+    app: &AppState,
+    terminal_runtimes: &TerminalRuntimeRegistry,
+    frame: &mut Frame,
+    area: Rect,
+    spaces: &super::space_colors::SpacePresentation,
 ) {
     let p = &app.palette;
 
@@ -1447,15 +1505,25 @@ fn render_agent_detail(
         Rect::new(area.x, area.y, area.width, 1),
     );
 
-    frame.render_widget(
-        Paragraph::new(Line::from(vec![Span::styled(
-            " agents",
-            Style::default().fg(p.overlay0).add_modifier(Modifier::BOLD),
-        )])),
-        Rect::new(area.x, area.y + 1, area.width, 1),
-    );
     let control_label = active_agent_view_label(app)
         .unwrap_or_else(|| agent_panel_sort_label(app.agent_panel_sort));
+    let title_rect = agent_panel_title_rect(area, control_label);
+    if title_rect != Rect::default() {
+        let title_color = if app.main_surface == crate::app::state::MainSurface::LiveAgents {
+            p.accent
+        } else {
+            p.overlay0
+        };
+        frame.render_widget(
+            Paragraph::new(Line::from(vec![Span::styled(
+                " agents",
+                Style::default()
+                    .fg(title_color)
+                    .add_modifier(Modifier::BOLD),
+            )])),
+            title_rect,
+        );
+    }
     let toggle_rect = agent_panel_header_label_rect(area, control_label);
     if toggle_rect != Rect::default() {
         let color = if app.agent_view_override.is_some() {
@@ -1501,22 +1569,21 @@ fn render_agent_detail(
         }
 
         let is_active = app.is_active_pane(detail.ws_idx, detail.tab_idx, detail.pane_id);
+        let space_color = spaces.color(detail.ws_idx);
         let row_style = if is_active {
             Style::default().bg(p.active_row_bg)
         } else {
             Style::default()
         };
-        let name_style = if is_active {
-            Style::default().fg(p.text).add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(p.subtext0).add_modifier(Modifier::BOLD)
-        };
+        let name_style = Style::default()
+            .fg(space_color)
+            .add_modifier(Modifier::BOLD);
         let status_style = if is_active {
             Style::default().fg(label_color)
         } else {
             Style::default().fg(label_color).add_modifier(Modifier::DIM)
         };
-        let agent_style = Style::default().fg(p.overlay0).add_modifier(Modifier::DIM);
+        let agent_style = Style::default().fg(space_color).add_modifier(Modifier::DIM);
         let state_icon = state_icon(detail.state, detail.seen, app.status_indicators, p);
 
         for (row_index, resolved) in rows.iter().take(height as usize).enumerate() {
@@ -1608,6 +1675,10 @@ mod tests {
             .to_string()
     }
 
+    fn expected_space_color(app: &AppState, ws_idx: usize) -> ratatui::style::Color {
+        super::super::space_colors::SpacePresentation::new(app).color(ws_idx)
+    }
+
     fn find_symbol_x(buffer: &ratatui::buffer::Buffer, row: u16, width: u16, symbol: &str) -> u16 {
         (0..width)
             .find(|x| buffer[(*x, row)].symbol() == symbol)
@@ -1683,14 +1754,14 @@ mod tests {
 
         let workspace_x = find_symbol_x(buffer, body.y, body.width, "o");
         let workspace_style = buffer[(workspace_x, body.y)].style();
-        assert_eq!(workspace_style.fg, Some(app.palette.text));
+        assert_eq!(workspace_style.fg, Some(expected_space_color(&app, 0)));
         assert!(workspace_style.add_modifier.contains(Modifier::BOLD));
         assert!(!workspace_style.add_modifier.contains(Modifier::DIM));
         assert_eq!(workspace_style.bg, Some(app.palette.active_row_bg));
 
         let agent_x = find_symbol_x(buffer, body.y + 1, body.width, "p");
         let agent_style = buffer[(agent_x, body.y + 1)].style();
-        assert_eq!(agent_style.fg, Some(app.palette.overlay0));
+        assert_eq!(agent_style.fg, Some(expected_space_color(&app, 0)));
         assert!(agent_style.add_modifier.contains(Modifier::DIM));
         assert!(!agent_style.add_modifier.contains(Modifier::BOLD));
         assert_eq!(agent_style.bg, Some(app.palette.active_row_bg));
@@ -1728,9 +1799,9 @@ rows = [[{ token = "workspace", bold = false }, { token = "agent", dim = false }
         let workspace = buffer[(find_symbol_x(buffer, body.y, body.width, "o"), body.y)].style();
         let agent = buffer[(find_symbol_x(buffer, body.y, body.width, "p"), body.y)].style();
 
-        assert_eq!(workspace.fg, Some(app.palette.text));
+        assert_eq!(workspace.fg, Some(expected_space_color(&app, 0)));
         assert!(!workspace.add_modifier.contains(Modifier::BOLD));
-        assert_eq!(agent.fg, Some(app.palette.overlay0));
+        assert_eq!(agent.fg, Some(expected_space_color(&app, 0)));
         assert!(!agent.add_modifier.contains(Modifier::DIM));
     }
 
@@ -1751,13 +1822,13 @@ rows = [[{ token = "workspace", bold = false }, { token = "agent", dim = false }
         let buffer = terminal.backend().buffer();
 
         let active = buffer[(find_symbol_x(buffer, first_row, 25, "o"), first_row)].style();
-        assert_eq!(active.fg, Some(app.palette.text));
+        assert_eq!(active.fg, Some(expected_space_color(&app, 0)));
         assert!(active.add_modifier.contains(Modifier::BOLD));
         assert!(!active.add_modifier.contains(Modifier::DIM));
         assert_eq!(active.bg, Some(app.palette.active_row_bg));
 
         let inactive = buffer[(find_symbol_x(buffer, second_row, 25, "t"), second_row)].style();
-        assert_eq!(inactive.fg, Some(app.palette.subtext0));
+        assert_eq!(inactive.fg, Some(expected_space_color(&app, 1)));
         assert!(!inactive
             .add_modifier
             .intersects(Modifier::BOLD | Modifier::DIM));
@@ -2373,16 +2444,10 @@ rows = [[{ token = "git_status", fg = "#123456" }]]
             1,
             "only the focused agent pane should be highlighted, across the whole row"
         );
-        assert_eq!(highlighted[0][0].fg, Some(app.palette.text));
-
-        let muted = rows
-            .iter()
-            .filter(|cells| cells[0].fg == Some(app.palette.overlay0))
-            .count();
-        assert_eq!(
-            muted, 2,
-            "the sibling pane in the active workspace and the other workspace stay muted"
-        );
+        assert_eq!(highlighted[0][0].fg, Some(expected_space_color(&app, 0)));
+        assert_eq!(rows[0][0].fg, Some(expected_space_color(&app, 0)));
+        assert_eq!(rows[1][0].fg, Some(expected_space_color(&app, 0)));
+        assert_eq!(rows[2][0].fg, Some(expected_space_color(&app, 1)));
     }
 
     #[test]
@@ -2394,8 +2459,9 @@ rows = [[{ token = "git_status", fg = "#123456" }]]
         let (_, _, detail_area) = collapsed_sidebar_sections(area);
         let rows = collapsed_agent_row_styles(&app, area, detail_area, 3);
 
-        for cells in rows {
-            assert_eq!(cells[0].fg, Some(app.palette.overlay0));
+        for (row, cells) in rows.into_iter().enumerate() {
+            let ws_idx = usize::from(row >= 2);
+            assert_eq!(cells[0].fg, Some(expected_space_color(&app, ws_idx)));
             for style in cells {
                 assert_ne!(style.bg, Some(app.palette.active_row_bg));
             }
@@ -2758,6 +2824,71 @@ rows = [[{ token = "git_status", fg = "#123456" }]]
             buffer[(cards[0].rect.x + cards[0].rect.width - 1, cards[0].rect.y)].symbol(),
             "▾"
         );
+    }
+
+    #[test]
+    fn expanded_sidebar_uses_matching_space_colors_and_grouped_agent_order() {
+        let mut app = AppState::test_new();
+        app.workspaces = vec![
+            workspace_with_worktree_space("issue", Some("repo-key"), "/repo/herdr-issue"),
+            Workspace::test_new("notes"),
+            workspace_with_worktree_space("main", Some("repo-key"), "/repo/herdr"),
+        ];
+        app.ensure_test_terminals();
+        for (ws_idx, agent) in [(0, Agent::Pi), (1, Agent::Claude), (2, Agent::Codex)] {
+            let pane_id = app.workspaces[ws_idx].tabs[0].root_pane;
+            let terminal_id = app.workspaces[ws_idx].tabs[0].panes[&pane_id]
+                .attached_terminal_id
+                .clone();
+            app.terminals.get_mut(&terminal_id).unwrap().detected_agent = Some(agent);
+        }
+        app.sidebar_spaces.rows = vec![vec![crate::config::SpaceSidebarToken::Workspace]];
+        app.sidebar_spaces.row_gap = 0;
+        app.sidebar_agents.rows = vec![vec![crate::config::AgentSidebarToken::Agent]];
+        app.sidebar_agents.row_gap = 0;
+        let area = Rect::new(0, 0, 30, 24);
+        app.view.workspace_card_areas = compute_workspace_card_areas(&app, area);
+
+        let mut terminal = Terminal::new(TestBackend::new(area.width, area.height)).unwrap();
+        terminal
+            .draw(|frame| render_sidebar(&app, &TerminalRuntimeRegistry::new(), frame, area))
+            .unwrap();
+
+        let buffer = terminal.backend().buffer();
+        let cards = &app.view.workspace_card_areas;
+        assert_eq!(
+            cards.iter().map(|card| card.ws_idx).collect::<Vec<_>>(),
+            vec![2, 0, 1]
+        );
+        let main_color = expected_space_color(&app, 2);
+        let issue_color = expected_space_color(&app, 0);
+        let notes_color = expected_space_color(&app, 1);
+        assert_eq!(main_color, issue_color);
+        assert_ne!(main_color, notes_color);
+        for (card, symbol, expected) in [
+            (&cards[0], "m", main_color),
+            (&cards[1], "i", issue_color),
+            (&cards[2], "n", notes_color),
+        ] {
+            let x = find_symbol_x(buffer, card.rect.y, card.rect.width, symbol);
+            assert_eq!(buffer[(x, card.rect.y)].fg, expected);
+        }
+
+        let entries = agent_panel_entries(&app);
+        assert_eq!(
+            entries.iter().map(|entry| entry.ws_idx).collect::<Vec<_>>(),
+            vec![2, 0, 1]
+        );
+        let (_, agent_area) = expanded_sidebar_sections(area, app.sidebar_section_split);
+        let body = agent_panel_body_rect(agent_area, false);
+        for (row, symbol, expected) in [
+            (body.y, "c", main_color),
+            (body.y + 1, "p", issue_color),
+            (body.y + 2, "c", notes_color),
+        ] {
+            let x = find_symbol_x(buffer, row, body.width, symbol);
+            assert_eq!(buffer[(x, row)].fg, expected);
+        }
     }
 
     #[test]

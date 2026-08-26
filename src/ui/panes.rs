@@ -172,7 +172,7 @@ fn runtime_for_tab_pane<'a>(
         .map(|runtime| (terminal_id, runtime))
 }
 
-fn stable_scrollbar_gutter(
+pub(super) fn stable_scrollbar_gutter(
     rt: &TerminalRuntime,
     pane_inner: Rect,
     pane_scrollbars: bool,
@@ -356,60 +356,80 @@ pub(super) fn render_panes(
     let terminal_active = app.mode == Mode::Terminal;
 
     for info in pane_infos {
-        if let Some(rt) = app.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, info.id) {
-            let show_cursor = info.is_focused
-                && terminal_active
-                && !pane_is_scrolled_back(rt)
-                && app.pane_exposes_host_cursor(ws_idx, info.id);
-            rt.render(frame, info.inner_rect, show_cursor);
-            render_pane_scrollbar(app, frame, info, rt);
-
-            let should_dim = !info.is_focused && multi_pane && !terminal_active;
-            if should_dim {
-                let inner = info.inner_rect;
-                let buf = frame.buffer_mut();
-                for y in inner.y..inner.y + inner.height {
-                    for x in inner.x..inner.x + inner.width {
-                        let cell = &mut buf[(x, y)];
-                        cell.set_style(cell.style().add_modifier(Modifier::DIM));
-                    }
-                }
-            }
-
-            let (copy_search_top, copy_search_bottom, copy_search_matches) =
-                validated_copy_mode_search_matches(app, info, rt);
-            render_copy_mode_search_highlights(
-                app,
-                frame,
-                info,
-                copy_search_top,
-                copy_search_bottom,
-                &copy_search_matches,
-                false,
-            );
-            render_selection_highlight(
-                &app.selection,
-                frame,
-                info.id,
-                info.inner_rect,
-                rt.scroll_metrics(),
-                &app.palette,
-                app.host_terminal_theme,
-            );
-            render_copy_mode_search_highlights(
-                app,
-                frame,
-                info,
-                copy_search_top,
-                copy_search_bottom,
-                &copy_search_matches,
-                true,
-            );
-            render_copy_mode_cursor(app, frame, info);
-        }
+        render_projected_pane(
+            app,
+            terminal_runtimes,
+            frame,
+            ws_idx,
+            info,
+            multi_pane,
+            terminal_active,
+        );
     }
 
     render_pane_borders(app, ws, pane_infos, split_borders, frame);
+}
+
+pub(super) fn render_projected_pane(
+    app: &AppState,
+    terminal_runtimes: &TerminalRuntimeRegistry,
+    frame: &mut Frame,
+    ws_idx: usize,
+    info: &PaneInfo,
+    multi_pane: bool,
+    terminal_active: bool,
+) {
+    let Some(rt) = app.runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, info.id) else {
+        return;
+    };
+    let show_cursor = info.is_focused
+        && terminal_active
+        && !pane_is_scrolled_back(rt)
+        && app.pane_exposes_host_cursor(ws_idx, info.id);
+    rt.render(frame, info.inner_rect, show_cursor);
+    render_pane_scrollbar(app, frame, info, rt);
+
+    if !info.is_focused && multi_pane && !terminal_active {
+        let inner = info.inner_rect;
+        let buf = frame.buffer_mut();
+        for y in inner.y..inner.y + inner.height {
+            for x in inner.x..inner.x + inner.width {
+                let cell = &mut buf[(x, y)];
+                cell.set_style(cell.style().add_modifier(Modifier::DIM));
+            }
+        }
+    }
+
+    let (copy_search_top, copy_search_bottom, copy_search_matches) =
+        validated_copy_mode_search_matches(app, info, rt);
+    render_copy_mode_search_highlights(
+        app,
+        frame,
+        info,
+        copy_search_top,
+        copy_search_bottom,
+        &copy_search_matches,
+        false,
+    );
+    render_selection_highlight(
+        &app.selection,
+        frame,
+        info.id,
+        info.inner_rect,
+        rt.scroll_metrics(),
+        &app.palette,
+        app.host_terminal_theme,
+    );
+    render_copy_mode_search_highlights(
+        app,
+        frame,
+        info,
+        copy_search_top,
+        copy_search_bottom,
+        &copy_search_matches,
+        true,
+    );
+    render_copy_mode_cursor(app, frame, info);
 }
 
 pub(crate) fn popup_pane_rects(app: &AppState, area: Rect) -> Option<(Rect, Rect)> {

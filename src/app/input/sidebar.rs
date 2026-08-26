@@ -1,6 +1,6 @@
 use ratatui::layout::Rect;
 
-use crate::app::state::{AppState, ViewLayout};
+use crate::app::state::{AppState, MainSurface, ViewLayout};
 
 use super::ScrollbarClickTarget;
 
@@ -21,6 +21,68 @@ impl AppState {
         let (_, detail_area) =
             crate::ui::expanded_sidebar_sections(sidebar, self.sidebar_section_split);
         detail_area
+    }
+
+    pub(super) fn on_agent_grid_toggle(&self, col: u16, row: u16) -> bool {
+        let area = self.agent_panel_rect();
+        let control_label = self
+            .agent_view_override
+            .as_ref()
+            .map(|view| view.label.as_deref().unwrap_or("filtered"))
+            .unwrap_or(match self.agent_panel_sort {
+                crate::app::state::AgentPanelSort::Spaces => "grouped",
+                crate::app::state::AgentPanelSort::Priority => "priority",
+            });
+        let rect = crate::ui::agent_panel_title_rect(area, control_label);
+        rect.width > 0
+            && col >= rect.x
+            && col < rect.x + rect.width
+            && row >= rect.y
+            && row < rect.y + rect.height
+    }
+
+    pub(super) fn toggle_agent_grid(&mut self) {
+        self.main_surface = match self.main_surface {
+            MainSurface::Workspace => MainSurface::LiveAgents,
+            MainSurface::LiveAgents => MainSurface::Workspace,
+        };
+        self.agent_grid_selected_terminal = None;
+        self.clear_selection();
+    }
+
+    pub(super) fn preferred_live_agent_grid_target(
+        &self,
+        terminal_runtimes: &crate::terminal::TerminalRuntimeRegistry,
+    ) -> Option<(usize, crate::layout::PaneId, crate::terminal::TerminalId)> {
+        let mut first = None;
+        for (ws_idx, workspace) in self.workspaces.iter().enumerate() {
+            for tab in &workspace.tabs {
+                for pane_id in tab.layout.pane_ids() {
+                    let Some(pane) = tab.panes.get(&pane_id) else {
+                        continue;
+                    };
+                    let terminal_id = &pane.attached_terminal_id;
+                    if !self
+                        .terminals
+                        .get(terminal_id)
+                        .is_some_and(crate::terminal::TerminalState::is_agent_terminal)
+                        || self
+                            .runtime_for_pane_in_workspace(terminal_runtimes, ws_idx, pane_id)
+                            .is_none()
+                    {
+                        continue;
+                    }
+                    let target = (ws_idx, pane_id, terminal_id.clone());
+                    if self.is_active_pane(ws_idx, workspace.active_tab, pane_id) {
+                        return Some(target);
+                    }
+                    if first.is_none() {
+                        first = Some(target);
+                    }
+                }
+            }
+        }
+        first
     }
 
     pub(super) fn workspace_list_scrollbar_target_at(
@@ -530,11 +592,50 @@ mod tests {
 
     use super::super::{app_for_mouse_test, capture_snapshot, mouse, unique_temp_path};
     use crate::{
-        app::state::{AgentPanelSort, DragTarget, Mode},
+        app::state::{AgentPanelSort, DragTarget, MainSurface, Mode},
         config::SidebarCollapsedModeConfig,
         detect::{Agent, AgentState},
         workspace::Workspace,
     };
+
+    #[test]
+    fn clicking_agents_title_toggles_live_agent_grid_without_changing_sort() {
+        let mut app = app_for_mouse_test();
+        let area = app.state.agent_panel_rect();
+        let title = crate::ui::agent_panel_title_rect(area, "grouped");
+        assert!(title.width > 0);
+
+        app.handle_mouse(mouse(
+            MouseEventKind::Down(MouseButton::Left),
+            title.x,
+            title.y,
+        ));
+        assert_eq!(app.state.main_surface, MainSurface::LiveAgents);
+        assert_eq!(app.state.agent_panel_sort, AgentPanelSort::Spaces);
+
+        app.handle_mouse(mouse(
+            MouseEventKind::Down(MouseButton::Left),
+            title.x,
+            title.y,
+        ));
+        assert_eq!(app.state.main_surface, MainSurface::Workspace);
+        assert_eq!(app.state.agent_panel_sort, AgentPanelSort::Spaces);
+    }
+
+    #[test]
+    fn agents_title_and_sort_control_hit_rects_never_overlap() {
+        for width in 0..24 {
+            let area = Rect::new(3, 5, width, 6);
+            let title = crate::ui::agent_panel_title_rect(area, "priority");
+            let control = crate::ui::agent_panel_toggle_rect(area, AgentPanelSort::Priority);
+            assert!(
+                title.width == 0
+                    || control.width == 0
+                    || title.x.saturating_add(title.width) <= control.x,
+                "width={width} title={title:?} control={control:?}"
+            );
+        }
+    }
 
     #[test]
     fn clicking_launcher_opens_global_menu() {

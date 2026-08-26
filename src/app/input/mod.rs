@@ -75,6 +75,22 @@ use super::App;
 // ---------------------------------------------------------------------------
 
 impl App {
+    pub(super) fn focused_surface_runtime(&self) -> Option<&crate::terminal::TerminalRuntime> {
+        if self.state.main_surface == crate::app::state::MainSurface::LiveAgents {
+            return self.state.agent_grid_selected_pane().and_then(|pane| {
+                self.state.runtime_for_pane_in_workspace(
+                    &self.terminal_runtimes,
+                    pane.ws_idx,
+                    pane.pane_info.id,
+                )
+            });
+        }
+        self.state.active.and_then(|ws_idx| {
+            self.state
+                .focused_runtime_in_workspace(&self.terminal_runtimes, ws_idx)
+        })
+    }
+
     pub(super) async fn handle_key(
         &mut self,
         key: TerminalKey,
@@ -143,13 +159,8 @@ impl App {
         self.state.clear_selection();
         self.selection_autoscroll_deadline = None;
         self.state.update_dismissed = true;
-        if let Some(ws_idx) = self.state.active {
-            if let Some(runtime) = self
-                .state
-                .focused_runtime_in_workspace(&self.terminal_runtimes, ws_idx)
-            {
-                let _ = runtime.try_send_bytes(Bytes::copy_from_slice(text.as_bytes()));
-            }
+        if let Some(runtime) = self.focused_surface_runtime() {
+            let _ = runtime.try_send_bytes(Bytes::copy_from_slice(text.as_bytes()));
         }
     }
 
@@ -173,13 +184,8 @@ impl App {
         self.state.clear_selection();
         self.selection_autoscroll_deadline = None;
         self.state.update_dismissed = true;
-        if let Some(ws_idx) = self.state.active {
-            if let Some(runtime) = self
-                .state
-                .focused_runtime_in_workspace(&self.terminal_runtimes, ws_idx)
-            {
-                let _ = runtime.send_bytes(Bytes::from(text)).await;
-            }
+        if let Some(runtime) = self.focused_surface_runtime() {
+            let _ = runtime.send_bytes(Bytes::from(text)).await;
         }
     }
 
@@ -197,13 +203,8 @@ impl App {
             return;
         }
 
-        if let Some(ws_idx) = self.state.active {
-            if let Some(rt) = self
-                .state
-                .focused_runtime_in_workspace(&self.terminal_runtimes, ws_idx)
-            {
-                let _ = rt.send_paste(text).await;
-            }
+        if let Some(runtime) = self.focused_surface_runtime() {
+            let _ = runtime.send_paste(text).await;
         }
     }
 
@@ -379,6 +380,8 @@ impl App {
                 return;
             }
         }
+
+        self.focus_agent_grid_pane_before_pointer_action(mouse);
 
         if self.handle_modified_url_click(source_id, mouse) {
             return;
@@ -559,6 +562,41 @@ impl App {
         };
 
         // Focus through the runtime API before an application can consume its press.
+        self.focus_pane_internal_via_api(ws_idx, pane_id);
+    }
+
+    fn focus_agent_grid_pane_before_pointer_action(&mut self, mouse: MouseEvent) {
+        if self.state.main_surface != crate::app::state::MainSurface::LiveAgents
+            || !matches!(
+                mouse.kind,
+                MouseEventKind::Down(_)
+                    | MouseEventKind::ScrollUp
+                    | MouseEventKind::ScrollDown
+                    | MouseEventKind::ScrollLeft
+                    | MouseEventKind::ScrollRight
+            )
+        {
+            return;
+        }
+
+        let Some((ws_idx, pane_id, terminal_id)) = self
+            .state
+            .view
+            .agent_grid_panes
+            .iter()
+            .find(|pane| {
+                let rect = pane.pane_info.rect;
+                mouse.column >= rect.x
+                    && mouse.column < rect.x + rect.width
+                    && mouse.row >= rect.y
+                    && mouse.row < rect.y + rect.height
+            })
+            .map(|pane| (pane.ws_idx, pane.pane_info.id, pane.terminal_id.clone()))
+        else {
+            return;
+        };
+
+        self.state.agent_grid_selected_terminal = Some(terminal_id);
         self.focus_pane_internal_via_api(ws_idx, pane_id);
     }
 

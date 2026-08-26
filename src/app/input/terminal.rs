@@ -135,10 +135,16 @@ impl App {
             return None;
         }
 
-        let ws_idx = self.state.active?;
-        let ws = self.state.workspaces.get(ws_idx)?;
-        let pane_id = ws.focused_pane_id()?;
-        let terminal_id = ws.terminal_id(pane_id)?.clone();
+        let (ws_idx, pane_id, terminal_id) =
+            if self.state.main_surface == crate::app::state::MainSurface::LiveAgents {
+                let pane = self.state.agent_grid_selected_pane()?;
+                (pane.ws_idx, pane.pane_info.id, pane.terminal_id.clone())
+            } else {
+                let ws_idx = self.state.active?;
+                let ws = self.state.workspaces.get(ws_idx)?;
+                let pane_id = ws.focused_pane_id()?;
+                (ws_idx, pane_id, ws.terminal_id(pane_id)?.clone())
+            };
         let rt =
             self.state
                 .runtime_for_pane_in_workspace(&self.terminal_runtimes, ws_idx, pane_id)?;
@@ -274,10 +280,20 @@ impl App {
         let runtime = if self.state.popup_pane.is_some() {
             self.popup_runtime()
         } else if self.state.mode == Mode::Terminal {
-            self.state.active.and_then(|ws_idx| {
-                self.state
-                    .focused_runtime_in_workspace(&self.terminal_runtimes, ws_idx)
-            })
+            if self.state.main_surface == crate::app::state::MainSurface::LiveAgents {
+                self.state.agent_grid_selected_pane().and_then(|pane| {
+                    self.state.runtime_for_pane_in_workspace(
+                        &self.terminal_runtimes,
+                        pane.ws_idx,
+                        pane.pane_info.id,
+                    )
+                })
+            } else {
+                self.state.active.and_then(|ws_idx| {
+                    self.state
+                        .focused_runtime_in_workspace(&self.terminal_runtimes, ws_idx)
+                })
+            }
         } else {
             None
         };
@@ -410,7 +426,10 @@ mod tests {
     #[cfg(unix)]
     use super::super::{unique_temp_path, wait_for_file};
     use super::*;
-    use crate::{config::Config, events::AppEvent, workspace::Workspace};
+    use crate::{
+        app::state::MainSurface, config::Config, detect::Agent, events::AppEvent,
+        terminal::TerminalRuntime, workspace::Workspace,
+    };
 
     #[cfg(unix)]
     fn app_with_spawned_workspace() -> App {
@@ -508,6 +527,103 @@ mod tests {
             .selection
             .as_ref()
             .is_some_and(crate::selection::Selection::is_visible));
+    }
+
+    #[tokio::test]
+    async fn agent_grid_click_routes_keyboard_to_cross_workspace_terminal() {
+        let mut app = app_for_mouse_test();
+        let mut first = Workspace::test_new("one");
+        let first_pane = first.tabs[0].root_pane;
+        let (first_runtime, mut first_rx) = TerminalRuntime::test_with_channel(20, 5);
+        first.tabs[0].runtimes.insert(first_pane, first_runtime);
+        let mut second = Workspace::test_new("two");
+        let second_pane = second.tabs[0].root_pane;
+        let (second_runtime, mut second_rx) = TerminalRuntime::test_with_channel(20, 5);
+        second.tabs[0].runtimes.insert(second_pane, second_runtime);
+
+        app.state.workspaces = vec![first, second];
+        app.state.ensure_test_terminals();
+        for (ws_idx, pane_id, agent) in
+            [(0, first_pane, Agent::Pi), (1, second_pane, Agent::Claude)]
+        {
+            let terminal_id = app.state.workspaces[ws_idx]
+                .terminal_id(pane_id)
+                .cloned()
+                .expect("terminal id");
+            app.state
+                .terminals
+                .get_mut(&terminal_id)
+                .expect("terminal")
+                .detected_agent = Some(agent);
+        }
+        app.state.active = Some(0);
+        app.state.selected = 0;
+        app.state.mode = Mode::Terminal;
+        app.state.main_surface = MainSurface::LiveAgents;
+        crate::ui::compute_view(&mut app.state, Rect::new(0, 0, 120, 40));
+        let second_info = app
+            .state
+            .view
+            .agent_grid_panes
+            .iter()
+            .find(|pane| pane.pane_info.id == second_pane)
+            .expect("second grid pane")
+            .pane_info
+            .clone();
+
+        app.handle_mouse(mouse(
+            MouseEventKind::Down(MouseButton::Left),
+            second_info.inner_rect.x,
+            second_info.inner_rect.y,
+        ));
+        let target = app.handle_terminal_key_headless(TerminalKey::from(
+            crossterm::event::KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE),
+        ));
+
+        assert!(target.is_some());
+        assert_eq!(app.state.active, Some(1));
+        assert_eq!(app.state.workspaces[1].focused_pane_id(), Some(second_pane));
+        assert_eq!(second_rx.recv().await.expect("second input").as_ref(), b"x");
+        assert!(first_rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn empty_agent_grid_blocks_terminal_key_forwarding() {
+        let mut app = app_for_mouse_test();
+        let mut workspace = Workspace::test_new("shell");
+        let pane_id = workspace.tabs[0].root_pane;
+        let (runtime, mut rx) = TerminalRuntime::test_with_channel_and_scrollback_bytes(
+            20,
+            5,
+            0,
+            b"\x1b[>15u\x1b[?1000h",
+            4,
+        );
+        workspace.tabs[0].runtimes.insert(pane_id, runtime);
+        app.state.workspaces = vec![workspace];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        app.state.selected = 0;
+        app.state.mode = Mode::Terminal;
+        app.state.main_surface = MainSurface::LiveAgents;
+        crate::ui::compute_view(&mut app.state, Rect::new(0, 0, 120, 40));
+
+        let target = app.handle_terminal_key_headless(TerminalKey::from(
+            crossterm::event::KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE),
+        ));
+
+        let hidden_shell = app
+            .state
+            .runtime_for_pane_in_workspace(&app.terminal_runtimes, 0, pane_id)
+            .expect("hidden shell runtime");
+        assert!(hidden_shell.keyboard_report_all_requested());
+        assert!(hidden_shell.mouse_reporting_enabled());
+        assert!(target.is_none());
+        assert!(!app.host_keyboard_report_all_requested());
+        assert!(!app
+            .state
+            .focused_pane_requests_mouse_capture_from(&app.terminal_runtimes));
+        assert!(rx.try_recv().is_err());
     }
 
     #[cfg(unix)]

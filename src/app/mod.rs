@@ -559,6 +559,8 @@ impl App {
             previous_pane_focus: None,
             selected,
             mode,
+            main_surface: state::MainSurface::Workspace,
+            agent_grid_selected_terminal: None,
             should_quit: false,
             detach_exits: no_session,
             detach_requested: false,
@@ -619,6 +621,7 @@ impl App {
                 mobile_menu_hit_area: Rect::default(),
                 toast_hit_area: Rect::default(),
                 pane_infos: Vec::new(),
+                agent_grid_panes: Vec::new(),
                 split_borders: Vec::new(),
             },
             drag: None,
@@ -1843,18 +1846,8 @@ impl App {
                     } else if self.state.mode != Mode::Terminal {
                         self.paste_into_active_text_input(&text);
                     } else {
-                        if let Some(ws_idx) = self.state.active {
-                            if let Some(ws) = self.state.workspaces.get(ws_idx) {
-                                if let Some(focused) = ws.focused_pane_id() {
-                                    if let Some(runtime) = self.state.runtime_for_pane_in_workspace(
-                                        &self.terminal_runtimes,
-                                        ws_idx,
-                                        focused,
-                                    ) {
-                                        let _ = runtime.try_send_paste(text);
-                                    }
-                                }
-                            }
+                        if let Some(runtime) = self.focused_surface_runtime() {
+                            let _ = runtime.try_send_paste(text);
                         }
                     }
                 }

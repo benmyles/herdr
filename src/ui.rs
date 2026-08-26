@@ -5,6 +5,7 @@ use ratatui::{
     Frame,
 };
 
+mod agent_grid;
 mod dialogs;
 mod keybind_help;
 mod menus;
@@ -16,6 +17,7 @@ mod release_notes;
 mod scrollbar;
 mod settings;
 mod sidebar;
+mod space_colors;
 mod status;
 mod tab_surface;
 mod tabs;
@@ -78,17 +80,18 @@ pub(crate) use self::{
     sidebar::{
         agent_entry_gap, agent_entry_height_in_body, agent_panel_body_rect, agent_panel_entries,
         agent_panel_scroll_for_target, agent_panel_scroll_metrics, agent_panel_scrollbar_rect,
-        agent_panel_toggle_rect, all_agent_panel_entries, collapsed_sidebar_sections,
-        collapsed_sidebar_toggle_rect, compute_workspace_card_areas, expanded_sidebar_sections,
-        expanded_sidebar_toggle_rect, normalized_workspace_scroll, sidebar_section_divider_rect,
-        workspace_drop_slots, workspace_group_chevron_rect, workspace_list_entries,
-        workspace_list_entries_expanded, workspace_list_rect, workspace_list_scroll_metrics,
-        workspace_list_scrollbar_rect, workspace_parent_group_state, AgentPanelEntry,
-        WorkspaceListEntry,
+        agent_panel_title_rect, agent_panel_toggle_rect, all_agent_panel_entries,
+        collapsed_sidebar_sections, collapsed_sidebar_toggle_rect, compute_workspace_card_areas,
+        expanded_sidebar_sections, expanded_sidebar_toggle_rect, normalized_workspace_scroll,
+        sidebar_section_divider_rect, workspace_drop_slots, workspace_group_chevron_rect,
+        workspace_list_entries, workspace_list_entries_expanded, workspace_list_rect,
+        workspace_list_scroll_metrics, workspace_list_scrollbar_rect, workspace_parent_group_state,
+        AgentPanelEntry, WorkspaceListEntry,
     },
 };
 
 pub(crate) use self::{
+    agent_grid::{agent_grid_cursor, agent_grid_hyperlinks},
     keybind_help::keybind_help_lines,
     mobile::{
         mobile_switcher_areas, mobile_switcher_max_scroll, mobile_switcher_target_at,
@@ -99,7 +102,7 @@ pub(crate) use self::{
     tabs::{compute_tab_bar_view, tab_bar_content_area},
     widgets::{centered_popup_rect, modal_stack_areas},
 };
-use crate::app::state::ViewLayout;
+use crate::app::state::{MainSurface, ViewLayout};
 use crate::app::{AppState, Mode};
 use crate::terminal::TerminalRuntimeRegistry;
 
@@ -220,8 +223,15 @@ fn compute_view_internal(
     cell_size: crate::kitty_graphics::HostCellSize,
 ) {
     if is_mobile_width(area, app.mobile_width_threshold) {
+        app.main_surface = MainSurface::Workspace;
+        app.agent_grid_selected_terminal = None;
         compute_mobile_view(app, terminal_runtimes, area, resize_panes, cell_size);
         return;
+    }
+
+    if app.sidebar_collapsed && app.main_surface == MainSurface::LiveAgents {
+        app.main_surface = MainSurface::Workspace;
+        app.agent_grid_selected_terminal = None;
     }
 
     let sidebar_w = if app.sidebar_collapsed {
@@ -260,6 +270,51 @@ fn compute_view_internal(
     } else {
         compute_workspace_card_areas(app, sidebar_area)
     };
+
+    if app.main_surface == MainSurface::LiveAgents {
+        let terminal_area = main_area;
+        let agent_grid_panes = agent_grid::compute_agent_grid(
+            app,
+            terminal_runtimes,
+            terminal_area,
+            resize_panes,
+            cell_size,
+        );
+        if resize_panes {
+            resize_popup_pane(app, terminal_runtimes, terminal_area, cell_size);
+        }
+        let toast_hit_area = app
+            .toast
+            .as_ref()
+            .map(|toast| {
+                toast_notification_rect(
+                    area,
+                    toast,
+                    app.config_diagnostic.is_some(),
+                    toast.position.unwrap_or(app.toast_config.herdr.position),
+                )
+            })
+            .unwrap_or_default();
+        app.view = crate::app::ViewState {
+            layout: ViewLayout::Desktop,
+            sidebar_rect: sidebar_area,
+            workspace_card_areas,
+            tab_bar_rect: Rect::default(),
+            tab_hit_areas: Vec::new(),
+            tab_scroll_left_hit_area: Rect::default(),
+            tab_scroll_right_hit_area: Rect::default(),
+            new_tab_hit_area: Rect::default(),
+            terminal_area,
+            mobile_header_rect: Rect::default(),
+            mobile_menu_hit_area: Rect::default(),
+            toast_hit_area,
+            pane_infos: Vec::new(),
+            agent_grid_panes,
+            split_borders: Vec::new(),
+        };
+        app.sync_copy_mode_search_geometry();
+        return;
+    }
 
     let tab_bar_view = app
         .active
@@ -318,6 +373,7 @@ fn compute_view_internal(
         mobile_menu_hit_area: Rect::default(),
         toast_hit_area,
         pane_infos,
+        agent_grid_panes: Vec::new(),
         split_borders,
     };
     app.sync_copy_mode_search_geometry();
@@ -381,6 +437,7 @@ fn compute_mobile_view(
         mobile_menu_hit_area: header_hits.menu,
         toast_hit_area,
         pane_infos,
+        agent_grid_panes: Vec::new(),
         split_borders,
     };
     app.sync_copy_mode_search_geometry();
@@ -405,7 +462,9 @@ pub fn render_with_runtime_registry(
     if app.view.layout != ViewLayout::Mobile {
         render_tab_bar(app, frame, tab_bar_area);
     }
-    if app
+    if app.main_surface == MainSurface::LiveAgents && app.view.layout == ViewLayout::Desktop {
+        agent_grid::render_agent_grid(app, terminal_runtimes, frame, terminal_area);
+    } else if app
         .active
         .and_then(|ws_idx| app.workspaces.get(ws_idx))
         .is_some()

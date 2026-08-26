@@ -1118,8 +1118,21 @@ impl AppState {
             .is_some_and(|tab_idx| tab_idx == self.workspaces[ws_idx].active_tab)
     }
 
+    pub(crate) fn pane_is_visible_on_app_surface(&self, ws_idx: usize, pane_id: PaneId) -> bool {
+        if self.main_surface == crate::app::state::MainSurface::LiveAgents {
+            return self
+                .workspaces
+                .get(ws_idx)
+                .and_then(|workspace| workspace.pane_state(pane_id))
+                .and_then(|pane| self.terminals.get(&pane.attached_terminal_id))
+                .is_some_and(crate::terminal::TerminalState::is_agent_terminal);
+        }
+        self.pane_is_in_active_tab(ws_idx, pane_id)
+    }
+
     pub fn switch_workspace(&mut self, idx: usize) {
         if idx < self.workspaces.len() {
+            self.show_workspace_surface();
             let previous_focus = self.current_pane_focus_target();
             self.active = Some(idx);
             self.selected = idx;
@@ -1258,6 +1271,7 @@ impl AppState {
     #[cfg(test)]
     pub fn switch_tab(&mut self, idx: usize) {
         if let Some(ws_idx) = self.active {
+            self.show_workspace_surface();
             let previous_focus = self.current_pane_focus_target();
             let Some(ws) = self.workspaces.get_mut(ws_idx) else {
                 return;
@@ -3108,7 +3122,7 @@ impl AppState {
         change: &EffectiveStateChange,
         suppress_completion: bool,
     ) -> Option<bool> {
-        let is_active_tab = self.pane_is_in_active_tab(ws_idx, pane_id);
+        let is_active_tab = self.pane_is_visible_on_app_surface(ws_idx, pane_id);
         let suppress_active_tab_notifications =
             active_tab_suppresses_notifications(is_active_tab, self.outer_terminal_focus);
         let pane = self.workspaces[ws_idx]
@@ -3142,7 +3156,7 @@ impl AppState {
     ) -> Option<AgentNotificationDelivery> {
         self.pending_agent_notifications.remove(&pane_id);
 
-        let is_active_tab = self.pane_is_in_active_tab(ws_idx, pane_id);
+        let is_active_tab = self.pane_is_visible_on_app_surface(ws_idx, pane_id);
         let suppress_active_tab_notifications =
             active_tab_suppresses_notifications(is_active_tab, self.outer_terminal_focus);
 
@@ -3229,7 +3243,7 @@ impl AppState {
             return None;
         }
 
-        let is_active_tab = self.pane_is_in_active_tab(ws_idx, pane_id);
+        let is_active_tab = self.pane_is_visible_on_app_surface(ws_idx, pane_id);
         let suppress_active_tab_notifications =
             active_tab_suppresses_notifications(is_active_tab, self.outer_terminal_focus);
         let sound = sound_for_toast_kind(kind, suppress_active_tab_notifications)

@@ -7,6 +7,16 @@ Herdr is built for running more than one coding agent at a time. Each agent stay
 
 To coordinate agents from scripts or from another agent, see [Agent automation](/docs/agent-automation/).
 
+## Live agent grid
+
+Click the **Agents** heading in the desktop sidebar to replace the current workspace view with an auto-tiled grid of every live agent terminal across all workspaces and tabs. The tiles are the original terminals—not snapshots—so their output updates in real time and you can click any tile to type, scroll, select text, follow links, or interact with a terminal mouse UI normally.
+
+Grid order follows space, workspace, tab, and pane order and does not change when an agent moves between working, blocked, and idle states. Agents from the same space stay physically adjacent and share a border color. The Spaces list and Agents list in the sidebar use that same color, making it easy to connect every terminal tile to its project at a glance. Worktree-linked workspaces count as one space and share one color.
+
+Ordinary shell panes are excluded. If no agents are live, the grid shows an empty state and does not forward input to a hidden shell.
+
+Click **Agents** again to return to the selected agent's workspace view. Switching workspaces directly also leaves the grid. Collapsing the sidebar or entering the mobile layout closes the grid so its toggle never becomes inaccessible.
+
 ## Supported agents
 
 Automatic detection works out of the box for common coding agents. The table shows which signal determines `idle`, `working`, and `blocked` for each one.

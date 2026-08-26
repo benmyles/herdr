@@ -778,7 +778,9 @@ impl HeadlessServer {
                             RetainedGraphicsOutcome::Fallback => false,
                         }
                     }
-                    RetainedRenderPlan::Pty => self.render_retained_pty_update_and_stream(),
+                    RetainedRenderPlan::Pty => {
+                        self.render_retained_pty_sources_and_stream(&render_request.pty_sources)
+                    }
                     RetainedRenderPlan::HiddenPty => {
                         crate::render_prof::event("render.skipped.hidden_sources");
                         true
@@ -4198,6 +4200,13 @@ impl HeadlessServer {
         {
             return true;
         }
+        if self.app.state.main_surface == crate::app::state::MainSurface::LiveAgents {
+            return self
+                .app
+                .find_pane(pane_id)
+                .and_then(|(_, pane)| self.app.state.terminals.get(&pane.attached_terminal_id))
+                .is_some_and(crate::terminal::TerminalState::is_agent_terminal);
+        }
         let Some(workspace) = self
             .app
             .state
@@ -4215,7 +4224,22 @@ impl HeadlessServer {
         !tab.zoomed || tab.layout.focused() == pane_id
     }
 
+    #[cfg(test)]
     fn render_retained_pty_update_and_stream(&mut self) -> bool {
+        self.render_retained_pty_update_and_stream_inner(None)
+    }
+
+    fn render_retained_pty_sources_and_stream(
+        &mut self,
+        sources: &HashSet<crate::layout::PaneId>,
+    ) -> bool {
+        self.render_retained_pty_update_and_stream_inner(Some(sources))
+    }
+
+    fn render_retained_pty_update_and_stream_inner(
+        &mut self,
+        sources: Option<&HashSet<crate::layout::PaneId>>,
+    ) -> bool {
         crate::render_prof::event("retained.attempt");
         let retained_started = crate::render_prof::timer();
         macro_rules! retained_fallback {
@@ -4279,16 +4303,37 @@ impl HeadlessServer {
         }
         frame.graphics.clear();
 
-        let Some(ws_idx) = self.app.state.active else {
-            retained_fallback!("no_active_workspace");
-        };
-        let pane_infos = self.app.state.view.pane_infos.clone();
+        let pane_infos =
+            if self.app.state.main_surface == crate::app::state::MainSurface::LiveAgents {
+                self.app
+                    .state
+                    .view
+                    .agent_grid_panes
+                    .iter()
+                    .map(|pane| (pane.ws_idx, pane.pane_info.clone()))
+                    .collect::<Vec<_>>()
+            } else {
+                let Some(ws_idx) = self.app.state.active else {
+                    retained_fallback!("no_active_workspace");
+                };
+                self.app
+                    .state
+                    .view
+                    .pane_infos
+                    .iter()
+                    .cloned()
+                    .map(|info| (ws_idx, info))
+                    .collect::<Vec<_>>()
+            };
         if pane_infos.is_empty() {
             retained_fallback!("no_pane_info");
         }
 
         let mut touched = false;
-        for info in pane_infos {
+        for (ws_idx, info) in pane_infos {
+            if sources.is_some_and(|sources| !sources.contains(&info.id)) {
+                continue;
+            }
             if !rect_fits_frame(info.inner_rect, &frame) {
                 retained_fallback!("pane_rect_outside_frame");
             }
@@ -9744,6 +9789,97 @@ next_tab = ""
 
         server.app.state.workspaces[0].switch_tab(1);
         assert!(server.pty_sources_visible_to_any_render_target(&sources));
+    }
+
+    #[tokio::test]
+    async fn live_agent_grid_makes_inactive_workspace_pty_visible_and_retained() {
+        let mut server = test_headless_server();
+        let mut first = crate::workspace::Workspace::test_new("one");
+        let first_pane = first.tabs[0].root_pane;
+        first.insert_test_runtime(
+            first_pane,
+            crate::terminal::TerminalRuntime::test_with_screen_bytes(40, 12, b"FIRST-AGENT"),
+        );
+        let mut second = crate::workspace::Workspace::test_new("two");
+        let second_pane = second.tabs[0].root_pane;
+        second.insert_test_runtime(
+            second_pane,
+            crate::terminal::TerminalRuntime::test_with_screen_bytes(40, 12, b"SECOND-AGENT"),
+        );
+        let plain_tab = second.test_add_tab(Some("shell"));
+        let plain_pane = second.tabs[plain_tab].root_pane;
+        second.insert_test_runtime(
+            plain_pane,
+            crate::terminal::TerminalRuntime::test_with_screen_bytes(40, 12, b"PLAIN-SHELL"),
+        );
+
+        server.app.state.workspaces = vec![first, second];
+        server.app.state.ensure_test_terminals();
+        for (ws_idx, pane_id, agent) in [
+            (0, first_pane, crate::detect::Agent::Pi),
+            (1, second_pane, crate::detect::Agent::Claude),
+        ] {
+            let terminal_id = server.app.state.workspaces[ws_idx]
+                .terminal_id(pane_id)
+                .cloned()
+                .expect("terminal id");
+            server
+                .app
+                .state
+                .terminals
+                .get_mut(&terminal_id)
+                .expect("terminal")
+                .detected_agent = Some(agent);
+        }
+        server.app.state.active = Some(0);
+        server.app.state.selected = 0;
+        server.app.state.mode = crate::app::Mode::Terminal;
+        server.app.state.main_surface = crate::app::state::MainSurface::LiveAgents;
+
+        let (client_tx, _client_control_rx, client_rx) = test_client_writer();
+        server.clients.insert(
+            1,
+            ClientConnection::new(
+                (100, 30),
+                crate::kitty_graphics::HostCellSize::default(),
+                crate::terminal_theme::TerminalTheme::default(),
+                None,
+                1,
+                RenderEncoding::SemanticFrame,
+                Some(client_tx),
+            ),
+        );
+        server.foreground_client_id = Some(1);
+        server.sync_foreground_client_state();
+        server.resize_shared_runtime_to_effective_size();
+        server.render_and_stream();
+        let initial = read_server_frame(
+            client_rx
+                .recv_timeout(Duration::from_millis(100))
+                .expect("initial grid frame"),
+        );
+        assert!(frame_text(&initial).contains("FIRST-AGENT"));
+        assert!(frame_text(&initial).contains("SECOND-AGENT"));
+        assert!(!frame_text(&initial).contains("PLAIN-SHELL"));
+
+        let agent_sources = HashSet::from([second_pane]);
+        let plain_sources = HashSet::from([plain_pane]);
+        assert!(server.pty_sources_visible_to_any_render_target(&agent_sources));
+        assert!(!server.pty_sources_visible_to_any_render_target(&plain_sources));
+
+        server
+            .app
+            .state
+            .runtime_for_pane_in_workspace(&server.app.terminal_runtimes, 1, second_pane)
+            .expect("second runtime")
+            .test_process_pty_bytes(b"\rUPDATED-AGENT");
+        assert!(server.render_retained_pty_sources_and_stream(&agent_sources));
+        let updated = read_server_frame(
+            client_rx
+                .recv_timeout(Duration::from_millis(100))
+                .expect("retained grid frame"),
+        );
+        assert!(frame_text(&updated).contains("UPDATED-AGENT"));
     }
 
     #[tokio::test]

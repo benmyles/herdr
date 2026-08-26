@@ -867,6 +867,27 @@ pub enum ViewLayout {
     Mobile,
 }
 
+/// Transient TUI presentation surface for the right-hand side of the app.
+///
+/// This projects existing terminals without changing or persisting workspace,
+/// tab, pane, or terminal identity.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum MainSurface {
+    #[default]
+    Workspace,
+    LiveAgents,
+}
+
+#[derive(Clone)]
+pub struct AgentGridPaneInfo {
+    pub ws_idx: usize,
+    pub terminal_id: crate::terminal::TerminalId,
+    pub label: String,
+    pub state: AgentState,
+    pub space_color: Color,
+    pub pane_info: PaneInfo,
+}
+
 pub struct ViewState {
     pub layout: ViewLayout,
     pub sidebar_rect: Rect,
@@ -881,6 +902,7 @@ pub struct ViewState {
     pub mobile_menu_hit_area: Rect,
     pub toast_hit_area: Rect,
     pub pane_infos: Vec<PaneInfo>,
+    pub agent_grid_panes: Vec<AgentGridPaneInfo>,
     pub split_borders: Vec<SplitBorder>,
 }
 
@@ -1445,6 +1467,8 @@ pub struct AppState {
     pub(crate) previous_pane_focus: Option<PaneFocusTarget>,
     pub selected: usize,
     pub mode: Mode,
+    pub main_surface: MainSurface,
+    pub agent_grid_selected_terminal: Option<crate::terminal::TerminalId>,
     /// Stable workspace identity captured when the close confirmation opens.
     pub(crate) confirm_close_workspace_id: Option<String>,
     pub should_quit: bool,
@@ -1627,6 +1651,11 @@ pub struct AppState {
 }
 
 impl AppState {
+    pub(crate) fn show_workspace_surface(&mut self) {
+        self.main_surface = MainSurface::Workspace;
+        self.agent_grid_selected_terminal = None;
+    }
+
     pub(crate) fn mark_session_dirty(&mut self) {
         self.session_dirty = true;
     }
@@ -1683,6 +1712,19 @@ impl AppState {
         if let Some(popup) = &self.popup_pane {
             pane_ids.insert(popup.pane_id);
         }
+        if self.main_surface == MainSurface::LiveAgents {
+            for workspace in &self.workspaces {
+                for tab in &workspace.tabs {
+                    pane_ids.extend(tab.panes.iter().filter_map(|(&pane_id, pane)| {
+                        self.terminals
+                            .get(&pane.attached_terminal_id)
+                            .is_some_and(crate::terminal::TerminalState::is_agent_terminal)
+                            .then_some(pane_id)
+                    }));
+                }
+            }
+            return pane_ids;
+        }
         let Some(tab) = self
             .active
             .and_then(|ws_idx| self.workspaces.get(ws_idx))
@@ -1698,15 +1740,53 @@ impl AppState {
         pane_ids
     }
 
+    pub(crate) fn agent_grid_selected_pane(&self) -> Option<&AgentGridPaneInfo> {
+        if self.main_surface != MainSurface::LiveAgents {
+            return None;
+        }
+        let selected = self.agent_grid_selected_terminal.as_ref()?;
+        let pane = self
+            .view
+            .agent_grid_panes
+            .iter()
+            .find(|pane| &pane.terminal_id == selected)?;
+        self.terminals
+            .get(&pane.terminal_id)
+            .is_some_and(crate::terminal::TerminalState::is_agent_terminal)
+            .then_some(pane)
+    }
+
+    pub(crate) fn surface_workspace_idx_for_pane(&self, pane_id: PaneId) -> Option<usize> {
+        if self.main_surface == MainSurface::LiveAgents {
+            return self
+                .view
+                .agent_grid_panes
+                .iter()
+                .find_map(|pane| (pane.pane_info.id == pane_id).then_some(pane.ws_idx));
+        }
+        self.active
+    }
+
     pub(crate) fn focused_pane_requests_mouse_capture_from(
         &self,
         terminal_runtimes: &crate::terminal::TerminalRuntimeRegistry,
     ) -> bool {
-        self.mode == Mode::Terminal
-            && self
-                .active
-                .and_then(|idx| self.focused_runtime_in_workspace(terminal_runtimes, idx))
+        if self.mode != Mode::Terminal {
+            return false;
+        }
+        if self.main_surface == MainSurface::LiveAgents {
+            return self.agent_grid_selected_pane().is_some_and(|pane| {
+                self.runtime_for_pane_in_workspace(
+                    terminal_runtimes,
+                    pane.ws_idx,
+                    pane.pane_info.id,
+                )
                 .is_some_and(crate::terminal::TerminalRuntime::mouse_reporting_enabled)
+            });
+        }
+        self.active
+            .and_then(|idx| self.focused_runtime_in_workspace(terminal_runtimes, idx))
+            .is_some_and(crate::terminal::TerminalRuntime::mouse_reporting_enabled)
     }
 
     pub(crate) fn should_capture_host_mouse_from(
@@ -1723,7 +1803,13 @@ impl AppState {
     }
 
     pub fn estimate_pane_size(&self) -> (u16, u16) {
-        if let Some(info) = self.view.pane_infos.first() {
+        if let Some(info) = self
+            .view
+            .agent_grid_panes
+            .first()
+            .map(|pane| &pane.pane_info)
+            .or_else(|| self.view.pane_infos.first())
+        {
             (info.rect.height, info.rect.width)
         } else {
             (self.headless_size.1, self.headless_size.0)
@@ -1838,6 +1924,8 @@ impl AppState {
             previous_pane_focus: None,
             selected: 0,
             mode: Mode::Navigate,
+            main_surface: MainSurface::Workspace,
+            agent_grid_selected_terminal: None,
             confirm_close_workspace_id: None,
             should_quit: false,
             detach_exits: false,
@@ -1890,6 +1978,7 @@ impl AppState {
                 mobile_menu_hit_area: Rect::default(),
                 toast_hit_area: Rect::default(),
                 pane_infos: Vec::new(),
+                agent_grid_panes: Vec::new(),
                 split_borders: Vec::new(),
             },
             drag: None,

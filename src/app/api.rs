@@ -683,7 +683,7 @@ impl App {
         for update in pane_updates {
             let is_active_tab = self
                 .state
-                .pane_is_in_active_tab(update.ws_idx, update.pane_id);
+                .pane_is_visible_on_app_surface(update.ws_idx, update.pane_id);
             let suppress_active_tab_notifications =
                 crate::app::actions::active_tab_suppresses_notifications(
                     is_active_tab,
