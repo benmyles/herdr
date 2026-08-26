@@ -1,6 +1,6 @@
 use ratatui::{
     layout::Rect,
-    style::{Modifier, Style},
+    style::{Color, Modifier, Style},
     text::Line,
     widgets::{Block, Borders, Paragraph},
     Frame,
@@ -246,6 +246,28 @@ pub(super) fn compute_agent_grid(
         .collect()
 }
 
+/// Percentage of the original color kept on unselected grid tiles. The
+/// remainder blends toward the panel background so only the selected tile
+/// renders at full strength.
+const UNSELECTED_TILE_COLOR_PERCENT: u16 = 25;
+
+fn mute_tile_color(color: Color, background: Color) -> Color {
+    let (Color::Rgb(red, green, blue), Color::Rgb(bg_red, bg_green, bg_blue)) = (color, background)
+    else {
+        return color;
+    };
+    let blend = |channel: u8, backdrop: u8| {
+        (u16::from(channel) * UNSELECTED_TILE_COLOR_PERCENT
+            + u16::from(backdrop) * (100 - UNSELECTED_TILE_COLOR_PERCENT))
+            / 100
+    };
+    Color::Rgb(
+        blend(red, bg_red) as u8,
+        blend(green, bg_green) as u8,
+        blend(blue, bg_blue) as u8,
+    )
+}
+
 pub(super) fn render_agent_grid(
     app: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,
@@ -264,7 +286,14 @@ pub(super) fn render_agent_grid(
 
     let terminal_active = app.mode == Mode::Terminal;
     for grid in &app.view.agent_grid_panes {
-        let border_color = grid.space_color;
+        let selected = grid.pane_info.is_focused;
+        let tile_color = |color: Color| {
+            if selected {
+                color
+            } else {
+                mute_tile_color(color, app.palette.panel_bg)
+            }
+        };
         let max_title_width = grid.pane_info.rect.width.saturating_sub(4) as usize;
         let title = (max_title_width > 0).then(|| {
             Line::styled(
@@ -272,22 +301,19 @@ pub(super) fn render_agent_grid(
                     " {} ",
                     super::text::truncate_end(&grid.label, max_title_width)
                 ),
-                Style::default().fg(super::status::state_label_color(
+                Style::default().fg(tile_color(super::status::state_label_color(
                     grid.state,
                     true,
                     &app.palette,
-                )),
+                ))),
             )
         });
+        let border_style = Style::default().fg(tile_color(grid.space_color));
         let mut block = Block::default()
             .borders(grid.pane_info.borders)
-            .border_style(Style::default().fg(border_color));
-        if grid.pane_info.is_focused {
-            block = block.border_style(
-                Style::default()
-                    .fg(border_color)
-                    .add_modifier(Modifier::BOLD),
-            );
+            .border_style(border_style);
+        if selected {
+            block = block.border_style(border_style.add_modifier(Modifier::BOLD));
         }
         if let Some(title) = title {
             block = block.title(title);
@@ -665,6 +691,53 @@ mod tests {
         assert!(rendered.contains("PI-LIVE"), "{rendered}");
         assert!(rendered.contains("CLAUDE-LIVE"), "{rendered}");
         assert!(!rendered.contains("PLAIN-SHELL"), "{rendered}");
+    }
+
+    #[tokio::test]
+    async fn agent_grid_mutes_unselected_tile_colors() {
+        let (mut app, _shell, _first_agent, _second_agent) = cross_workspace_agent_app();
+        let area = Rect::new(0, 0, 120, 40);
+        crate::ui::compute_view(&mut app, area);
+        let mut terminal = Terminal::new(TestBackend::new(area.width, area.height)).unwrap();
+        terminal
+            .draw(|frame| crate::ui::render(&app, frame))
+            .unwrap();
+        let buffer = terminal.backend().buffer();
+
+        let panes = &app.view.agent_grid_panes;
+        assert_eq!(panes.len(), 2);
+        assert_eq!(
+            panes
+                .iter()
+                .filter(|pane| pane.pane_info.is_focused)
+                .count(),
+            1
+        );
+        for grid in panes {
+            let rect = grid.pane_info.rect;
+            let title_color = |color: Color| {
+                if grid.pane_info.is_focused {
+                    color
+                } else {
+                    mute_tile_color(color, app.palette.panel_bg)
+                }
+            };
+            let expected_border = title_color(grid.space_color);
+            let expected_title = title_color(crate::ui::status::state_label_color(
+                grid.state,
+                true,
+                &app.palette,
+            ));
+
+            let top_row = (rect.x..rect.x.saturating_add(rect.width))
+                .map(|x| buffer[(x, rect.y)].fg)
+                .collect::<Vec<_>>();
+            assert_eq!(buffer[(rect.x, rect.y)].fg, expected_border);
+            assert!(top_row.contains(&expected_title), "{top_row:?}");
+            if !grid.pane_info.is_focused {
+                assert!(!top_row.contains(&grid.space_color), "{top_row:?}");
+            }
+        }
     }
 
     #[tokio::test]
