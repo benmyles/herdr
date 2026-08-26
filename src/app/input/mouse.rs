@@ -27,6 +27,9 @@ use super::{
 
 pub(super) enum MouseAction {
     NewWorkspace,
+    OpenPinnedSpace {
+        space_id: String,
+    },
     Settings(SettingsAction),
     FocusWorkspace {
         ws_idx: usize,
@@ -531,6 +534,13 @@ impl AppState {
                             self.mode = Mode::Terminal;
                             return Some(MouseAction::FocusWorkspace { ws_idx: idx });
                         }
+                        if let Some(pin_idx) = self.collapsed_pinned_space_at_row(mouse.row) {
+                            return self.pinned_spaces.get(pin_idx).map(|pin| {
+                                MouseAction::OpenPinnedSpace {
+                                    space_id: pin.id.clone(),
+                                }
+                            });
+                        }
 
                         if let Some((ws_idx, _tab_idx, pane_id)) =
                             self.collapsed_agent_detail_target_at(mouse.row)
@@ -571,7 +581,17 @@ impl AppState {
                     } else {
                         self.view.workspace_card_areas.clone()
                     };
+                    if let Some(pin_idx) = self.pinned_space_at_row(mouse.row) {
+                        return self.pinned_spaces.get(pin_idx).map(|pin| {
+                            MouseAction::OpenPinnedSpace {
+                                space_id: pin.id.clone(),
+                            }
+                        });
+                    }
                     if let Some(card) = cards.iter().find(|card| {
+                        if card.pinned_space_idx.is_some() {
+                            return false;
+                        }
                         let chevron = crate::ui::workspace_group_chevron_rect(card);
                         mouse.row == chevron.y && mouse.column == chevron.x && chevron.width > 0
                     }) {
@@ -1063,6 +1083,11 @@ impl AppState {
                         .get(idx)
                         .and_then(|ws| {
                             let group_state = crate::ui::workspace_parent_group_state(self, idx);
+                            let pinned_space_id = self
+                                .pinned_spaces
+                                .iter()
+                                .find(|pin| pin.matches_workspace(ws))
+                                .map(|pin| pin.id.clone());
                             let git_space = ws.git_space().cloned().or_else(|| {
                                 ws.resolved_identity_cwd_from(&self.terminals, terminal_runtimes)
                                     .as_deref()
@@ -1082,6 +1107,7 @@ impl AppState {
                                     .is_some_and(|space| !space.is_linked_worktree);
                             show_git_menu.then_some(ContextMenuKind::GitWorkspace {
                                 ws_idx: idx,
+                                pinned_space_id,
                                 is_linked_worktree,
                                 has_worktree_children: group_state.is_some(),
                                 collapsed: group_state
@@ -1089,7 +1115,15 @@ impl AppState {
                                     .is_some_and(|(_, collapsed)| *collapsed),
                             })
                         })
-                        .unwrap_or(ContextMenuKind::Workspace { ws_idx: idx });
+                        .unwrap_or_else(|| ContextMenuKind::Workspace {
+                            ws_idx: idx,
+                            pinned_space_id: self.workspaces.get(idx).and_then(|ws| {
+                                self.pinned_spaces
+                                    .iter()
+                                    .find(|pin| pin.matches_workspace(ws))
+                                    .map(|pin| pin.id.clone())
+                            }),
+                        });
                     self.context_menu = Some(ContextMenuState {
                         kind,
                         x: mouse.column,
@@ -1097,6 +1131,18 @@ impl AppState {
                         list: MenuListState::new(0),
                     });
                     self.mode = Mode::ContextMenu;
+                } else if let Some(pin_idx) = self.pinned_space_at_row(mouse.row) {
+                    if let Some(pin) = self.pinned_spaces.get(pin_idx) {
+                        self.context_menu = Some(ContextMenuState {
+                            kind: ContextMenuKind::PinnedSpace {
+                                space_id: pin.id.clone(),
+                            },
+                            x: mouse.column,
+                            y: mouse.row,
+                            list: MenuListState::new(0),
+                        });
+                        self.mode = Mode::ContextMenu;
+                    }
                 }
             }
 
@@ -1206,6 +1252,17 @@ impl AppState {
             Some(crate::ui::MobileSwitcherTarget::Workspace(ws_idx)) => {
                 self.mode = Mode::Terminal;
                 return MobileMouseResult::Action(MouseAction::FocusWorkspace { ws_idx });
+            }
+            Some(crate::ui::MobileSwitcherTarget::PinnedSpace(pin_idx)) => {
+                return self
+                    .pinned_spaces
+                    .get(pin_idx)
+                    .map(|pin| {
+                        MobileMouseResult::Action(MouseAction::OpenPinnedSpace {
+                            space_id: pin.id.clone(),
+                        })
+                    })
+                    .unwrap_or(MobileMouseResult::Consumed);
             }
             Some(crate::ui::MobileSwitcherTarget::NewTab) => {
                 if self.prompt_new_tab_name {
@@ -3313,7 +3370,10 @@ mod tests {
     fn hovering_context_menu_updates_highlight() {
         let mut app = app_for_mouse_test();
         app.state.context_menu = Some(ContextMenuState {
-            kind: ContextMenuKind::Workspace { ws_idx: 0 },
+            kind: ContextMenuKind::Workspace {
+                ws_idx: 0,
+                pinned_space_id: None,
+            },
             x: 2,
             y: 2,
             list: MenuListState::new(0),
@@ -3607,10 +3667,13 @@ mod tests {
         app.state.mode = Mode::Terminal;
 
         app.state.context_menu = Some(ContextMenuState {
-            kind: ContextMenuKind::Workspace { ws_idx: 1 },
+            kind: ContextMenuKind::Workspace {
+                ws_idx: 1,
+                pinned_space_id: None,
+            },
             x: 2,
             y: 2,
-            list: MenuListState::new(1),
+            list: MenuListState::new(2),
         });
         app.state.mode = Mode::ContextMenu;
         handle_context_menu_key(
@@ -3647,10 +3710,13 @@ mod tests {
         app.state.selected = 0;
         app.state.confirm_close = false;
         app.state.context_menu = Some(ContextMenuState {
-            kind: ContextMenuKind::Workspace { ws_idx: 1 },
+            kind: ContextMenuKind::Workspace {
+                ws_idx: 1,
+                pinned_space_id: None,
+            },
             x: 2,
             y: 2,
-            list: MenuListState::new(1),
+            list: MenuListState::new(2),
         });
         app.state.mode = Mode::ContextMenu;
 
@@ -3658,7 +3724,7 @@ mod tests {
         app.handle_mouse(mouse(
             MouseEventKind::Down(MouseButton::Left),
             menu.x + 2,
-            menu.y + 2,
+            menu.y + 3,
         ));
 
         assert_eq!(app.state.workspaces.len(), 1);

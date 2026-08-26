@@ -37,6 +37,7 @@ pub(crate) struct MobileSwitcherAreas {
 pub(crate) enum MobileSwitcherTarget {
     NewWorkspace,
     Workspace(usize),
+    PinnedSpace(usize),
     NewTab,
     Tab(usize),
     Agent {
@@ -114,7 +115,9 @@ pub(crate) fn mobile_switcher_workspace_doc_range(
     // in the entry list, not its raw array index.
     let pos = workspace_list_entries_expanded(app)
         .iter()
-        .position(|WorkspaceListEntry::Workspace { ws_idx, .. }| *ws_idx == idx)
+        .position(
+            |entry| matches!(entry, WorkspaceListEntry::Workspace { ws_idx, .. } if *ws_idx == idx),
+        )
         .unwrap_or(idx);
     // spaces sit after the agents block, then a title + "new workspace" row.
     let start = mobile_agents_block_height(app) + 2 + pos * 2;
@@ -177,9 +180,14 @@ pub(crate) fn mobile_switcher_target_at(
     let spaces_end = cursor + space_entries.len() * 2;
     if doc_row >= cursor && doc_row < spaces_end {
         let entry_idx = (doc_row - cursor) / 2;
-        return space_entries.get(entry_idx).map(
-            |WorkspaceListEntry::Workspace { ws_idx, .. }| MobileSwitcherTarget::Workspace(*ws_idx),
-        );
+        return space_entries.get(entry_idx).map(|entry| match entry {
+            WorkspaceListEntry::Workspace { ws_idx, .. } => {
+                MobileSwitcherTarget::Workspace(*ws_idx)
+            }
+            WorkspaceListEntry::PinnedSpace { pin_idx } => {
+                MobileSwitcherTarget::PinnedSpace(*pin_idx)
+            }
+        });
     }
     cursor = spaces_end;
 
@@ -587,9 +595,42 @@ fn render_mobile_switcher_content(
     );
     doc_y += 1;
     let space_entries = workspace_list_entries_expanded(app);
-    for (entry_idx, WorkspaceListEntry::Workspace { ws_idx, indented }) in
-        space_entries.iter().enumerate()
-    {
+    let space_colors = super::space_colors::SpacePresentation::new(app);
+    for (entry_idx, entry) in space_entries.iter().enumerate() {
+        let WorkspaceListEntry::Workspace { ws_idx, indented } = entry else {
+            let WorkspaceListEntry::PinnedSpace { pin_idx } = entry else {
+                continue;
+            };
+            let label = app
+                .pinned_spaces
+                .get(*pin_idx)
+                .map(|pin| pin.label.as_str())
+                .unwrap_or("pinned space");
+            let bg = mobile_item_bg(false, false, p);
+            let color = space_colors.pin_color(*pin_idx);
+            render_two_line_item(
+                frame,
+                viewport,
+                content,
+                doc_y,
+                app.mobile_switcher_scroll,
+                bg,
+                Line::from(vec![
+                    Span::styled("  * ", Style::default().fg(color).bg(bg)),
+                    Span::styled(
+                        truncate_end(label, content.width.saturating_sub(4) as usize),
+                        Style::default()
+                            .fg(color)
+                            .bg(bg)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                ]),
+                "pinned · no live terminals".into(),
+                color,
+            );
+            doc_y += 2;
+            continue;
+        };
         let Some(ws) = app.workspaces.get(*ws_idx) else {
             continue;
         };

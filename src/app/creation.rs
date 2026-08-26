@@ -497,6 +497,11 @@ impl App {
             number: index + 1,
             label: ws.display_name_from(&self.state.terminals, &self.terminal_runtimes),
             focused: self.state.active == Some(index),
+            pinned: self
+                .state
+                .pinned_spaces
+                .iter()
+                .any(|pin| pin.matches_workspace(ws)),
             pane_count: ws.public_pane_numbers.len(),
             tab_count: ws.tabs.len(),
             active_tab_id: self.public_tab_id(index, ws.active_tab).unwrap_or_else(|| {

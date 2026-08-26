@@ -412,6 +412,7 @@ impl App {
         let mut restored_terminal_runtimes = crate::terminal::TerminalRuntimeRegistry::new();
         let (
             workspaces,
+            pinned_spaces,
             active,
             selected,
             sidebar_width,
@@ -420,6 +421,7 @@ impl App {
             collapsed_space_keys,
         ) = if no_session {
             (
+                Vec::new(),
                 Vec::new(),
                 None,
                 0,
@@ -453,6 +455,7 @@ impl App {
                 crate::logging::session_restored(0, "empty");
                 (
                     Vec::new(),
+                    snap.pinned_spaces,
                     None,
                     0,
                     snap.sidebar_width.unwrap_or(config.ui.sidebar_width),
@@ -470,6 +473,7 @@ impl App {
                 let selected = snap.selected.min(ws.len().saturating_sub(1));
                 (
                     ws,
+                    snap.pinned_spaces,
                     active,
                     selected,
                     snap.sidebar_width.unwrap_or(config.ui.sidebar_width),
@@ -485,6 +489,7 @@ impl App {
         } else {
             (
                 Vec::new(),
+                Vec::new(),
                 None,
                 0,
                 config.ui.sidebar_width,
@@ -495,6 +500,14 @@ impl App {
         };
 
         let agent_panel_sort = agent_panel_sort_from_config(config.ui.agent_panel_sort);
+        crate::workspace::reserve_workspace_id_values(pinned_spaces.iter().filter_map(|pin| {
+            match &pin.key {
+                crate::space::PinnedSpaceKey::Workspace { workspace_id } => {
+                    Some(workspace_id.as_str())
+                }
+                crate::space::PinnedSpaceKey::Worktree { .. } => None,
+            }
+        }));
 
         // Validate sidebar bounds before they reach any `u16::clamp(min, max)`
         // call: `clamp` panics when `min > max`. On bad config, fall back to
@@ -555,6 +568,7 @@ impl App {
             pane_id_aliases: std::collections::HashMap::new(),
             public_pane_id_aliases: std::collections::HashMap::new(),
             workspaces,
+            pinned_spaces,
             active,
             previous_pane_focus: None,
             selected,
@@ -869,6 +883,15 @@ impl App {
         app.state.detach_exits = false;
         app.state.pane_id_aliases = pane_id_aliases;
         app.state.workspaces = workspaces;
+        app.state.pinned_spaces = snapshot.pinned_spaces.clone();
+        crate::workspace::reserve_workspace_id_values(app.state.pinned_spaces.iter().filter_map(
+            |pin| match &pin.key {
+                crate::space::PinnedSpaceKey::Workspace { workspace_id } => {
+                    Some(workspace_id.as_str())
+                }
+                crate::space::PinnedSpaceKey::Worktree { .. } => None,
+            },
+        ));
         app.state.terminals = terminals;
         app.terminal_runtimes = runtimes.into();
         app.state.active = snapshot
@@ -1250,6 +1273,7 @@ impl App {
 
     pub(crate) fn ensure_default_workspace(&mut self) -> bool {
         if !self.state.workspaces.is_empty()
+            || !self.state.pinned_spaces.is_empty()
             || self.state.mode == Mode::Onboarding
             || self.state.pending_workspace_create_cwd.is_some()
         {
@@ -2800,6 +2824,23 @@ mod tests {
         app.handle_rename_key_via_api(KeyEvent::new(KeyCode::Esc, KeyModifiers::empty()));
         assert!(app.state.workspaces.is_empty());
         assert!(app.state.pending_workspace_create_cwd.is_none());
+    }
+
+    #[test]
+    fn dormant_pin_suppresses_unrelated_default_workspace_creation() {
+        let mut app = test_app();
+        app.state.pinned_spaces.push(crate::space::PinnedSpace::new(
+            crate::space::PinnedSpaceKey::Workspace {
+                workspace_id: "w_dormant".into(),
+            },
+            "dormant".into(),
+            "/tmp/dormant".into(),
+            0,
+            None,
+        ));
+
+        assert!(!app.ensure_default_workspace());
+        assert!(app.state.workspaces.is_empty());
     }
 
     #[test]
@@ -6217,10 +6258,13 @@ last_pane = "prefix+tab"
         app.state.selected = 0;
         app.state.confirm_close = false;
         app.state.context_menu = Some(state::ContextMenuState {
-            kind: state::ContextMenuKind::Workspace { ws_idx: 1 },
+            kind: state::ContextMenuKind::Workspace {
+                ws_idx: 1,
+                pinned_space_id: None,
+            },
             x: 2,
             y: 2,
-            list: state::MenuListState::new(1),
+            list: state::MenuListState::new(2),
         });
         app.state.mode = Mode::ContextMenu;
 

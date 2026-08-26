@@ -9,6 +9,7 @@ pub mod plugins;
 pub mod response;
 pub mod server;
 pub mod session;
+pub mod spaces;
 pub mod tabs;
 pub mod workspaces;
 pub mod worktrees;
@@ -22,6 +23,7 @@ pub use plugins::*;
 pub use response::*;
 pub use server::*;
 pub use session::*;
+pub use spaces::*;
 pub use tabs::*;
 pub use workspaces::*;
 pub use worktrees::*;
@@ -63,6 +65,12 @@ pub enum Method {
     ClientWindowTitleClear(EmptyParams),
     #[serde(rename = "session.snapshot")]
     SessionSnapshot(EmptyParams),
+    #[serde(rename = "space.pin")]
+    SpacePin(SpacePinParams),
+    #[serde(rename = "space.unpin")]
+    SpaceUnpin(SpaceTarget),
+    #[serde(rename = "space.open")]
+    SpaceOpen(SpaceTarget),
     #[serde(rename = "workspace.create")]
     WorkspaceCreate(WorkspaceCreateParams),
     #[serde(rename = "workspace.list")]

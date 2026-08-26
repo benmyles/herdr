@@ -61,6 +61,8 @@ pub struct WorkspaceInfo {
     pub number: usize,
     pub label: String,
     pub focused: bool,
+    #[serde(default, skip_serializing_if = "super::is_false")]
+    pub pinned: bool,
     pub pane_count: usize,
     pub tab_count: usize,
     pub active_tab_id: String,

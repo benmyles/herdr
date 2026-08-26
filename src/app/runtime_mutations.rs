@@ -1,10 +1,10 @@
 use crate::api::schema::{
     EmptyParams, LayoutSetSplitRatioParams, Method, PaneFocusDirectionParams, PaneInputSetParams,
     PaneRenameParams, PaneResizeParams, PaneSplitParams, PaneSwapParams, PaneTarget,
-    PaneZoomParams, TabCreateParams, TabMoveParams, TabRenameParams, TabTarget,
-    WorkspaceCloseParams, WorkspaceCreateParams, WorkspaceMoveBlockParams, WorkspaceMoveParams,
-    WorkspaceRenameParams, WorkspaceTarget, WorktreeCreateParams, WorktreeOpenParams,
-    WorktreeRemoveParams,
+    PaneZoomParams, SpacePinParams, SpaceTarget, TabCreateParams, TabMoveParams, TabRenameParams,
+    TabTarget, WorkspaceCloseParams, WorkspaceCreateParams, WorkspaceMoveBlockParams,
+    WorkspaceMoveParams, WorkspaceRenameParams, WorkspaceTarget, WorktreeCreateParams,
+    WorktreeOpenParams, WorktreeRemoveParams,
 };
 
 use super::App;
@@ -74,6 +74,18 @@ impl App {
                 close_group: true,
             }),
         )
+    }
+
+    pub(crate) fn runtime_space_pin(&mut self, id: &'static str, workspace_id: String) -> String {
+        self.dispatch_runtime_mutation(id, Method::SpacePin(SpacePinParams { workspace_id }))
+    }
+
+    pub(crate) fn runtime_space_unpin(&mut self, id: &'static str, space_id: String) -> String {
+        self.dispatch_runtime_mutation(id, Method::SpaceUnpin(SpaceTarget { space_id }))
+    }
+
+    pub(crate) fn runtime_space_open(&mut self, id: &'static str, space_id: String) -> String {
+        self.dispatch_runtime_mutation(id, Method::SpaceOpen(SpaceTarget { space_id }))
     }
 
     pub(crate) fn runtime_tab_create(

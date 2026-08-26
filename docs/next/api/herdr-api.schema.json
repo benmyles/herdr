@@ -1092,6 +1092,9 @@
               "minimum": 0,
               "type": "integer"
             },
+            "pinned": {
+              "type": "boolean"
+            },
             "tab_count": {
               "format": "uint",
               "minimum": 0,
@@ -3673,6 +3676,28 @@
           },
           "type": "object"
         },
+        "SpacePinParams": {
+          "properties": {
+            "workspace_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "workspace_id"
+          ],
+          "type": "object"
+        },
+        "SpaceTarget": {
+          "properties": {
+            "space_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "space_id"
+          ],
+          "type": "object"
+        },
         "SplitDirection": {
           "enum": [
             "right",
@@ -4594,6 +4619,54 @@
             },
             "params": {
               "$ref": "#/schemas/request/$defs/EmptyParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "space.pin",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/SpacePinParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "space.unpin",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/SpaceTarget"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "space.open",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/SpaceTarget"
             }
           },
           "required": [
@@ -8055,6 +8128,36 @@
           ],
           "type": "object"
         },
+        "PinnedSpaceInfo": {
+          "properties": {
+            "cwd": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "live": {
+              "type": "boolean"
+            },
+            "space_id": {
+              "type": "string"
+            },
+            "workspace_ids": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "space_id",
+            "label",
+            "cwd",
+            "live",
+            "workspace_ids"
+          ],
+          "type": "object"
+        },
         "PluginActionContext": {
           "enum": [
             "global",
@@ -8744,6 +8847,22 @@
               "required": [
                 "type",
                 "workspaces"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "space": {
+                  "$ref": "#/schemas/success_response/$defs/PinnedSpaceInfo"
+                },
+                "type": {
+                  "const": "pinned_space_info",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "space"
               ],
               "type": "object"
             },
@@ -9865,6 +9984,12 @@
               },
               "type": "array"
             },
+            "pinned_spaces": {
+              "items": {
+                "$ref": "#/schemas/success_response/$defs/PinnedSpaceInfo"
+              },
+              "type": "array"
+            },
             "protocol": {
               "format": "uint32",
               "minimum": 0,
@@ -9966,6 +10091,9 @@
               "format": "uint",
               "minimum": 0,
               "type": "integer"
+            },
+            "pinned": {
+              "type": "boolean"
             },
             "tab_count": {
               "format": "uint",

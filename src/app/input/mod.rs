@@ -403,6 +403,9 @@ impl App {
                     MouseAction::NewWorkspace => {
                         self.begin_tui_workspace_create("tui.mouse.workspace.create")
                     }
+                    MouseAction::OpenPinnedSpace { space_id } => {
+                        self.runtime_space_open("tui.mouse.space.open", space_id);
+                    }
                     MouseAction::Settings(action) => match action {
                         SettingsAction::SaveTheme(name) => self.save_theme(&name),
                         SettingsAction::SaveStatusIndicators(style) => {
@@ -913,6 +916,7 @@ fn capture_snapshot(state: &AppState) -> crate::persist::SessionSnapshot {
     let terminal_runtimes = crate::terminal::TerminalRuntimeRegistry::new();
     crate::persist::capture(
         &state.workspaces,
+        &state.pinned_spaces,
         &state.terminals,
         &terminal_runtimes,
         state.active,

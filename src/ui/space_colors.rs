@@ -26,6 +26,7 @@ enum SpaceKey<'a> {
 pub(super) struct SpacePresentation {
     workspace_order: Vec<usize>,
     workspace_colors: Vec<Color>,
+    pin_colors: Vec<Color>,
 }
 
 impl SpacePresentation {
@@ -60,7 +61,14 @@ impl SpacePresentation {
         let mut workspace_order = Vec::with_capacity(app.workspaces.len());
         let mut workspace_colors = vec![app.palette.accent; app.workspaces.len()];
         for (space_idx, group) in groups.iter().enumerate() {
-            let color = palette_space_color(&app.palette, space_idx);
+            let pinned_order = group.members.iter().find_map(|ws_idx| {
+                let workspace = &app.workspaces[*ws_idx];
+                app.pinned_spaces
+                    .iter()
+                    .find(|pin| pin.matches_workspace(workspace))
+                    .map(|pin| pin.order)
+            });
+            let color = palette_space_color(&app.palette, pinned_order.unwrap_or(space_idx));
             if let Some(parent) = group.parent {
                 workspace_order.push(parent);
             }
@@ -72,9 +80,15 @@ impl SpacePresentation {
             }
         }
 
+        let pin_colors = app
+            .pinned_spaces
+            .iter()
+            .map(|pin| palette_space_color(&app.palette, pin.order))
+            .collect();
         Self {
             workspace_order,
             workspace_colors,
+            pin_colors,
         }
     }
 
@@ -85,6 +99,13 @@ impl SpacePresentation {
     pub(super) fn color(&self, ws_idx: usize) -> Color {
         self.workspace_colors
             .get(ws_idx)
+            .copied()
+            .unwrap_or(Color::Reset)
+    }
+
+    pub(super) fn pin_color(&self, pin_idx: usize) -> Color {
+        self.pin_colors
+            .get(pin_idx)
             .copied()
             .unwrap_or(Color::Reset)
     }

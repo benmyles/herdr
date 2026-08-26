@@ -311,6 +311,7 @@ pub(crate) fn grouped_child_display_label(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum WorkspaceListEntry {
     Workspace { ws_idx: usize, indented: bool },
+    PinnedSpace { pin_idx: usize },
 }
 
 pub(crate) fn next_entry_is_indented_workspace(entries: &[WorkspaceListEntry], idx: usize) -> bool {
@@ -442,6 +443,36 @@ fn workspace_list_entries_inner(app: &AppState, force_expanded: bool) -> Vec<Wor
             }
         }
     }
+    let mut dormant_pins = app
+        .pinned_spaces
+        .iter()
+        .enumerate()
+        .filter(|(_, pin)| {
+            !app.workspaces
+                .iter()
+                .any(|workspace| pin.matches_workspace(workspace))
+        })
+        .map(|(pin_idx, pin)| (pin_idx, pin.order))
+        .collect::<Vec<_>>();
+    dormant_pins.sort_by_key(|(pin_idx, order)| (*order, *pin_idx));
+    for (pin_idx, order) in dormant_pins {
+        let insert_at = entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| {
+                matches!(
+                    entry,
+                    WorkspaceListEntry::Workspace {
+                        indented: false,
+                        ..
+                    }
+                )
+            })
+            .nth(order)
+            .map(|(idx, _)| idx)
+            .unwrap_or(entries.len());
+        entries.insert(insert_at, WorkspaceListEntry::PinnedSpace { pin_idx });
+    }
     entries
 }
 
@@ -482,6 +513,9 @@ fn workspace_list_visible_count(app: &AppState, area: Rect, scroll: usize) -> us
                     workspace_entry_gap(app, &entries, entry_idx),
                 )
             }
+            WorkspaceListEntry::PinnedSpace { .. } => {
+                (1, workspace_entry_gap(app, &entries, entry_idx))
+            }
         };
         if used_rows.saturating_add(row_height) > body.height {
             break;
@@ -499,13 +533,18 @@ fn workspace_list_bottom_start(app: &AppState, area: Rect) -> usize {
     let mut used_rows = 0u16;
     let mut start = entries.len();
     for (entry_idx, entry) in entries.iter().enumerate().rev() {
-        let WorkspaceListEntry::Workspace { ws_idx, indented } = entry;
-        let Some(workspace) = app.workspaces.get(*ws_idx) else {
-            continue;
-        };
         let gap = workspace_entry_gap(app, &entries, entry_idx);
-        let needed = workspace_row_height_in_body(app, workspace, *indented, body.height)
-            .saturating_add(gap);
+        let row_height = match entry {
+            WorkspaceListEntry::Workspace { ws_idx, indented } => app
+                .workspaces
+                .get(*ws_idx)
+                .map(|workspace| {
+                    workspace_row_height_in_body(app, workspace, *indented, body.height)
+                })
+                .unwrap_or(0),
+            WorkspaceListEntry::PinnedSpace { .. } => 1,
+        };
+        let needed = row_height.saturating_add(gap);
         if used_rows.saturating_add(needed) > body.height {
             break;
         }
@@ -700,8 +739,26 @@ pub(crate) fn compute_workspace_list_areas(
                 }
                 cards.push(crate::app::state::WorkspaceCardArea {
                     ws_idx: *ws_idx,
+                    pinned_space_idx: None,
                     rect: Rect::new(body.x, row_y, body.width, row_height),
                     indented: *indented,
+                });
+                row_y = row_y
+                    .saturating_add(row_height)
+                    .saturating_add(gap)
+                    .min(body_bottom);
+            }
+            WorkspaceListEntry::PinnedSpace { pin_idx } => {
+                let row_height = 1;
+                let gap = workspace_entry_gap(app, &entries, entry_idx);
+                if row_y.saturating_add(row_height) > body_bottom {
+                    break;
+                }
+                cards.push(crate::app::state::WorkspaceCardArea {
+                    ws_idx: 0,
+                    pinned_space_idx: Some(*pin_idx),
+                    rect: Rect::new(body.x, row_y, body.width, row_height),
+                    indented: false,
                 });
                 row_y = row_y
                     .saturating_add(row_height)
@@ -797,16 +854,34 @@ pub(super) fn render_sidebar_collapsed(app: &AppState, frame: &mut Frame, area: 
         return;
     }
 
-    for (visible_idx, ws) in app.workspaces.iter().enumerate() {
+    for (visible_idx, entry) in workspace_list_entries(app).iter().enumerate() {
         let y = ws_area.y + visible_idx as u16;
         if y >= ws_area.y + ws_area.height {
             break;
         }
+        let WorkspaceListEntry::Workspace { ws_idx, .. } = entry else {
+            let WorkspaceListEntry::PinnedSpace { pin_idx } = entry else {
+                continue;
+            };
+            frame.render_widget(
+                Paragraph::new(Span::styled(
+                    "*",
+                    Style::default()
+                        .fg(spaces.pin_color(*pin_idx))
+                        .add_modifier(Modifier::DIM),
+                )),
+                Rect::new(ws_area.x, y, ws_area.width, 1),
+            );
+            continue;
+        };
+        let Some(ws) = app.workspaces.get(*ws_idx) else {
+            continue;
+        };
         let (agg_state, agg_seen) = ws.aggregate_state(&app.terminals);
         let (icon, icon_style) = state_icon(agg_state, agg_seen, app.status_indicators, p);
-        let is_selected = visible_idx == app.selected && is_navigating;
-        let is_active = Some(visible_idx) == app.active;
-        let space_color = spaces.color(visible_idx);
+        let is_selected = *ws_idx == app.selected && is_navigating;
+        let is_active = Some(*ws_idx) == app.active;
+        let space_color = spaces.color(*ws_idx);
         let selection_bg = workspace_selection_background(p, is_active);
         let row_style = if is_selected {
             Style::default().bg(selection_bg)
@@ -935,12 +1010,16 @@ pub(crate) fn workspace_drop_slots(
                     indented: false,
                 } => Some(*ws_idx),
                 WorkspaceListEntry::Workspace { .. } => None,
+                WorkspaceListEntry::PinnedSpace { .. } => None,
             })
     };
 
     let mut slots = Vec::new();
     let mut previous_root = None;
     for card in cards {
+        if card.pinned_space_idx.is_some() {
+            continue;
+        }
         let Some(entry_idx) = entry_position(card.ws_idx) else {
             continue;
         };
@@ -959,7 +1038,11 @@ pub(crate) fn workspace_drop_slots(
         }
     }
 
-    let Some(last) = cards.last() else {
+    let Some(last) = cards
+        .iter()
+        .rev()
+        .find(|card| card.pinned_space_idx.is_none())
+    else {
         return slots;
     };
     let Some(last_entry_idx) = entry_position(last.ws_idx) else {
@@ -976,6 +1059,7 @@ pub(crate) fn workspace_drop_slots(
         Some(WorkspaceListEntry::Workspace { ws_idx, .. }) => {
             crate::app::state::WorkspaceDropTarget::Before(*ws_idx)
         }
+        Some(WorkspaceListEntry::PinnedSpace { .. }) => crate::app::state::WorkspaceDropTarget::End,
         None => crate::app::state::WorkspaceDropTarget::End,
     };
     let row = last.rect.y.saturating_add(last.rect.height);
@@ -1288,6 +1372,24 @@ fn render_workspace_list_with_spaces(
     let entries = workspace_list_entries(app);
 
     for card in cards {
+        if let Some(pin_idx) = card.pinned_space_idx {
+            let Some(pin) = app.pinned_spaces.get(pin_idx) else {
+                continue;
+            };
+            let color = spaces.pin_color(pin_idx);
+            let style = Style::default().fg(color).add_modifier(Modifier::DIM);
+            frame.render_widget(
+                Paragraph::new(Line::from(vec![
+                    Span::styled(" * ", style.add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        truncate_end(&pin.label, card.rect.width.saturating_sub(3) as usize),
+                        style,
+                    ),
+                ])),
+                card.rect,
+            );
+            continue;
+        }
         let i = card.ws_idx;
         let ws = &app.workspaces[i];
         let row_y = card.rect.y;
@@ -2738,6 +2840,7 @@ rows = [[{ token = "git_status", fg = "#123456" }]]
         app.mode = Mode::Terminal;
         app.view.workspace_card_areas = vec![crate::app::state::WorkspaceCardArea {
             ws_idx: 0,
+            pinned_space_idx: None,
             rect: Rect::new(0, 1, 15, 2),
             indented: false,
         }];
@@ -3304,6 +3407,42 @@ rows = [[{ token = "git_status", fg = "#123456" }]]
                     indented: true,
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn live_pin_coalesces_then_becomes_a_colored_dormant_row() {
+        let mut app = AppState::test_new();
+        app.workspaces = vec![Workspace::test_new("alpha"), Workspace::test_new("beta")];
+        let pin = crate::space::PinnedSpace::new(
+            crate::space::PinnedSpaceKey::from_workspace(&app.workspaces[0]),
+            "alpha".into(),
+            "/tmp/alpha".into(),
+            0,
+            None,
+        );
+        app.pinned_spaces.push(pin);
+
+        assert!(workspace_list_entries(&app)
+            .iter()
+            .all(|entry| !matches!(entry, WorkspaceListEntry::PinnedSpace { .. })));
+        let live_color = super::super::space_colors::SpacePresentation::new(&app).color(0);
+
+        app.workspaces.remove(0);
+        let entries = workspace_list_entries(&app);
+        assert!(matches!(
+            entries.first(),
+            Some(WorkspaceListEntry::PinnedSpace { pin_idx: 0 })
+        ));
+        assert_eq!(
+            live_color,
+            super::super::space_colors::SpacePresentation::new(&app).pin_color(0)
+        );
+
+        let cards = compute_workspace_card_areas(&app, Rect::new(0, 0, 30, 20));
+        assert_eq!(
+            cards.first().and_then(|card| card.pinned_space_idx),
+            Some(0)
         );
     }
 }

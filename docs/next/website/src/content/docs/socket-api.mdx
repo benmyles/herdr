@@ -414,6 +414,8 @@ Worktree commands also emit lifecycle events. `worktree.create` emits `workspace
 
 `workspace.close` rejects closing a primary workspace while linked-worktree workspaces are open unless its params include `"close_group": true`, returning `workspace_group_close_required` when explicit group intent is missing. An explicit group close emits one `workspace.closed` event for each workspace it closes.
 
+Pinned Spaces are server-owned session bookmarks. `space.pin` accepts a live `workspace_id`, coalescing every workspace in the same worktree group under one pin. `space.unpin` and `space.open` accept the stable `space_id` returned by `space.pin` and exposed by `session.snapshot.pinned_spaces`. A dormant pin has `live: false`, an empty `workspace_ids` list, and no pane, tab, PTY, or hidden runtime. Opening it creates and focuses a real workspace in the saved directory. Live `workspace` records expose `pinned: true`, and pin or unpin changes emit `workspace.updated` for matching live workspaces.
+
 ## Agent view queries
 
 `agent.view.set` installs one transient declarative projection for the built-in

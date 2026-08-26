@@ -806,13 +806,15 @@ pub(super) fn apply_context_menu_action(
             leave_modal(state);
         }
         (
-            ContextMenuKind::Workspace { ws_idx } | ContextMenuKind::GitWorkspace { ws_idx, .. },
+            ContextMenuKind::Workspace { ws_idx, .. }
+            | ContextMenuKind::GitWorkspace { ws_idx, .. },
             Some("Rename"),
         ) => {
             open_rename_workspace(state, terminal_runtimes, ws_idx);
         }
         (
-            ContextMenuKind::Workspace { ws_idx } | ContextMenuKind::GitWorkspace { ws_idx, .. },
+            ContextMenuKind::Workspace { ws_idx, .. }
+            | ContextMenuKind::GitWorkspace { ws_idx, .. },
             Some("Close" | "Close group"),
         ) => {
             state.selected = ws_idx;
@@ -822,6 +824,52 @@ pub(super) fn apply_context_menu_action(
                 state.close_selected_workspace();
                 state.mode = Mode::Navigate;
             }
+        }
+        (
+            ContextMenuKind::Workspace { ws_idx, .. }
+            | ContextMenuKind::GitWorkspace { ws_idx, .. },
+            Some("Pin"),
+        ) => {
+            if let Some(workspace) = state.workspaces.get(ws_idx) {
+                let key = crate::space::PinnedSpaceKey::from_workspace(workspace);
+                if !state.pinned_spaces.iter().any(|pin| pin.key == key) {
+                    state.pinned_spaces.push(crate::space::PinnedSpace::new(
+                        key,
+                        workspace.display_name_from(&state.terminals, terminal_runtimes),
+                        workspace
+                            .resolved_identity_cwd_from(&state.terminals, terminal_runtimes)
+                            .unwrap_or_else(|| workspace.identity_cwd.clone()),
+                        ws_idx,
+                        workspace.worktree_space().cloned(),
+                    ));
+                    state.mark_session_dirty();
+                }
+            }
+            leave_modal(state);
+        }
+        (
+            ContextMenuKind::Workspace {
+                pinned_space_id: Some(space_id),
+                ..
+            }
+            | ContextMenuKind::GitWorkspace {
+                pinned_space_id: Some(space_id),
+                ..
+            },
+            Some("Unpin"),
+        )
+        | (ContextMenuKind::PinnedSpace { space_id }, Some("Unpin")) => {
+            state.pinned_spaces.retain(|pin| pin.id != space_id);
+            state.mark_session_dirty();
+            leave_modal(state);
+        }
+        (ContextMenuKind::PinnedSpace { space_id }, Some("Open")) => {
+            state.request_new_workspace_cwd = state
+                .pinned_spaces
+                .iter()
+                .find(|pin| pin.id == space_id)
+                .map(|pin| pin.cwd.clone());
+            leave_modal(state);
         }
         (ContextMenuKind::Tab { ws_idx, tab_idx }, Some("New tab")) => {
             state.selected = ws_idx;
@@ -1235,12 +1283,12 @@ impl App {
                 leave_modal(&mut self.state);
             }
             (
-                ContextMenuKind::Workspace { ws_idx }
+                ContextMenuKind::Workspace { ws_idx, .. }
                 | ContextMenuKind::GitWorkspace { ws_idx, .. },
                 Some("Rename"),
             ) => open_rename_workspace(&mut self.state, &self.terminal_runtimes, ws_idx),
             (
-                ContextMenuKind::Workspace { ws_idx }
+                ContextMenuKind::Workspace { ws_idx, .. }
                 | ContextMenuKind::GitWorkspace { ws_idx, .. },
                 Some("Close" | "Close group"),
             ) => {
@@ -1251,6 +1299,34 @@ impl App {
                     self.close_workspace_idx_with_group_via_api(ws_idx);
                     self.state.mode = Mode::Navigate;
                 }
+            }
+            (
+                ContextMenuKind::Workspace { ws_idx, .. }
+                | ContextMenuKind::GitWorkspace { ws_idx, .. },
+                Some("Pin"),
+            ) => {
+                let workspace_id = self.public_workspace_id(ws_idx);
+                self.runtime_space_pin("tui.space.pin", workspace_id);
+                leave_modal(&mut self.state);
+            }
+            (
+                ContextMenuKind::Workspace {
+                    pinned_space_id: Some(space_id),
+                    ..
+                }
+                | ContextMenuKind::GitWorkspace {
+                    pinned_space_id: Some(space_id),
+                    ..
+                },
+                Some("Unpin"),
+            )
+            | (ContextMenuKind::PinnedSpace { space_id }, Some("Unpin")) => {
+                self.runtime_space_unpin("tui.space.unpin", space_id);
+                leave_modal(&mut self.state);
+            }
+            (ContextMenuKind::PinnedSpace { space_id }, Some("Open")) => {
+                self.runtime_space_open("tui.space.open", space_id);
+                leave_modal(&mut self.state);
             }
             (ContextMenuKind::Tab { ws_idx, tab_idx }, Some("New tab")) => {
                 self.focus_workspace_idx_via_api(ws_idx);
@@ -2206,6 +2282,7 @@ mod tests {
         let menu = ContextMenuState {
             kind: ContextMenuKind::GitWorkspace {
                 ws_idx: 0,
+                pinned_space_id: None,
                 is_linked_worktree: false,
                 has_worktree_children: true,
                 collapsed: false,
@@ -2216,7 +2293,7 @@ mod tests {
         };
         let mut terminal_runtimes = crate::terminal::TerminalRuntimeRegistry::new();
 
-        apply_context_menu_action(&mut state, &mut terminal_runtimes, menu, 1);
+        apply_context_menu_action(&mut state, &mut terminal_runtimes, menu, 2);
 
         assert_eq!(state.selected, 0);
         assert_eq!(state.mode, Mode::ConfirmClose);
@@ -2417,5 +2494,49 @@ mod tests {
         assert_eq!(app.state.mode, Mode::ConfirmClose);
         assert_eq!(app.state.workspaces.len(), 2);
         assert!(app.state.context_menu.is_none());
+    }
+
+    #[test]
+    fn workspace_context_menu_pins_and_dormant_menu_unpins() {
+        let mut state = state_with_workspaces(&["project"]);
+        let mut runtimes = crate::terminal::TerminalRuntimeRegistry::new();
+        let pin_menu = ContextMenuState {
+            kind: ContextMenuKind::Workspace {
+                ws_idx: 0,
+                pinned_space_id: None,
+            },
+            x: 0,
+            y: 0,
+            list: MenuListState::new(0),
+        };
+        let pin_idx = pin_menu
+            .items()
+            .iter()
+            .position(|item| *item == "Pin")
+            .expect("pin action");
+
+        apply_context_menu_action(&mut state, &mut runtimes, pin_menu, pin_idx);
+        assert_eq!(state.pinned_spaces.len(), 1);
+        let space_id = state.pinned_spaces[0].id.clone();
+
+        state.workspaces.clear();
+        state.terminals.clear();
+        state.active = None;
+        state.selected = 0;
+        let unpin_menu = ContextMenuState {
+            kind: ContextMenuKind::PinnedSpace { space_id },
+            x: 0,
+            y: 0,
+            list: MenuListState::new(0),
+        };
+        let unpin_idx = unpin_menu
+            .items()
+            .iter()
+            .position(|item| *item == "Unpin")
+            .expect("unpin action");
+
+        apply_context_menu_action(&mut state, &mut runtimes, unpin_menu, unpin_idx);
+        assert!(state.pinned_spaces.is_empty());
+        state.assert_invariants_for_test();
     }
 }

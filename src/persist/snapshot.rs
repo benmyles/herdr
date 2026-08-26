@@ -18,6 +18,8 @@ pub struct SessionSnapshot {
     #[serde(default)]
     pub version: u32,
     pub workspaces: Vec<WorkspaceSnapshot>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pinned_spaces: Vec<crate::space::PinnedSpace>,
     pub active: Option<usize>,
     pub selected: usize,
     #[serde(default)]
@@ -175,6 +177,8 @@ struct RawSessionSnapshot {
     #[serde(default)]
     workspaces: Vec<serde_json::Value>,
     #[serde(default)]
+    pinned_spaces: Vec<crate::space::PinnedSpace>,
+    #[serde(default)]
     active: Option<usize>,
     #[serde(default)]
     selected: usize,
@@ -194,6 +198,7 @@ fn migrate_snapshot(raw: RawSessionSnapshot) -> Result<SessionSnapshot, String> 
             .into_iter()
             .map(migrate_workspace)
             .collect::<Result<Vec<_>, _>>()?,
+        pinned_spaces: raw.pinned_spaces,
         active: raw.active,
         selected: raw.selected,
         sidebar_width: raw.sidebar_width,
@@ -251,6 +256,7 @@ fn first_pane_id_in_layout(layout: &LayoutSnapshot) -> Option<u32> {
 /// Capture the current app state into a serializable snapshot.
 pub fn capture(
     workspaces: &[Workspace],
+    pinned_spaces: &[crate::space::PinnedSpace],
     terminals: &std::collections::HashMap<
         crate::terminal::TerminalId,
         crate::terminal::TerminalState,
@@ -268,6 +274,7 @@ pub fn capture(
             .iter()
             .map(|workspace| capture_workspace(workspace, terminals, terminal_runtimes))
             .collect(),
+        pinned_spaces: pinned_spaces.to_vec(),
         active,
         selected,
         sidebar_width: Some(sidebar_width),
@@ -534,6 +541,7 @@ mod tests {
     ) -> SessionSnapshot {
         capture(
             &state.workspaces,
+            &state.pinned_spaces,
             &state.terminals,
             terminal_runtimes,
             state.active,
@@ -600,6 +608,7 @@ mod tests {
         let snap = SessionSnapshot {
             version: SNAPSHOT_VERSION,
             workspaces: vec![],
+            pinned_spaces: vec![],
             active: None,
             selected: 0,
             sidebar_width: Some(26),
@@ -609,9 +618,48 @@ mod tests {
         let json = serde_json::to_string(&snap).unwrap();
         let restored = parse_snapshot(&json).unwrap();
         assert!(restored.workspaces.is_empty());
+        assert!(restored.pinned_spaces.is_empty());
         assert_eq!(restored.active, None);
         assert_eq!(restored.sidebar_width, Some(26));
         assert_eq!(restored.sidebar_section_split, Some(0.5));
+    }
+
+    #[test]
+    fn older_snapshot_defaults_to_no_pinned_spaces() {
+        let restored =
+            parse_snapshot(r#"{"version":3,"workspaces":[],"active":null,"selected":0}"#)
+                .expect("v3 snapshot without pins should remain compatible");
+
+        assert!(restored.pinned_spaces.is_empty());
+    }
+
+    #[test]
+    fn pinned_only_space_round_trips_without_a_runtime_workspace() {
+        let pin = crate::space::PinnedSpace::new(
+            crate::space::PinnedSpaceKey::Workspace {
+                workspace_id: "w_dormant".into(),
+            },
+            "dormant project".into(),
+            PathBuf::from("/tmp/dormant-project"),
+            3,
+            None,
+        );
+        let snap = SessionSnapshot {
+            version: SNAPSHOT_VERSION,
+            workspaces: Vec::new(),
+            pinned_spaces: vec![pin.clone()],
+            active: None,
+            selected: 0,
+            sidebar_width: Some(26),
+            sidebar_section_split: Some(0.5),
+            collapsed_space_keys: std::collections::HashSet::new(),
+        };
+
+        let json = serde_json::to_string(&snap).expect("serialize pin");
+        let restored = parse_snapshot(&json).expect("restore pin");
+
+        assert!(restored.workspaces.is_empty());
+        assert_eq!(restored.pinned_spaces, vec![pin]);
     }
 
     #[test]
@@ -687,6 +735,7 @@ mod tests {
                 }],
                 active_tab: 0,
             }],
+            pinned_spaces: vec![],
             active: Some(0),
             selected: 0,
             sidebar_width: Some(26),
@@ -1249,6 +1298,7 @@ mod tests {
                 }],
                 active_tab: 0,
             }],
+            pinned_spaces: vec![],
             active: Some(0),
             selected: 0,
             sidebar_width: Some(26),

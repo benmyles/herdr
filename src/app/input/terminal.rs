@@ -1719,6 +1719,7 @@ mod tests {
         assert_eq!(app.state.mode, Mode::Terminal);
         let snapshot = crate::persist::capture(
             &app.state.workspaces,
+            &app.state.pinned_spaces,
             &app.state.terminals,
             &app.terminal_runtimes,
             app.state.active,

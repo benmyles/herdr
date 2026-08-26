@@ -592,6 +592,24 @@ mod render_scale_benchmark {
         app
     }
 
+    fn app_with_dormant_pins(pin_count: usize) -> AppState {
+        let mut app = AppState::test_new();
+        app.pinned_spaces = (0..pin_count)
+            .map(|index| {
+                crate::space::PinnedSpace::new(
+                    crate::space::PinnedSpaceKey::Workspace {
+                        workspace_id: format!("w_dormant_{}", index + 1),
+                    },
+                    format!("dormant-{}", index + 1),
+                    std::path::PathBuf::from(format!("/tmp/dormant-{}", index + 1)),
+                    index,
+                    None,
+                )
+            })
+            .collect();
+        app
+    }
+
     fn app_with(workspaces: Vec<Workspace>) -> AppState {
         let mut app = AppState::test_new();
         app.mode = Mode::Terminal;
@@ -669,6 +687,10 @@ mod render_scale_benchmark {
         );
         assert_full_render_avoids_aggregate_input_state(app_with_active_panes(15), "active panes");
         assert_full_render_avoids_aggregate_input_state(app_with_agent_grid(15), "live-agent grid");
+        assert_full_render_avoids_aggregate_input_state(
+            app_with_dormant_pins(15),
+            "dormant pinned spaces",
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -695,6 +717,10 @@ mod render_scale_benchmark {
         print_profiles(
             "live-agent grid (one agent per workspace)",
             profile_cardinalities(app_with_agent_grid),
+        );
+        print_profiles(
+            "dormant pinned spaces (no PTYs)",
+            profile_cardinalities(app_with_dormant_pins),
         );
     }
 }

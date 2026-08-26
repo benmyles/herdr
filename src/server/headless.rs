@@ -1293,6 +1293,7 @@ impl HeadlessServer {
 
         let snapshot = crate::persist::capture(
             &self.app.state.workspaces,
+            &self.app.state.pinned_spaces,
             &self.app.state.terminals,
             &self.app.terminal_runtimes,
             self.app.state.active,
@@ -5194,10 +5195,10 @@ fn seed_startup_workspace_if_empty(app: &mut app::App) {
         return;
     };
 
-    if !app.state.workspaces.is_empty() {
+    if !should_seed_startup_workspace(app) {
         info!(
             cwd = %cwd.display(),
-            "restored session already has workspaces; ignoring startup cwd"
+            "restored session already has workspaces or pinned spaces; ignoring startup cwd"
         );
         return;
     }
@@ -5211,6 +5212,10 @@ fn seed_startup_workspace_if_empty(app: &mut app::App) {
             app.state.mode = app::Mode::Navigate;
         }
     }
+}
+
+fn should_seed_startup_workspace(app: &app::App) -> bool {
+    app.state.workspaces.is_empty() && app.state.pinned_spaces.is_empty()
 }
 
 fn take_startup_cwd() -> Option<PathBuf> {
@@ -5357,6 +5362,29 @@ mod tests {
 
     #[path = "pane_graphics.rs"]
     mod pane_graphics_tests;
+
+    #[test]
+    fn dormant_pin_suppresses_startup_cwd_workspace_seed() {
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = crate::app::App::new(
+            &crate::config::Config::default(),
+            true,
+            None,
+            api_rx,
+            crate::api::EventHub::default(),
+        );
+        app.state.pinned_spaces.push(crate::space::PinnedSpace::new(
+            crate::space::PinnedSpaceKey::Workspace {
+                workspace_id: "w_dormant".into(),
+            },
+            "dormant".into(),
+            "/tmp/dormant".into(),
+            0,
+            None,
+        ));
+
+        assert!(!should_seed_startup_workspace(&app));
+    }
 
     #[test]
     fn retained_render_plan_covers_each_render_path() {

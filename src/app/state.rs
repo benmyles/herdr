@@ -712,6 +712,8 @@ impl Palette {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WorkspaceCardArea {
     pub ws_idx: usize,
+    /// Set for a dormant pinned-space row. `ws_idx` is ignored in that case.
+    pub pinned_space_idx: Option<usize>,
     pub rect: Rect,
     pub indented: bool,
 }
@@ -1280,12 +1282,17 @@ pub(crate) struct TabPressState {
 pub enum ContextMenuKind {
     Workspace {
         ws_idx: usize,
+        pinned_space_id: Option<String>,
     },
     GitWorkspace {
         ws_idx: usize,
+        pinned_space_id: Option<String>,
         is_linked_worktree: bool,
         has_worktree_children: bool,
         collapsed: bool,
+    },
+    PinnedSpace {
+        space_id: String,
     },
     Tab {
         ws_idx: usize,
@@ -1311,29 +1318,67 @@ pub struct ContextMenuState {
 
 impl ContextMenuState {
     pub fn items(&self) -> Vec<&'static str> {
-        match self.kind {
-            ContextMenuKind::Workspace { .. } => vec!["Rename", "Close"],
+        match &self.kind {
+            ContextMenuKind::Workspace {
+                pinned_space_id, ..
+            } => vec![
+                "Rename",
+                if pinned_space_id.is_some() {
+                    "Unpin"
+                } else {
+                    "Pin"
+                },
+                "Close",
+            ],
             ContextMenuKind::GitWorkspace {
                 is_linked_worktree: false,
                 has_worktree_children: false,
+                pinned_space_id,
                 ..
-            } => vec!["Rename", "Close", "New worktree", "Open worktree..."],
+            } => vec![
+                "Rename",
+                if pinned_space_id.is_some() {
+                    "Unpin"
+                } else {
+                    "Pin"
+                },
+                "Close",
+                "New worktree",
+                "Open worktree...",
+            ],
             ContextMenuKind::GitWorkspace {
                 is_linked_worktree: true,
+                pinned_space_id,
                 ..
-            } => vec!["Rename", "Close", "Delete worktree checkout..."],
+            } => vec![
+                "Rename",
+                if pinned_space_id.is_some() {
+                    "Unpin"
+                } else {
+                    "Pin"
+                },
+                "Close",
+                "Delete worktree checkout...",
+            ],
             ContextMenuKind::GitWorkspace {
                 is_linked_worktree: false,
                 has_worktree_children: true,
                 collapsed,
+                pinned_space_id,
                 ..
             } => vec![
                 "Rename",
+                if pinned_space_id.is_some() {
+                    "Unpin"
+                } else {
+                    "Pin"
+                },
                 "Close group",
                 "New worktree",
                 "Open worktree...",
-                if collapsed { "Expand" } else { "Collapse" },
+                if *collapsed { "Expand" } else { "Collapse" },
             ],
+            ContextMenuKind::PinnedSpace { .. } => vec!["Open", "Unpin"],
             ContextMenuKind::Tab { .. } => vec!["New tab", "Rename", "Close"],
             ContextMenuKind::Pane {
                 source_pane_id,
@@ -1342,14 +1387,14 @@ impl ContextMenuState {
                 ..
             } => {
                 let mut items = vec!["Rename pane"];
-                if has_manual_label {
+                if *has_manual_label {
                     items.push("Clear pane name");
                 }
                 if source_pane_id.is_some() {
                     items.push("Swap with focused pane");
                 }
                 items.extend(["Split right", "Split down", "Zoom"]);
-                items.push(if right_click_passthrough {
+                items.push(if *right_click_passthrough {
                     "Use Herdr right-click menu"
                 } else {
                     "Send right-clicks to pane"
@@ -1463,6 +1508,9 @@ pub struct AppState {
     pub(crate) pane_id_aliases: std::collections::HashMap<u32, PaneId>,
     pub(crate) public_pane_id_aliases: std::collections::HashMap<String, PaneId>,
     pub workspaces: Vec<Workspace>,
+    /// Server-owned bookmarks for logical spaces. A pin can outlive every PTY
+    /// and therefore deliberately does not masquerade as an empty Workspace.
+    pub pinned_spaces: Vec<crate::space::PinnedSpace>,
     pub active: Option<usize>,
     pub(crate) previous_pane_focus: Option<PaneFocusTarget>,
     pub selected: usize,
@@ -1920,6 +1968,7 @@ impl AppState {
             pane_id_aliases: std::collections::HashMap::new(),
             public_pane_id_aliases: std::collections::HashMap::new(),
             workspaces: Vec::new(),
+            pinned_spaces: Vec::new(),
             active: None,
             previous_pane_focus: None,
             selected: 0,
@@ -2122,6 +2171,20 @@ impl AppState {
     }
 
     pub fn assert_invariants_for_test(&self) {
+        let mut pinned_ids = std::collections::HashSet::new();
+        let mut pinned_keys = std::collections::HashSet::new();
+        for pin in &self.pinned_spaces {
+            assert!(
+                pinned_ids.insert(pin.id.clone()),
+                "duplicate pinned space id {}",
+                pin.id
+            );
+            assert!(
+                pinned_keys.insert(pin.key.clone()),
+                "duplicate pinned logical space {:?}",
+                pin.key
+            );
+        }
         if self.workspaces.is_empty() {
             assert!(
                 self.active.is_none(),
@@ -2190,10 +2253,15 @@ impl AppState {
                 self.tab_presses.is_empty(),
                 "empty app state must not keep tab press state"
             );
-            assert!(
-                self.context_menu.is_none(),
-                "empty app state must not keep context menu"
-            );
+            if let Some(menu) = &self.context_menu {
+                let ContextMenuKind::PinnedSpace { space_id } = &menu.kind else {
+                    panic!("empty app state may only keep a pinned-space context menu");
+                };
+                assert!(
+                    self.pinned_spaces.iter().any(|pin| pin.id == *space_id),
+                    "empty app state context menu must target an existing pin"
+                );
+            }
             assert!(
                 self.host_mouse_pixels.is_none(),
                 "empty app state must not keep host mouse pixel provenance"
@@ -2391,8 +2459,8 @@ impl AppState {
             assert_tab_index(press.ws_idx, press.tab_idx, "tab press");
         }
         if let Some(menu) = &self.context_menu {
-            match menu.kind {
-                ContextMenuKind::Workspace { ws_idx }
+            match menu.kind.clone() {
+                ContextMenuKind::Workspace { ws_idx, .. }
                 | ContextMenuKind::GitWorkspace { ws_idx, .. } => {
                     assert_workspace_index(ws_idx, "context menu workspace")
                 }
@@ -2420,6 +2488,10 @@ impl AppState {
                         assert_live_pane(source_pane_id, "context menu source pane");
                     }
                 }
+                ContextMenuKind::PinnedSpace { space_id } => assert!(
+                    self.pinned_spaces.iter().any(|pin| pin.id == space_id),
+                    "context menu pinned space {space_id} must exist"
+                ),
             }
         }
     }
@@ -2715,6 +2787,7 @@ mod tests {
         let menu = ContextMenuState {
             kind: ContextMenuKind::GitWorkspace {
                 ws_idx: 0,
+                pinned_space_id: None,
                 is_linked_worktree: true,
                 has_worktree_children: false,
                 collapsed: false,
@@ -2726,7 +2799,7 @@ mod tests {
 
         assert_eq!(
             menu.items(),
-            &["Rename", "Close", "Delete worktree checkout..."]
+            &["Rename", "Pin", "Close", "Delete worktree checkout..."]
         );
     }
 
@@ -2735,6 +2808,7 @@ mod tests {
         let menu = ContextMenuState {
             kind: ContextMenuKind::GitWorkspace {
                 ws_idx: 0,
+                pinned_space_id: None,
                 is_linked_worktree: false,
                 has_worktree_children: false,
                 collapsed: false,
@@ -2746,7 +2820,7 @@ mod tests {
 
         assert_eq!(
             menu.items(),
-            &["Rename", "Close", "New worktree", "Open worktree..."]
+            &["Rename", "Pin", "Close", "New worktree", "Open worktree..."]
         );
     }
 
@@ -2755,6 +2829,7 @@ mod tests {
         let menu = ContextMenuState {
             kind: ContextMenuKind::GitWorkspace {
                 ws_idx: 0,
+                pinned_space_id: None,
                 is_linked_worktree: false,
                 has_worktree_children: true,
                 collapsed: false,
@@ -2768,11 +2843,36 @@ mod tests {
             menu.items(),
             &[
                 "Rename",
+                "Pin",
                 "Close group",
                 "New worktree",
                 "Open worktree...",
                 "Collapse"
             ]
         );
+    }
+
+    #[test]
+    fn pinned_space_context_menus_switch_to_unpin() {
+        let live = ContextMenuState {
+            kind: ContextMenuKind::Workspace {
+                ws_idx: 0,
+                pinned_space_id: Some("space_1".into()),
+            },
+            x: 0,
+            y: 0,
+            list: MenuListState::new(0),
+        };
+        let dormant = ContextMenuState {
+            kind: ContextMenuKind::PinnedSpace {
+                space_id: "space_1".into(),
+            },
+            x: 0,
+            y: 0,
+            list: MenuListState::new(0),
+        };
+
+        assert_eq!(live.items(), &["Rename", "Unpin", "Close"]);
+        assert_eq!(dormant.items(), &["Open", "Unpin"]);
     }
 }

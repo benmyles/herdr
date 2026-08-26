@@ -10,6 +10,7 @@ mod panes;
 pub(crate) mod plugins;
 mod responses;
 mod session;
+mod spaces;
 mod tabs;
 mod workspaces;
 mod worktrees;
@@ -1010,6 +1011,9 @@ impl App {
                 );
             }
             Method::SessionSnapshot(_) => return self.handle_session_snapshot(request.id),
+            Method::SpacePin(params) => return self.handle_space_pin(request.id, params),
+            Method::SpaceUnpin(target) => return self.handle_space_unpin(request.id, target),
+            Method::SpaceOpen(target) => return self.handle_space_open(request.id, target),
             Method::WorkspaceList(_) => return self.handle_workspace_list(request.id),
             Method::WorkspaceGet(target) => return self.handle_workspace_get(request.id, target),
             Method::WorkspaceCreate(params) => {

@@ -374,7 +374,23 @@ impl AppState {
         };
 
         cards.iter().find_map(|card| {
-            (row >= card.rect.y && row < card.rect.y + card.rect.height).then_some(card.ws_idx)
+            (card.pinned_space_idx.is_none()
+                && row >= card.rect.y
+                && row < card.rect.y + card.rect.height)
+                .then_some(card.ws_idx)
+        })
+    }
+
+    pub(super) fn pinned_space_at_row(&self, row: u16) -> Option<usize> {
+        let cards = if self.view.workspace_card_areas.is_empty() {
+            crate::ui::compute_workspace_card_areas(self, self.view.sidebar_rect)
+        } else {
+            self.view.workspace_card_areas.clone()
+        };
+        cards.iter().find_map(|card| {
+            (row >= card.rect.y && row < card.rect.y + card.rect.height)
+                .then_some(card.pinned_space_idx)
+                .flatten()
         })
     }
 
@@ -389,7 +405,24 @@ impl AppState {
         }
 
         let idx = (row - ws_area.y) as usize;
-        (idx < self.workspaces.len()).then_some(idx)
+        match crate::ui::workspace_list_entries(self).get(idx) {
+            Some(crate::ui::WorkspaceListEntry::Workspace { ws_idx, .. }) => Some(*ws_idx),
+            _ => None,
+        }
+    }
+
+    pub(super) fn collapsed_pinned_space_at_row(&self, row: u16) -> Option<usize> {
+        if !self.sidebar_collapsed {
+            return None;
+        }
+        let (ws_area, _, _) = crate::ui::collapsed_sidebar_sections(self.view.sidebar_rect);
+        if ws_area == Rect::default() || row < ws_area.y || row >= ws_area.y + ws_area.height {
+            return None;
+        }
+        match crate::ui::workspace_list_entries(self).get((row - ws_area.y) as usize) {
+            Some(crate::ui::WorkspaceListEntry::PinnedSpace { pin_idx }) => Some(*pin_idx),
+            _ => None,
+        }
     }
 
     pub(super) fn collapsed_agent_detail_target_at(
@@ -463,6 +496,7 @@ impl AppState {
                     indented: false,
                 } => Some(ws_idx),
                 crate::ui::WorkspaceListEntry::Workspace { .. } => None,
+                crate::ui::WorkspaceListEntry::PinnedSpace { .. } => None,
             })
             .collect::<Vec<_>>();
         let source_pos = roots.iter().position(|ws_idx| *ws_idx == source_ws_idx)?;

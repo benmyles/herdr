@@ -101,6 +101,14 @@ impl App {
         };
         ws.set_custom_name(params.label.clone());
         crate::logging::workspace_renamed(&ws.id);
+        if let Some(pin) = self
+            .state
+            .pinned_spaces
+            .iter_mut()
+            .find(|pin| pin.matches_workspace(ws))
+        {
+            pin.label.clone_from(&params.label);
+        }
         self.schedule_session_save();
         self.emit_event(EventEnvelope {
             event: EventKind::WorkspaceRenamed,
