@@ -1,0 +1,31 @@
+src/workspace.rs
+  s_36b5d26081ce4c::t_3cf3846e54f2cb 1118,1132,1140-1145,1150
+src/ui/agent_grid.rs
+  s_36b5d26081ce4c::t_de2948e5138423 150,153-154,804-851
+  s_36b5d26081ce4c::t_cf80831215afb7 852
+  s_e3c978a6a65d28::t_8f733be780248a 853-854
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "b50d4cafe348a681c57d85aebed99b2f224eb869",
+  "prompts": {},
+  "sessions": {
+    "s_36b5d26081ce4c": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "cb720edc-dccc-46b9-8d58-377a087f37fd",
+        "model": "custom:droidproxy:gpt-5.6-sol"
+      },
+      "human_author": "Ben Myles <ben@2q31.com>"
+    },
+    "s_e3c978a6a65d28": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a03d0a-3ebd-7fe3-9e29-7c8de18ce071",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ben Myles <ben@2q31.com>"
+    }
+  }
+}
