@@ -122,7 +122,7 @@ fn live_agent_targets(
         let Some(workspace) = app.workspaces.get(ws_idx) else {
             continue;
         };
-        let workspace_label = workspace.display_name_from_terminals(&app.terminals);
+        let workspace_label = workspace.display_name_from(&app.terminals, terminal_runtimes);
         let multi_tab = workspace.tabs.len() > 1;
         for (tab_idx, tab) in workspace.tabs.iter().enumerate() {
             let tab_label = multi_tab
@@ -145,6 +145,7 @@ fn live_agent_targets(
 
                 let agent_label = terminal
                     .effective_display_agent()
+                    .or_else(|| terminal.agent_name.clone())
                     .or_else(|| terminal.effective_agent_label().map(str::to_string))
                     .unwrap_or_else(|| "agent".to_string());
                 let context = tab_label
@@ -702,5 +703,61 @@ mod tests {
         assert!(visible.contains(&first_agent));
         assert!(visible.contains(&second_agent));
         assert!(!visible.contains(&shell));
+    }
+
+    #[tokio::test]
+    async fn agent_grid_title_prefers_agent_name_for_agent_identity() {
+        let (mut app, _shell, first_agent, _second_agent) = cross_workspace_agent_app();
+        let terminal_id = app.workspaces[0]
+            .terminal_id(first_agent)
+            .cloned()
+            .expect("first agent terminal");
+        app.terminals
+            .get_mut(&terminal_id)
+            .expect("terminal")
+            .set_agent_name("planner".into());
+
+        crate::ui::compute_view(&mut app, Rect::new(0, 0, 120, 40));
+
+        let labels = app
+            .view
+            .agent_grid_panes
+            .iter()
+            .map(|pane| pane.label.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(labels, ["planner · one/review", "claude · two"]);
+    }
+
+    #[tokio::test]
+    async fn agent_grid_title_uses_agent_name_when_no_kind_is_detected() {
+        let mut workspace = Workspace::test_new("solo");
+        let pane_id = workspace.tabs[0].root_pane;
+        workspace.insert_test_runtime(
+            pane_id,
+            crate::terminal::TerminalRuntime::test_with_screen_bytes(20, 5, b"NAMED-AGENT"),
+        );
+        let mut app = AppState::test_new();
+        app.workspaces = vec![workspace];
+        app.ensure_test_terminals();
+        let terminal_id = app.workspaces[0]
+            .terminal_id(pane_id)
+            .cloned()
+            .expect("terminal id");
+        app.terminals
+            .get_mut(&terminal_id)
+            .expect("terminal")
+            .set_agent_name("planner".into());
+        app.active = Some(0);
+        app.main_surface = MainSurface::LiveAgents;
+
+        crate::ui::compute_view(&mut app, Rect::new(0, 0, 120, 40));
+
+        let labels = app
+            .view
+            .agent_grid_panes
+            .iter()
+            .map(|pane| pane.label.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(labels, ["planner · solo"]);
     }
 }
