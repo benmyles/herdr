@@ -1,0 +1,14 @@
+src/ui/agent_grid.rs
+  h_9b4a5c940a23e2 125,148,707-762
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "fba5adf444b918fd5a79720df8e324fc8281b53c",
+  "prompts": {},
+  "humans": {
+    "h_9b4a5c940a23e2": {
+      "author": "Ben Myles <ben@2q31.com>"
+    }
+  }
+}
