@@ -1,18 +1,21 @@
 #!/usr/bin/env bash
-# Build an optimized herdr release and install it to ~/bin/herdr.
+# Build an optimized herdr release and replace the herdr executable selected
+# by PATH. Symlinks are followed so package-manager or dotfile links remain
+# intact while their current target is replaced atomically.
 #
 # The vendored libghostty-vt crate is built with Zig and requires Zig 0.15.2.
 # Zig is resolved in this order:
 #   1. the ZIG environment variable, when its version is 0.15.2
-#   2. a cached copy under ${XDG_CACHE_HOME:-~/.cache}/herdr/zig-* (macOS)
+#   2. Homebrew's versioned zig@0.15 formula (macOS)
 #   3. the system Zig, when its version is 0.15.2
-#   4. on macOS, downloading Zig 0.15.2 into the cache automatically
+#   4. a cached copy under ${XDG_CACHE_HOME:-~/.cache}/herdr/zig-* (macOS)
+#   5. on macOS, downloading Zig 0.15.2 into the cache automatically
 #
-# Install destination can be overridden with HERDR_BIN_DIR (default ~/bin).
+# Set HERDR_INSTALL_TARGET to test or install to an explicit path. The older
+# HERDR_BIN_DIR override remains supported and installs to HERDR_BIN_DIR/herdr.
 set -euo pipefail
 
 ROOT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-BIN_DIR=${HERDR_BIN_DIR:-"$HOME/bin"}
 ZIG_VERSION="0.15.2"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/herdr"
 
@@ -23,6 +26,17 @@ find_zig() {
         printf '%s\n' "$env_candidate"
         return 0
     fi
+
+    local homebrew_candidate
+    for homebrew_candidate in \
+        "/opt/homebrew/opt/zig@0.15/bin/zig" \
+        "/usr/local/opt/zig@0.15/bin/zig"; do
+        if [[ -x "$homebrew_candidate" ]] &&
+            [[ "$("$homebrew_candidate" version 2>/dev/null || true)" == "$ZIG_VERSION" ]]; then
+            printf '%s\n' "$homebrew_candidate"
+            return 0
+        fi
+    done
 
     local system_candidate
     if system_candidate="$(command -v zig 2>/dev/null || true)" &&
@@ -45,7 +59,7 @@ find_zig() {
         local zig_dir="$CACHE_DIR/zig-$arch-macos-$ZIG_VERSION"
         if [[ ! -x "$zig_dir/zig" ]] || [[ "$("$zig_dir/zig" version 2>/dev/null || true)" != "$ZIG_VERSION" ]]; then
             local tarball="$CACHE_DIR/zig-$arch-macos-$ZIG_VERSION.tar.xz"
-            echo "downloading Zig $ZIG_VERSION to $zig_dir"
+            echo "downloading Zig $ZIG_VERSION to $zig_dir" >&2
             mkdir -p "$CACHE_DIR"
             if [[ ! -f "$tarball" ]]; then
                 curl -fL "https://ziglang.org/download/$ZIG_VERSION/zig-$arch-macos-$ZIG_VERSION.tar.xz" \
@@ -71,8 +85,61 @@ find_zig() {
     exit 1
 }
 
+find_install_path() {
+    if [[ -n "${HERDR_INSTALL_TARGET:-}" ]]; then
+        printf '%s\n' "$HERDR_INSTALL_TARGET"
+        return 0
+    fi
+    if [[ -n "${HERDR_BIN_DIR:-}" ]]; then
+        printf '%s/herdr\n' "${HERDR_BIN_DIR%/}"
+        return 0
+    fi
+
+    local path_entry
+    path_entry="$(type -P herdr 2>/dev/null || true)"
+    if [[ -z "$path_entry" ]]; then
+        echo "error: herdr is not installed in PATH." >&2
+        echo "       Set HERDR_INSTALL_TARGET=/absolute/path/to/herdr and retry." >&2
+        exit 1
+    fi
+    printf '%s\n' "$path_entry"
+}
+
+resolve_install_target() {
+    local target="$1"
+    local target_dir
+    local link
+    local depth=0
+
+    target_dir="$(dirname -- "$target")"
+    mkdir -p "$target_dir"
+    target_dir="$(cd -P -- "$target_dir" && pwd)"
+    target="$target_dir/$(basename -- "$target")"
+
+    while [[ -L "$target" ]]; do
+        depth=$((depth + 1))
+        if ((depth > 40)); then
+            echo "error: too many symlinks while resolving $1" >&2
+            exit 1
+        fi
+        link="$(readlink "$target")"
+        if [[ "$link" == /* ]]; then
+            target="$link"
+        else
+            target="$(dirname -- "$target")/$link"
+        fi
+        target_dir="$(cd -P -- "$(dirname -- "$target")" && pwd)"
+        target="$target_dir/$(basename -- "$target")"
+    done
+
+    printf '%s\n' "$target"
+}
+
 cd "$ROOT_DIR"
-export ZIG="$(find_zig)"
+ZIG="$(find_zig)"
+export ZIG
+PATH_ENTRY="$(find_install_path)"
+INSTALL_TARGET="$(resolve_install_target "$PATH_ENTRY")"
 
 # Zig 0.15.2 links against the Command Line Tools SDK on macOS. When a full
 # Xcode SDK is selected by xcode-select, set DEVELOPER_DIR so both the zig
@@ -84,7 +151,32 @@ fi
 echo "building herdr release with $("$ZIG" version)"
 cargo build --release --locked
 
-echo "installing to $BIN_DIR/herdr"
-mkdir -p "$BIN_DIR"
-cp target/release/herdr "$BIN_DIR/.herdr-next"
-mv -f "$BIN_DIR/.herdr-next" "$BIN_DIR/herdr"
+BUILD_BINARY="$ROOT_DIR/target/release/herdr"
+INSTALL_DIR="$(dirname -- "$INSTALL_TARGET")"
+if [[ ! -w "$INSTALL_DIR" ]]; then
+    echo "error: install directory is not writable: $INSTALL_DIR" >&2
+    exit 1
+fi
+
+TEMP_BINARY=""
+cleanup() {
+    if [[ -n "$TEMP_BINARY" ]]; then
+        rm -f -- "$TEMP_BINARY"
+    fi
+}
+trap cleanup EXIT
+
+TEMP_BINARY="$(mktemp "$INSTALL_DIR/.herdr-install.XXXXXX")"
+install -m 0755 "$BUILD_BINARY" "$TEMP_BINARY"
+"$TEMP_BINARY" --version >/dev/null
+
+echo "installing to $PATH_ENTRY"
+if [[ "$PATH_ENTRY" != "$INSTALL_TARGET" ]]; then
+    echo "resolved install target: $INSTALL_TARGET"
+fi
+mv -f -- "$TEMP_BINARY" "$INSTALL_TARGET"
+TEMP_BINARY=""
+trap - EXIT
+
+echo "installed $("$INSTALL_TARGET" --version)"
+echo "running Herdr servers keep their current binary until they are stopped and restarted"
