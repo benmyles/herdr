@@ -85,6 +85,25 @@ impl AppState {
         first
     }
 
+    pub(super) fn select_live_agent_grid_target(
+        &mut self,
+        ws_idx: usize,
+        pane_id: crate::layout::PaneId,
+    ) {
+        if self.main_surface != MainSurface::LiveAgents {
+            return;
+        }
+        let Some(terminal_id) = self
+            .workspaces
+            .get(ws_idx)
+            .and_then(|workspace| workspace.terminal_id(pane_id))
+            .cloned()
+        else {
+            return;
+        };
+        self.agent_grid_selected_terminal = Some(terminal_id);
+    }
+
     pub(super) fn workspace_list_scrollbar_target_at(
         &self,
         col: u16,
@@ -863,6 +882,8 @@ mod tests {
         app.state.active = Some(0);
         app.state.selected = 0;
         app.state.mode = Mode::Terminal;
+        app.state.main_surface = MainSurface::LiveAgents;
+        app.state.agent_grid_selected_terminal = Some(first_terminal_id);
 
         app.handle_mouse(mouse(MouseEventKind::Down(MouseButton::Left), 2, 16));
 
@@ -870,6 +891,10 @@ mod tests {
         assert_eq!(
             app.state.workspaces[0].tabs[1].layout.focused(),
             second_pane
+        );
+        assert_eq!(
+            app.state.agent_grid_selected_terminal.as_ref(),
+            Some(&second_terminal_id)
         );
         assert_eq!(app.state.mode, Mode::Terminal);
         let snapshot = capture_snapshot(&app.state);
@@ -1207,6 +1232,8 @@ mod tests {
         app.state.active = Some(0);
         app.state.selected = 0;
         app.state.mode = Mode::Terminal;
+        app.state.main_surface = MainSurface::LiveAgents;
+        app.state.agent_grid_selected_terminal = Some(first_terminal_id);
         app.state.sidebar_collapsed = true;
         app.state.view.sidebar_rect = Rect::new(0, 0, 4, 20);
         app.state.view.terminal_area = Rect::new(4, 0, 80, 20);
@@ -1223,6 +1250,10 @@ mod tests {
         assert_eq!(
             app.state.workspaces[0].tabs[1].layout.focused(),
             second_pane
+        );
+        assert_eq!(
+            app.state.agent_grid_selected_terminal.as_ref(),
+            Some(&second_terminal_id)
         );
         assert_eq!(app.state.mode, Mode::Terminal);
     }

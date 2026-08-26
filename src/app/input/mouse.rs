@@ -546,6 +546,7 @@ impl AppState {
                             self.collapsed_agent_detail_target_at(mouse.row)
                         {
                             self.mode = Mode::Terminal;
+                            self.select_live_agent_grid_target(ws_idx, pane_id);
                             return Some(MouseAction::FocusPane { ws_idx, pane_id });
                         }
                         return None;
@@ -663,6 +664,7 @@ impl AppState {
                         self.agent_detail_target_at(mouse.row)
                     {
                         self.mode = Mode::Terminal;
+                        self.select_live_agent_grid_target(ws_idx, pane_id);
                         return Some(MouseAction::FocusPane { ws_idx, pane_id });
                     }
                 } else if let Some(info) = self.pane_at(mouse.column, mouse.row).cloned() {
