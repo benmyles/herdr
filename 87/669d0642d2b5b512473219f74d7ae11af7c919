@@ -1,0 +1,31 @@
+install.sh
+  s_1b9946058014c9::t_0bb4e9f5e140c3 175
+  s_1b9946058014c9::t_406771559bd236 139-140
+  s_1b9946058014c9::t_33042a6ea6e7bc 12
+  s_1b9946058014c9::t_99b04ddc86e4cb 2-4,9,11,14-15,30-40,62,88-136,141-142,154-174,176-182
+  s_efffa41606cecc::t_35177b18a6507a 137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "87669d0642d2b5b512473219f74d7ae11af7c919",
+  "prompts": {},
+  "sessions": {
+    "s_1b9946058014c9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a03aed-6c56-7480-b652-08cc81476b3d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ben Myles <ben@2q31.com>"
+    },
+    "s_efffa41606cecc": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a031e3-a458-7e92-bcf1-f35320d8008e",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Ben Myles <ben@2q31.com>"
+    }
+  }
+}
