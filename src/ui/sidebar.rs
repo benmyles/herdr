@@ -455,23 +455,8 @@ fn workspace_list_entries_inner(app: &AppState, force_expanded: bool) -> Vec<Wor
         .map(|(pin_idx, pin)| (pin_idx, pin.order))
         .collect::<Vec<_>>();
     dormant_pins.sort_by_key(|(pin_idx, order)| (*order, *pin_idx));
-    for (pin_idx, order) in dormant_pins {
-        let insert_at = entries
-            .iter()
-            .enumerate()
-            .filter(|(_, entry)| {
-                matches!(
-                    entry,
-                    WorkspaceListEntry::Workspace {
-                        indented: false,
-                        ..
-                    }
-                )
-            })
-            .nth(order)
-            .map(|(idx, _)| idx)
-            .unwrap_or(entries.len());
-        entries.insert(insert_at, WorkspaceListEntry::PinnedSpace { pin_idx });
+    for (pin_idx, _) in dormant_pins {
+        entries.push(WorkspaceListEntry::PinnedSpace { pin_idx });
     }
     entries
 }
@@ -3411,7 +3396,49 @@ rows = [[{ token = "git_status", fg = "#123456" }]]
     }
 
     #[test]
-    fn live_pin_coalesces_then_becomes_a_colored_dormant_row() {
+    fn dormant_pins_follow_live_spaces_in_saved_order() {
+        let mut app = AppState::test_new();
+        app.workspaces = vec![Workspace::test_new("alpha"), Workspace::test_new("beta")];
+        app.pinned_spaces = vec![
+            crate::space::PinnedSpace::new(
+                crate::space::PinnedSpaceKey::Workspace {
+                    workspace_id: "later".into(),
+                },
+                "later".into(),
+                "/tmp/later".into(),
+                1,
+                None,
+            ),
+            crate::space::PinnedSpace::new(
+                crate::space::PinnedSpaceKey::Workspace {
+                    workspace_id: "earlier".into(),
+                },
+                "earlier".into(),
+                "/tmp/earlier".into(),
+                0,
+                None,
+            ),
+        ];
+
+        assert_eq!(
+            workspace_list_entries(&app),
+            vec![
+                WorkspaceListEntry::Workspace {
+                    ws_idx: 0,
+                    indented: false,
+                },
+                WorkspaceListEntry::Workspace {
+                    ws_idx: 1,
+                    indented: false,
+                },
+                WorkspaceListEntry::PinnedSpace { pin_idx: 1 },
+                WorkspaceListEntry::PinnedSpace { pin_idx: 0 },
+            ]
+        );
+    }
+
+    #[test]
+    fn live_pin_coalesces_then_becomes_a_colored_dormant_row_at_bottom() {
         let mut app = AppState::test_new();
         app.workspaces = vec![Workspace::test_new("alpha"), Workspace::test_new("beta")];
         let pin = crate::space::PinnedSpace::new(
@@ -3430,19 +3457,22 @@ rows = [[{ token = "git_status", fg = "#123456" }]]
 
         app.workspaces.remove(0);
         let entries = workspace_list_entries(&app);
-        assert!(matches!(
-            entries.first(),
-            Some(WorkspaceListEntry::PinnedSpace { pin_idx: 0 })
-        ));
+        assert_eq!(
+            entries,
+            vec![
+                WorkspaceListEntry::Workspace {
+                    ws_idx: 0,
+                    indented: false,
+                },
+                WorkspaceListEntry::PinnedSpace { pin_idx: 0 },
+            ]
+        );
         assert_eq!(
             live_color,
             super::super::space_colors::SpacePresentation::new(&app).pin_color(0)
         );
 
         let cards = compute_workspace_card_areas(&app, Rect::new(0, 0, 30, 20));
-        assert_eq!(
-            cards.first().and_then(|card| card.pinned_space_idx),
-            Some(0)
-        );
+        assert_eq!(cards.last().and_then(|card| card.pinned_space_idx), Some(0));
     }
 }
