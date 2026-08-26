@@ -1,0 +1,21 @@
+src/ui/sidebar.rs
+  s_6f0132e9da9d5e::t_0c4c1abf1ffc16 3476
+  s_6f0132e9da9d5e::t_b88af3acf09992 3399-3440
+  s_6f0132e9da9d5e::t_70c391e6975ef2 458-459,3441,3460-3469
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.24",
+  "base_commit_sha": "611b3f078e44c61506d1f8818856b2681f30690c",
+  "prompts": {},
+  "sessions": {
+    "s_6f0132e9da9d5e": {
+      "agent_id": {
+        "tool": "droid",
+        "id": "622dcf6a-3dcb-4f3d-843d-66bcd1a4045d",
+        "model": "custom:droidproxy:gpt-5.6-sol"
+      },
+      "human_author": "Ben Myles <ben@2q31.com>"
+    }
+  }
+}
