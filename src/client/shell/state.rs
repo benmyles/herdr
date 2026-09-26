@@ -78,6 +78,9 @@ pub(super) enum ClientMobileTarget {
         endpoint_id: ClientEndpointId,
         pane_id: String,
     },
+    PinnedSpace {
+        space_id: String,
+    },
     Menu(usize),
 }
 
@@ -94,6 +97,8 @@ pub(super) struct ShellHitMap {
     pub(super) popup: Option<PaneHit>,
     pub(super) pane_splits: Vec<PaneSplitHit>,
     pub(super) agents: Vec<(Rect, String)>,
+    /// Dormant pinned space rows and their stable space ids.
+    pub(super) pinned_spaces: Vec<(Rect, String)>,
     pub(super) endpoint_agents: Vec<(Rect, ClientEndpointId, String)>,
     pub(super) agent_body: Rect,
     pub(super) agent_scrollbar: Rect,
@@ -525,6 +530,16 @@ pub(super) enum ClientContextMenuAction {
     Zoom,
     ToggleRightClickPassthrough,
     ClosePane,
+    Pin,
+    Unpin,
+    OpenPinnedSpace,
+}
+
+/// Pin state of a workspace's space when its endpoint supports pinned spaces.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum ClientWorkspacePin {
+    Unpinned,
+    Pinned { space_id: String },
 }
 
 #[derive(Debug)]
@@ -535,6 +550,10 @@ pub(super) enum ClientContextMenuTarget {
         is_linked_worktree: bool,
         has_worktree_children: bool,
         collapsed: bool,
+        pin: Option<ClientWorkspacePin>,
+    },
+    PinnedSpace {
+        space_id: String,
     },
     Tab {
         tab_id: String,

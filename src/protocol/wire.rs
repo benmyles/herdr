@@ -954,6 +954,20 @@ pub struct ClientShellSnapshot {
     pub panes: Vec<ClientShellPane>,
     pub agents: Vec<ClientShellAgent>,
     pub commands: Vec<ClientShellCommand>,
+    /// Server-owned space bookmarks, including dormant pins with no live workspace.
+    #[serde(default)]
+    pub pinned_spaces: Vec<ClientShellPinnedSpace>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClientShellPinnedSpace {
+    pub space_id: String,
+    pub label: String,
+    pub cwd: String,
+    /// Whether any live workspace belongs to this space.
+    pub live: bool,
+    /// Saved pin order, which also selects the space's color slot.
+    pub order: usize,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1038,6 +1052,9 @@ pub struct ClientShellWorkspace {
     pub focused: bool,
     #[serde(deserialize_with = "deserialize_client_shell_agent_status")]
     pub agent_status: crate::api::schema::AgentStatus,
+    /// Pin covering this workspace's space, if any.
+    #[serde(default)]
+    pub pinned_space_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2843,6 +2860,7 @@ mod tests {
                 worktree: None,
                 focused: true,
                 agent_status: crate::api::schema::AgentStatus::Idle,
+                pinned_space_id: None,
             }],
             tabs: vec![ClientShellTab {
                 tab_id: "w1:t1".into(),
@@ -2872,6 +2890,7 @@ mod tests {
                 action: ClientShellCommandAction::Shell,
                 description: Some("deploy".into()),
             }],
+            pinned_spaces: Vec::new(),
         }));
         let encoded = bincode::serde::encode_to_vec(&msg, bincode::config::standard()).unwrap();
         let (decoded, _): (ServerMessage, _) =

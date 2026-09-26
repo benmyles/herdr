@@ -878,6 +878,35 @@ fn mobile_items(
             });
         }
     }
+    for pin in super::sidebar::dormant_pinned_spaces(snapshot) {
+        let color = crate::ui::space_color(palette, pin.order);
+        let background = palette.panel_bg;
+        items.push(MobileItem {
+            lines: vec![
+                Line::from(vec![
+                    Span::styled("  * ", Style::default().fg(color).bg(background)),
+                    Span::styled(
+                        crate::ui::truncate_end(
+                            &pin.label,
+                            usize::from(content_width.saturating_sub(4)),
+                        ),
+                        Style::default()
+                            .fg(color)
+                            .bg(background)
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                ]),
+                Line::from(Span::styled(
+                    "  pinned · no live terminals",
+                    Style::default().fg(palette.overlay0).bg(background),
+                )),
+            ],
+            background,
+            target: Some(ClientMobileTarget::PinnedSpace {
+                space_id: pin.space_id.clone(),
+            }),
+        });
+    }
 
     if let Some(workspace_id) = snapshot.focused_workspace_id.as_deref() {
         items.push(MobileItem::section("tabs", palette));
@@ -1034,6 +1063,11 @@ impl ClientShellState {
                     self.mode = ClientShellMode::Terminal;
                     self.navigate_workspace_id = None;
                 }
+            }
+            Some(ClientMobileTarget::PinnedSpace { space_id }) => {
+                self.open_pinned_space(space_id, outcome);
+                self.mode = ClientShellMode::Terminal;
+                self.navigate_workspace_id = None;
             }
             Some(ClientMobileTarget::Agent {
                 endpoint_id,

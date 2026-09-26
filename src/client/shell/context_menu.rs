@@ -2,10 +2,32 @@ use super::*;
 
 impl ClientContextMenuOverlay {
     pub(super) fn items(&self) -> Vec<ClientContextMenuItem> {
+        let mut items = self.target_items();
+        if let ClientContextMenuTarget::Workspace { pin: Some(pin), .. } = &self.target {
+            let item = match pin {
+                ClientWorkspacePin::Unpinned => ClientContextMenuItem {
+                    label: "Pin",
+                    action: ClientContextMenuAction::Pin,
+                },
+                ClientWorkspacePin::Pinned { .. } => ClientContextMenuItem {
+                    label: "Unpin",
+                    action: ClientContextMenuAction::Unpin,
+                },
+            };
+            items.insert(1.min(items.len()), item);
+        }
+        items
+    }
+
+    fn target_items(&self) -> Vec<ClientContextMenuItem> {
         use ClientContextMenuAction as Action;
 
         let item = |label, action| ClientContextMenuItem { label, action };
         match &self.target {
+            ClientContextMenuTarget::PinnedSpace { .. } => vec![
+                item("Open", Action::OpenPinnedSpace),
+                item("Unpin", Action::Unpin),
+            ],
             ClientContextMenuTarget::Workspace { is_git: false, .. } => {
                 vec![item("Rename", Action::Rename), item("Close", Action::Close)]
             }
@@ -109,6 +131,14 @@ impl ClientShellState {
         let collapsed = worktree.is_some_and(|worktree| {
             self.group_is_collapsed(&self.active_endpoint_id, &worktree.key)
         });
+        let pin = self.active_endpoint_supports_pinned_spaces().then(|| {
+            workspace
+                .pinned_space_id
+                .clone()
+                .map_or(ClientWorkspacePin::Unpinned, |space_id| {
+                    ClientWorkspacePin::Pinned { space_id }
+                })
+        });
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Workspace {
                 workspace_id,
@@ -116,11 +146,47 @@ impl ClientShellState {
                 is_linked_worktree: worktree.is_some_and(|worktree| worktree.is_linked_worktree),
                 has_worktree_children,
                 collapsed,
+                pin,
             },
             x,
             y,
             highlighted: 0,
         }));
+    }
+
+    pub(super) fn open_pinned_space_context_menu(&mut self, space_id: String, x: u16, y: u16) {
+        self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
+            target: ClientContextMenuTarget::PinnedSpace { space_id },
+            x,
+            y,
+            highlighted: 0,
+        }));
+    }
+
+    /// Pinned spaces are fork-only endpoint methods; hide their actions from
+    /// endpoints that do not advertise them instead of surfacing rejections.
+    pub(super) fn active_endpoint_supports_pinned_spaces(&self) -> bool {
+        use crate::api::schema::{Method, SpacePinParams, SpaceTarget};
+
+        let space = || SpaceTarget {
+            space_id: String::new(),
+        };
+        [
+            Method::SpaceOpen(space()),
+            Method::SpacePin(SpacePinParams {
+                workspace_id: String::new(),
+            }),
+            Method::SpaceUnpin(space()),
+        ]
+        .iter()
+        .all(|method| self.supports_endpoint_method(method))
+    }
+
+    pub(super) fn open_pinned_space(&mut self, space_id: String, outcome: &mut ClientShellInput) {
+        self.push_endpoint_method(
+            crate::api::schema::Method::SpaceOpen(crate::api::schema::SpaceTarget { space_id }),
+            outcome,
+        );
     }
 
     pub(super) fn open_tab_context_menu(&mut self, tab_id: String, x: u16, y: u16) {
@@ -192,9 +258,37 @@ impl ClientShellState {
             return;
         };
         match menu.target {
-            ClientContextMenuTarget::Workspace { workspace_id, .. } => {
-                self.activate_workspace_context_action(workspace_id, action, outcome)
-            }
+            ClientContextMenuTarget::Workspace {
+                workspace_id, pin, ..
+            } => match (action, pin) {
+                (ClientContextMenuAction::Pin, _) => self.push_endpoint_method(
+                    crate::api::schema::Method::SpacePin(crate::api::schema::SpacePinParams {
+                        workspace_id,
+                    }),
+                    outcome,
+                ),
+                (ClientContextMenuAction::Unpin, Some(ClientWorkspacePin::Pinned { space_id })) => {
+                    self.push_endpoint_method(
+                        crate::api::schema::Method::SpaceUnpin(crate::api::schema::SpaceTarget {
+                            space_id,
+                        }),
+                        outcome,
+                    )
+                }
+                _ => self.activate_workspace_context_action(workspace_id, action, outcome),
+            },
+            ClientContextMenuTarget::PinnedSpace { space_id } => match action {
+                ClientContextMenuAction::OpenPinnedSpace => {
+                    self.open_pinned_space(space_id, outcome)
+                }
+                ClientContextMenuAction::Unpin => self.push_endpoint_method(
+                    crate::api::schema::Method::SpaceUnpin(crate::api::schema::SpaceTarget {
+                        space_id,
+                    }),
+                    outcome,
+                ),
+                _ => {}
+            },
             ClientContextMenuTarget::Tab {
                 tab_id,
                 workspace_id,

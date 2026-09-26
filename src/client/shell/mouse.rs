@@ -1813,6 +1813,14 @@ impl ClientShellState {
                     outcome.repaint = true;
                     return;
                 }
+                let pinned_space_id = (!self.sidebar_collapsed)
+                    .then(|| self.pinned_space_at(point))
+                    .flatten();
+                if let Some(space_id) = pinned_space_id {
+                    self.open_pinned_space_context_menu(space_id, mouse.column, mouse.row);
+                    outcome.repaint = true;
+                    return;
+                }
                 let tab_id = self
                     .hits
                     .tabs
@@ -2084,6 +2092,11 @@ impl ClientShellState {
                     self.workspace_press = Some(workspace_press);
                     return;
                 }
+                if let Some(space_id) = self.pinned_space_at(point) {
+                    self.open_pinned_space(space_id, outcome);
+                    outcome.repaint = true;
+                    return;
+                }
                 let tab_press = self
                     .config
                     .mouse_capture
@@ -2304,6 +2317,14 @@ impl ClientShellState {
             }
             _ => {}
         }
+    }
+
+    fn pinned_space_at(&self, point: (u16, u16)) -> Option<String> {
+        self.hits
+            .pinned_spaces
+            .iter()
+            .find(|(rect, _)| super::contains(*rect, point))
+            .map(|(_, space_id)| space_id.clone())
     }
 
     fn pane_mouse_position(&self, hit: &PaneHit, mouse: MouseEvent) -> ClientMousePosition {

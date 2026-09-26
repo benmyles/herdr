@@ -38,7 +38,7 @@ pub(crate) use self::sidebar::{
     ResolvedToken, ResolvedTokenKind, SpaceTokenContext,
 };
 pub(crate) use self::space_colors::{
-    mute_color, SpaceKey, SpaceLayout, SpacePresentation, SpaceWorkspace,
+    mute_color, space_color, SpaceKey, SpaceLayout, SpacePresentation, SpaceWorkspace,
 };
 use self::status::copy_feedback_rect;
 pub(crate) use self::status::{render_config_diagnostic_buffer, render_copy_feedback_buffer};

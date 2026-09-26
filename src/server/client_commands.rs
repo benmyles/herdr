@@ -38,6 +38,9 @@ const CLIENT_SHELL_METHODS: &[&str] = &[
     "product_announcement.dismiss",
     "release_notes.dismiss",
     "server.reload_config",
+    "space.open",
+    "space.pin",
+    "space.unpin",
     "tab.close",
     "tab.create",
     "tab.focus",
@@ -296,6 +299,19 @@ mod tests {
         assert_eq!(
             actual.remove("pane.link.resolve").as_deref(),
             Some("f5e4a3e01453ae7b188f127ce951c12c20e0bebcc17cc364eeb6d1a01fd5bf81")
+        );
+        // Fork-only pinned space methods, frozen at their first published shape.
+        assert_eq!(
+            actual.remove("space.open").as_deref(),
+            Some("e1727fd6ae96cc7e008406742e1c1fdafe73116c9283a59492fbbdbc592e468f")
+        );
+        assert_eq!(
+            actual.remove("space.pin").as_deref(),
+            Some("4bc2ea7a8f5b1e4b1bdd794540e101dca07e34cfd5c9d6b23535ad6c92fdffad")
+        );
+        assert_eq!(
+            actual.remove("space.unpin").as_deref(),
+            Some("059bea1de8376222edd75593909f30ec286598c5d36869c62287eae7266c0ab9")
         );
 
         assert_eq!(

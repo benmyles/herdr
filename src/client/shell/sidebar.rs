@@ -39,8 +39,53 @@ fn space_workspaces(
                 .worktree
                 .as_ref()
                 .is_none_or(|worktree| !worktree.is_linked_worktree),
-            pinned_order: None,
+            pinned_order: workspace.pinned_space_id.as_deref().and_then(|space_id| {
+                snapshot
+                    .pinned_spaces
+                    .iter()
+                    .find(|pin| pin.space_id == space_id)
+                    .map(|pin| pin.order)
+            }),
         })
+}
+
+/// Pins without a live workspace, in saved order. They follow the live
+/// spaces and own no terminal until opened.
+pub(in crate::client::shell) fn dormant_pinned_spaces(
+    snapshot: &ClientShellSnapshot,
+) -> Vec<&crate::protocol::ClientShellPinnedSpace> {
+    let mut pins = snapshot
+        .pinned_spaces
+        .iter()
+        .filter(|pin| !pin.live)
+        .collect::<Vec<_>>();
+    pins.sort_by_key(|pin| pin.order);
+    pins
+}
+
+fn render_dormant_pin(
+    buffer: &mut Buffer,
+    rect: Rect,
+    pin: &crate::protocol::ClientShellPinnedSpace,
+    palette: &Palette,
+) {
+    let color = crate::ui::space_color(palette, pin.order);
+    let x = put_segment(
+        buffer,
+        rect.x,
+        rect.y,
+        rect.right(),
+        " * ",
+        Style::default().fg(color).add_modifier(Modifier::BOLD),
+    );
+    put_text(
+        buffer,
+        x,
+        rect.y,
+        rect.right().saturating_sub(x),
+        &crate::ui::truncate_end(&pin.label, rect.right().saturating_sub(x) as usize),
+        Style::default().fg(muted_space_color(color, palette)),
+    );
 }
 
 /// Space colors for one endpoint's workspaces, indexed like `snapshot.workspaces`.
@@ -150,6 +195,25 @@ pub(crate) fn render_collapsed_sidebar(
             indented: false,
             group_toggle: None,
         });
+    }
+
+    for (offset, pin) in dormant_pinned_spaces(snapshot).into_iter().enumerate() {
+        let y = workspace_area
+            .y
+            .saturating_add((snapshot.workspaces.len() + offset).min(u16::MAX as usize) as u16);
+        if y >= workspace_area.bottom() {
+            break;
+        }
+        let rect = Rect::new(workspace_area.x, y, workspace_area.width, 1);
+        put_text(
+            buffer,
+            rect.x,
+            rect.y,
+            rect.width.min(2),
+            "* ",
+            Style::default().fg(crate::ui::space_color(palette, pin.order)),
+        );
+        hits.pinned_spaces.push((rect, pin.space_id.clone()));
     }
 
     if let Some(divider_y) = divider_y {
@@ -308,14 +372,24 @@ pub(crate) fn render_sidebar(
                 .unwrap_or(1)
         })
         .collect::<Vec<_>>();
+    let dormant_pins = dormant_pinned_spaces(snapshot);
+    let mut row_heights = row_heights;
+    row_heights.extend(dormant_pins.iter().map(|_| 1));
     let gaps = entries
         .iter()
         .enumerate()
-        .map(|(index, _)| {
-            entries
-                .get(index + 1)
-                .map_or(0, |next| u16::from(!next.indented) * config.spaces.row_gap)
+        .map(|(index, _)| match entries.get(index + 1) {
+            Some(next) => u16::from(!next.indented) * config.spaces.row_gap,
+            None if !dormant_pins.is_empty() => config.spaces.row_gap,
+            None => 0,
         })
+        .chain(dormant_pins.iter().enumerate().map(|(index, _)| {
+            if index + 1 < dormant_pins.len() {
+                config.spaces.row_gap
+            } else {
+                0
+            }
+        }))
         .collect::<Vec<_>>();
     let mut metrics = super::scroll::list_scroll_metrics(
         &row_heights,
@@ -351,6 +425,7 @@ pub(crate) fn render_sidebar(
     let show_scrollbar = metrics.max_offset_from_bottom > 0 && body.width > 1;
     let content_width = body.width.saturating_sub(u16::from(show_scrollbar));
     let mut y = body.y;
+    let mut list_full = false;
     for (entry_position, entry) in entries.iter().enumerate().skip(*state.workspace_scroll) {
         let Some(workspace) = snapshot.workspaces.get(entry.index) else {
             continue;
@@ -359,6 +434,7 @@ pub(crate) fn render_sidebar(
         let rows = workspace_rows(workspace, status, entry.indented, &config.spaces);
         let row_height = (rows.len().max(1).min(u16::MAX as usize) as u16).min(body.height);
         if y.saturating_add(row_height) > body.bottom() {
+            list_full = true;
             break;
         }
         let rect = Rect::new(body.x, y, content_width, row_height);
@@ -404,10 +480,17 @@ pub(crate) fn render_sidebar(
             indented: entry.indented,
             group_toggle,
         });
-        let gap = entries
-            .get(entry_position + 1)
-            .map_or(0, |next| u16::from(!next.indented) * config.spaces.row_gap);
-        y = y.saturating_add(row_height + gap);
+        y = y.saturating_add(row_height + gaps[entry_position]);
+    }
+    let pin_skip = state.workspace_scroll.saturating_sub(entries.len());
+    for (pin_position, pin) in dormant_pins.iter().enumerate().skip(pin_skip) {
+        if list_full || y.saturating_add(1) > body.bottom() {
+            break;
+        }
+        let rect = Rect::new(body.x, y, content_width, 1);
+        render_dormant_pin(buffer, rect, pin, palette);
+        hits.pinned_spaces.push((rect, pin.space_id.clone()));
+        y = y.saturating_add(1 + gaps[entries.len() + pin_position]);
     }
 
     if show_scrollbar {

@@ -242,6 +242,7 @@ mod tests {
             panes: Vec::new(),
             agents: Vec::new(),
             commands: Vec::new(),
+            pinned_spaces: Vec::new(),
         }
     }
 

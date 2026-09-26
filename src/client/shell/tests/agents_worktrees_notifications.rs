@@ -116,6 +116,7 @@ fn grouped_worktrees_render_parent_branch_and_indented_child() {
         }),
         focused: false,
         agent_status: AgentStatus::Idle,
+        pinned_space_id: None,
     });
     state.set_snapshot(Box::new(snapshot));
     state.set_pane_surface(surface());
@@ -1576,4 +1577,164 @@ fn collapsed_sidebar_numbers_use_space_colors() {
 
     assert_eq!(number_fg("ws_issue"), number_fg("ws_main"));
     assert_ne!(number_fg("ws_notes"), number_fg("ws_main"));
+}
+
+fn pinned_snapshot() -> ClientShellSnapshot {
+    let mut projected = snapshot();
+    projected.workspaces[0].pinned_space_id = Some("space_live".into());
+    projected.pinned_spaces = vec![
+        crate::protocol::ClientShellPinnedSpace {
+            space_id: "space_dormant".into(),
+            label: "old-project".into(),
+            cwd: "/old-project".into(),
+            live: false,
+            order: 3,
+        },
+        crate::protocol::ClientShellPinnedSpace {
+            space_id: "space_live".into(),
+            label: "client-shell".into(),
+            cwd: "/repo".into(),
+            live: true,
+            order: 2,
+        },
+    ];
+    projected
+}
+
+fn click(state: &mut ClientShellState, button: MouseButton, rect: Rect) -> ClientShellInput {
+    state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
+        kind: MouseEventKind::Down(button),
+        column: rect.x + 1,
+        row: rect.y,
+        modifiers: KeyModifiers::empty(),
+    })])
+}
+
+fn single_endpoint_method(outcome: &ClientShellInput) -> crate::api::schema::Method {
+    let [ClientShellAction::Endpoint { request, .. }] = &outcome.actions[..] else {
+        panic!("expected one endpoint request, got {:?}", outcome.actions);
+    };
+    request.method.clone()
+}
+
+#[test]
+fn dormant_pins_follow_live_spaces_and_open_on_click() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(pinned_snapshot()));
+    state.set_pane_surface(surface());
+    let frame = state.compose(106, 30).expect("sidebar frame");
+    let buffer = frame.to_ratatui_buffer().expect("sidebar buffer");
+
+    let [(pin_rect, space_id)] = &state.hits.pinned_spaces[..] else {
+        panic!(
+            "only the dormant pin gets a row: {:?}",
+            state.hits.pinned_spaces
+        );
+    };
+    assert_eq!(space_id, "space_dormant");
+    let workspace = state.hits.workspaces[0].rect;
+    assert!(pin_rect.y > workspace.y, "dormant pins follow live spaces");
+    let star = cell_symbol_position(&frame, *pin_rect, "*");
+    assert_eq!(
+        buffer[star].fg,
+        crate::ui::space_color(&state.config.palette, 3)
+    );
+    let label = cell_symbol_position(&frame, *pin_rect, "old-project");
+    assert!(!buffer[label].modifier.contains(Modifier::DIM));
+
+    let live = cell_symbol_position(&frame, workspace, "client-shell");
+    assert_eq!(
+        buffer[live].fg,
+        crate::ui::space_color(&state.config.palette, 2),
+        "a live pinned space keeps its saved color slot"
+    );
+
+    let pin_rect = *pin_rect;
+    let outcome = click(&mut state, MouseButton::Left, pin_rect);
+    assert!(matches!(
+        single_endpoint_method(&outcome),
+        crate::api::schema::Method::SpaceOpen(target) if target.space_id == "space_dormant"
+    ));
+}
+
+#[test]
+fn dormant_pin_context_menu_opens_or_unpins() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(pinned_snapshot()));
+    state.set_pane_surface(surface());
+    state.compose(106, 30).expect("sidebar frame");
+    let pin_rect = state.hits.pinned_spaces[0].0;
+
+    assert!(click(&mut state, MouseButton::Right, pin_rect)
+        .actions
+        .is_empty());
+    let labels = match state.overlay.as_ref() {
+        Some(ClientShellOverlay::ContextMenu(menu)) => {
+            assert!(matches!(
+                &menu.target,
+                ClientContextMenuTarget::PinnedSpace { space_id } if space_id == "space_dormant"
+            ));
+            menu.items()
+                .iter()
+                .map(|item| item.label)
+                .collect::<Vec<_>>()
+        }
+        _ => panic!("pinned space context menu"),
+    };
+    assert_eq!(labels, ["Open", "Unpin"]);
+
+    let mut outcome = ClientShellInput::default();
+    state.activate_context_menu_item(1, &mut outcome);
+    assert!(matches!(
+        single_endpoint_method(&outcome),
+        crate::api::schema::Method::SpaceUnpin(target) if target.space_id == "space_dormant"
+    ));
+}
+
+#[test]
+fn workspace_context_menu_pins_and_unpins_supported_endpoints() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot()));
+    state.set_pane_surface(surface());
+    state.compose(106, 30).expect("sidebar frame");
+    let workspace = state.hits.workspaces[0].rect;
+
+    click(&mut state, MouseButton::Right, workspace);
+    let pin_index = match state.overlay.as_ref() {
+        Some(ClientShellOverlay::ContextMenu(menu)) => menu
+            .items()
+            .iter()
+            .position(|item| item.action == ClientContextMenuAction::Pin),
+        _ => panic!("workspace context menu"),
+    };
+    assert_eq!(pin_index, Some(1), "pin follows rename");
+    let mut outcome = ClientShellInput::default();
+    state.activate_context_menu_item(1, &mut outcome);
+    assert!(matches!(
+        single_endpoint_method(&outcome),
+        crate::api::schema::Method::SpacePin(params) if params.workspace_id == "ws_1"
+    ));
+
+    state.set_snapshot(Box::new(pinned_snapshot()));
+    state.compose(106, 30).expect("pinned sidebar frame");
+    click(&mut state, MouseButton::Right, workspace);
+    let mut outcome = ClientShellInput::default();
+    state.activate_context_menu_item(1, &mut outcome);
+    assert!(matches!(
+        single_endpoint_method(&outcome),
+        crate::api::schema::Method::SpaceUnpin(target) if target.space_id == "space_live"
+    ));
+
+    state.set_endpoint_methods(Some(vec!["workspace.rename".into()]));
+    click(&mut state, MouseButton::Right, workspace);
+    let actions = match state.overlay.as_ref() {
+        Some(ClientShellOverlay::ContextMenu(menu)) => menu
+            .items()
+            .iter()
+            .map(|item| item.action)
+            .collect::<Vec<_>>(),
+        _ => panic!("workspace context menu"),
+    };
+    assert!(!actions.contains(&ClientContextMenuAction::Pin));
+    assert!(!actions.contains(&ClientContextMenuAction::Unpin));
 }
