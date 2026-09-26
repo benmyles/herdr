@@ -3,20 +3,20 @@
 # by PATH. Symlinks are followed so package-manager or dotfile links remain
 # intact while their current target is replaced atomically.
 #
-# The vendored libghostty-vt crate is built with Zig and requires Zig 0.15.2.
+# The vendored libghostty-vt crate is built with Zig and requires Zig 0.16.0.
 # Zig is resolved in this order:
-#   1. the ZIG environment variable, when its version is 0.15.2
-#   2. Homebrew's versioned zig@0.15 formula (macOS)
-#   3. the system Zig, when its version is 0.15.2
+#   1. the ZIG environment variable, when its version is 0.16.0
+#   2. Homebrew's versioned zig@0.16 or current zig formula (macOS)
+#   3. the system Zig, when its version is 0.16.0
 #   4. a cached copy under ${XDG_CACHE_HOME:-~/.cache}/herdr/zig-* (macOS)
-#   5. on macOS, downloading Zig 0.15.2 into the cache automatically
+#   5. on macOS, downloading Zig 0.16.0 into the cache automatically
 #
 # Set HERDR_INSTALL_TARGET to test or install to an explicit path. The older
 # HERDR_BIN_DIR override remains supported and installs to HERDR_BIN_DIR/herdr.
 set -euo pipefail
 
 ROOT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-ZIG_VERSION="0.15.2"
+ZIG_VERSION="0.16.0"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/herdr"
 
 find_zig() {
@@ -29,8 +29,10 @@ find_zig() {
 
     local homebrew_candidate
     for homebrew_candidate in \
-        "/opt/homebrew/opt/zig@0.15/bin/zig" \
-        "/usr/local/opt/zig@0.15/bin/zig"; do
+        "/opt/homebrew/opt/zig@0.16/bin/zig" \
+        "/usr/local/opt/zig@0.16/bin/zig" \
+        "/opt/homebrew/opt/zig/bin/zig" \
+        "/usr/local/opt/zig/bin/zig"; do
         if [[ -x "$homebrew_candidate" ]] &&
             [[ "$("$homebrew_candidate" version 2>/dev/null || true)" == "$ZIG_VERSION" ]]; then
             printf '%s\n' "$homebrew_candidate"
@@ -71,7 +73,7 @@ find_zig() {
             tar -xJf "$tarball" --strip-components=1 -C "$zig_dir"
         fi
 
-        # Zig 0.15.2 links against the Command Line Tools SDK. When a full
+        # Zig links against the Command Line Tools SDK. When a full
         # Xcode SDK is selected, the parent shell exports DEVELOPER_DIR
         # before the build so linking works.
 
@@ -141,7 +143,7 @@ export ZIG
 PATH_ENTRY="$(find_install_path)"
 INSTALL_TARGET="$(resolve_install_target "$PATH_ENTRY")"
 
-# Zig 0.15.2 links against the Command Line Tools SDK on macOS. When a full
+# Zig links against the Command Line Tools SDK on macOS. When a full
 # Xcode SDK is selected by xcode-select, set DEVELOPER_DIR so both the zig
 # build and the final link use Command Line Tools.
 if [[ "$(uname -s)" == "Darwin" ]] && [[ -d "/Library/Developer/CommandLineTools/SDKs" ]]; then

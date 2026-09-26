@@ -76,6 +76,15 @@ impl PinnedSpace {
     }
 }
 
+/// Keep dormant workspace-keyed pins from colliding with newly allocated
+/// workspace ids, so reopening a pin can restore its original identity.
+pub(crate) fn reserve_pinned_workspace_ids(pins: &[PinnedSpace]) {
+    crate::workspace::reserve_workspace_id_values(pins.iter().filter_map(|pin| match &pin.key {
+        PinnedSpaceKey::Workspace { workspace_id } => Some(workspace_id.as_str()),
+        PinnedSpaceKey::Worktree { .. } => None,
+    }));
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

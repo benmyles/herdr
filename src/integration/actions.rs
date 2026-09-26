@@ -4,11 +4,12 @@ use super::registry::{integration_target_label, integration_target_supported};
 use super::targets::{
     install_antigravity_cli, install_claude, install_codex, install_copilot, install_crush,
     install_cursor, install_devin, install_droid, install_grok, install_hermes, install_kilo,
-    install_kimi, install_mastracode, install_omp, install_opencode, install_pi, install_qodercli,
-    install_qwen, uninstall_antigravity_cli, uninstall_claude, uninstall_codex, uninstall_copilot,
-    uninstall_crush, uninstall_cursor, uninstall_devin, uninstall_droid, uninstall_grok,
-    uninstall_hermes, uninstall_kilo, uninstall_kimi, uninstall_mastracode, uninstall_omp,
-    uninstall_opencode, uninstall_pi, uninstall_qodercli, uninstall_qwen,
+    install_kimi, install_letta, install_mastracode, install_omp, install_opencode, install_pi,
+    install_qodercli, install_qwen, uninstall_antigravity_cli, uninstall_claude, uninstall_codex,
+    uninstall_copilot, uninstall_crush, uninstall_cursor, uninstall_devin, uninstall_droid,
+    uninstall_grok, uninstall_hermes, uninstall_kilo, uninstall_kimi, uninstall_letta,
+    uninstall_mastracode, uninstall_omp, uninstall_opencode, uninstall_pi, uninstall_qodercli,
+    uninstall_qwen,
 };
 use super::version::{agent_version_requirement, enforce_agent_version};
 use super::{KIMI_MIN_VERSION, PI_EXTENSION_INSTALL_NAME};
@@ -19,6 +20,112 @@ pub(crate) fn install_target(
     let result = install_target_inner(target);
     let outcome = if result.is_ok() { "ok" } else { "error" };
     crate::logging::integration_action("install", integration_target_label(target), outcome);
+    result
+}
+
+/// Experimental Letta install that bypasses the frozen client endpoint
+/// `IntegrationTarget` enum. Fold into the agent registry when it lands.
+pub(crate) fn install_experimental_letta() -> io::Result<Vec<String>> {
+    let result = install_letta().map(|installed| {
+        vec![
+            format!(
+                "installed letta integration hook to {}",
+                installed.hook_path.display()
+            ),
+            format!(
+                "ensured letta settings at {}",
+                installed.settings_path.display()
+            ),
+        ]
+    });
+    let outcome = if result.is_ok() { "ok" } else { "error" };
+    crate::logging::integration_action("install", "letta", outcome);
+    result
+}
+
+/// Experimental Letta uninstall counterpart.
+pub(crate) fn uninstall_experimental_letta() -> io::Result<Vec<String>> {
+    let result = uninstall_letta().map(|result| {
+        let mut messages = Vec::new();
+        if result.removed_hook_file {
+            messages.push(format!(
+                "removed letta hook at {}",
+                result.hook_path.display()
+            ));
+        } else {
+            messages.push(format!(
+                "no letta hook found at {}",
+                result.hook_path.display()
+            ));
+        }
+        if result.updated_settings {
+            messages.push(format!(
+                "removed herdr letta hook entry from {}",
+                result.settings_path.display()
+            ));
+        } else {
+            messages.push(format!(
+                "no herdr letta hook entry found in {}",
+                result.settings_path.display()
+            ));
+        }
+        messages
+    });
+    let outcome = if result.is_ok() { "ok" } else { "error" };
+    crate::logging::integration_action("uninstall", "letta", outcome);
+    result
+}
+
+/// Experimental Crush install that bypasses the frozen client endpoint
+/// `IntegrationTarget` enum, like Letta.
+pub(crate) fn install_experimental_crush() -> io::Result<Vec<String>> {
+    let result = install_crush().map(|installed| {
+        vec![
+            format!(
+                "installed crush integration hook to {}",
+                installed.hook_path.display()
+            ),
+            format!(
+                "registered crush hook config at {}",
+                installed.config_path.display()
+            ),
+        ]
+    });
+    let outcome = if result.is_ok() { "ok" } else { "error" };
+    crate::logging::integration_action("install", "crush", outcome);
+    result
+}
+
+/// Experimental Crush uninstall counterpart.
+pub(crate) fn uninstall_experimental_crush() -> io::Result<Vec<String>> {
+    let result = uninstall_crush().map(|result| {
+        let mut messages = Vec::new();
+        if result.removed_hook_file {
+            messages.push(format!(
+                "removed crush hook at {}",
+                result.hook_path.display()
+            ));
+        } else {
+            messages.push(format!(
+                "no crush hook found at {}",
+                result.hook_path.display()
+            ));
+        }
+        if result.removed_config_file {
+            messages.push(format!(
+                "removed crush hook config at {}",
+                result.config_path.display()
+            ));
+        } else {
+            messages.push(format!(
+                "no crush hook config found at {}",
+                result.config_path.display()
+            ));
+        }
+        messages
+    });
+    let outcome = if result.is_ok() { "ok" } else { "error" };
+    crate::logging::integration_action("uninstall", "crush", outcome);
     result
 }
 
@@ -144,7 +251,7 @@ fn install_target_inner(target: crate::api::schema::IntegrationTarget) -> io::Re
         }
         crate::api::schema::IntegrationTarget::Opencode => {
             let installed = install_opencode()?;
-            vec![
+            let mut messages = vec![
                 format!(
                     "installed opencode integration plugin to {}",
                     installed.plugin_path.display()
@@ -157,7 +264,14 @@ fn install_target_inner(target: crate::api::schema::IntegrationTarget) -> io::Re
                     "ensured opencode tui plugin config at {}",
                     installed.tui_config_path.display()
                 ),
-            ]
+            ];
+            if installed.cli_config_path.is_none() {
+                messages.push(
+                    "to enable OpenCode V2, start opencode2 once, then reinstall this integration"
+                        .to_string(),
+                );
+            }
+            messages
         }
         crate::api::schema::IntegrationTarget::Kilo => {
             let installed = install_kilo()?;
@@ -250,19 +364,6 @@ fn install_target_inner(target: crate::api::schema::IntegrationTarget) -> io::Re
                 ),
                 format!(
                     "registered grok hook config at {}",
-                    installed.config_path.display()
-                ),
-            ]
-        }
-        crate::api::schema::IntegrationTarget::Crush => {
-            let installed = install_crush()?;
-            vec![
-                format!(
-                    "installed crush integration hook to {}",
-                    installed.hook_path.display()
-                ),
-                format!(
-                    "registered crush hook config at {}",
                     installed.config_path.display()
                 ),
             ]
@@ -509,10 +610,10 @@ pub(crate) fn uninstall_target(
                     result.tui_plugin_path.display()
                 )
             });
-            if result.updated_tui_config {
+            for path in result.updated_tui_configs {
                 messages.push(format!(
                     "removed herdr opencode plugin entry from {}",
-                    result.tui_config_path.display()
+                    path.display()
                 ));
             }
             messages
@@ -715,33 +816,6 @@ pub(crate) fn uninstall_target(
             } else {
                 messages.push(format!(
                     "no grok hook config found at {}",
-                    result.config_path.display()
-                ));
-            }
-            messages
-        }
-        crate::api::schema::IntegrationTarget::Crush => {
-            let result = uninstall_crush()?;
-            let mut messages = Vec::new();
-            if result.removed_hook_file {
-                messages.push(format!(
-                    "removed crush hook at {}",
-                    result.hook_path.display()
-                ));
-            } else {
-                messages.push(format!(
-                    "no crush hook found at {}",
-                    result.hook_path.display()
-                ));
-            }
-            if result.removed_config_file {
-                messages.push(format!(
-                    "removed crush hook config at {}",
-                    result.config_path.display()
-                ));
-            } else {
-                messages.push(format!(
-                    "no crush hook config found at {}",
                     result.config_path.display()
                 ));
             }
