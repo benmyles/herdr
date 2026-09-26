@@ -1,0 +1,44 @@
+src/client/shell/agent_sidebar.rs
+  s_a6b02c50cfc4ac::t_7d320bbe5d34bf 18,39-56,261,264,270,279,282-283,340,356-358
+  s_a6b02c50cfc4ac::t_5bf11ec8158aba 360-361
+src/client/shell/endpoint_agents.rs
+  s_a6b02c50cfc4ac::t_7d320bbe5d34bf 141,148
+src/client/shell/tests/agents_worktrees_notifications.rs
+  s_a6b02c50cfc4ac::t_efdc2686e60a66 1472
+  s_a6b02c50cfc4ac::t_c8ef2cc4075f7c 1465-1471,1473-1579
+src/ui/space_colors.rs
+  s_a6b02c50cfc4ac::t_f59818a6480a21 224-226
+  s_a6b02c50cfc4ac::t_5fde2282878cff 1-30,32,37,39-40,43-67,69,71-74,76-83,85-90,113-137,159-206,219-223,227-236,247-267
+  s_a6b02c50cfc4ac::t_f4a5d3b3232163 107,112,207-218
+  s_a6b02c50cfc4ac::t_51be8550fe6672 31,33-36,38,41-42,68,70,75,84,91-106,108-111
+  s_a6b02c50cfc4ac::t_5bf11ec8158aba 138-158,237-246
+src/ui.rs
+  s_a6b02c50cfc4ac::t_5bf11ec8158aba 41
+  s_a6b02c50cfc4ac::t_174ec199fae37f 8
+  s_a6b02c50cfc4ac::t_51be8550fe6672 40,42
+src/client/shell/sidebar.rs
+  s_a6b02c50cfc4ac::t_f59818a6480a21 55-57
+  s_a6b02c50cfc4ac::t_7b4fa1aa891ca6 27-54,58-62,95,115,118,120,122-125,127,193-199,206-209,211-212,281,398,628,647,767,774,776
+  s_a6b02c50cfc4ac::t_f4a5d3b3232163 387-390,719-725,737,739-742
+  s_a6b02c50cfc4ac::t_5bf11ec8158aba 710-718,782-783,785
+src/client/shell/endpoint_sidebar.rs
+  s_a6b02c50cfc4ac::t_46e3b3a8b364f2 405-414,451-453
+  s_a6b02c50cfc4ac::t_f4a5d3b3232163 500-503
+  s_a6b02c50cfc4ac::t_7b4fa1aa891ca6 124-125,169,171-172,174-178,519
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0bfb79815ac59848f36b4a15cd6fa9a3c332b185",
+  "prompts": {},
+  "sessions": {
+    "s_a6b02c50cfc4ac": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d6b300e2-ae35-41ac-a7c2-c9f2378d5a0c",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
