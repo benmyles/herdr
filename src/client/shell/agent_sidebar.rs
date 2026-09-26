@@ -15,6 +15,7 @@ pub(super) struct AgentRow {
     pub(super) status: crate::api::schema::AgentStatus,
     pub(super) focused: bool,
     pub(super) rows: Vec<Vec<crate::ui::ResolvedToken>>,
+    pub(super) space_color: ratatui::style::Color,
 }
 
 pub(super) fn ordered_agent_pane_ids(
@@ -35,6 +36,24 @@ pub(super) fn ordered_agent_pane_ids(
             .collect();
     }
     let mut agents = snapshot.agents.iter().collect::<Vec<_>>();
+    // Group agents by space so worktree-linked workspaces stay adjacent, matching
+    // the space order used by the sidebar colors and the live agent grid.
+    let space_rank = super::sidebar::space_workspace_order(snapshot)
+        .into_iter()
+        .enumerate()
+        .filter_map(|(rank, index)| {
+            snapshot
+                .workspaces
+                .get(index)
+                .map(|workspace| (workspace.workspace_id.as_str(), rank))
+        })
+        .collect::<HashMap<_, _>>();
+    agents.sort_by_key(|agent| {
+        space_rank
+            .get(agent.workspace_id.as_str())
+            .copied()
+            .unwrap_or(usize::MAX)
+    });
     if sort == crate::config::AgentPanelSortConfig::Priority {
         agents.sort_by_key(|agent| {
             (
@@ -239,14 +258,16 @@ pub(super) fn agent_rows(
     config: &ClientShellConfig,
     machine: Option<&str>,
 ) -> Vec<AgentRow> {
+    let spaces = super::sidebar::space_presentation(snapshot, &config.palette);
     ordered_agent_pane_ids(snapshot, config.agent_panel_sort)
         .into_iter()
-        .filter_map(|pane_id| agent_row(snapshot, &pane_id, config, machine))
+        .filter_map(|pane_id| agent_row(snapshot, &spaces, &pane_id, config, machine))
         .collect()
 }
 
 pub(super) fn agent_row(
     snapshot: &ClientShellSnapshot,
+    spaces: &crate::ui::SpacePresentation,
     pane_id: &str,
     config: &ClientShellConfig,
     machine: Option<&str>,
@@ -255,10 +276,11 @@ pub(super) fn agent_row(
         .agents
         .iter()
         .find(|agent| agent.pane_id == pane_id)?;
-    let workspace = snapshot
+    let workspace_index = snapshot
         .workspaces
         .iter()
-        .find(|workspace| workspace.workspace_id == agent.workspace_id)?;
+        .position(|workspace| workspace.workspace_id == agent.workspace_id)?;
+    let workspace = &snapshot.workspaces[workspace_index];
     let tab = snapshot.tabs.iter().find(|tab| tab.tab_id == agent.tab_id);
     let pane = snapshot
         .panes
@@ -315,6 +337,7 @@ pub(super) fn agent_row(
         status: agent.agent_status,
         focused: agent.focused,
         rows,
+        space_color: spaces.color(workspace_index),
     })
 }
 
@@ -330,17 +353,12 @@ pub(super) fn render_agent_row(
     } else {
         Style::default()
     };
-    let name_style = if row.focused {
-        Style::default()
-            .fg(palette.text)
-            .add_modifier(Modifier::BOLD)
-    } else {
-        Style::default()
-            .fg(palette.subtext0)
-            .add_modifier(Modifier::BOLD)
-    };
+    let name_style = Style::default()
+        .fg(row.space_color)
+        .add_modifier(Modifier::BOLD);
     let status_style = Style::default().fg(status_color(row.status, palette));
-    let secondary = Style::default().fg(palette.overlay0);
+    let secondary =
+        Style::default().fg(super::sidebar::muted_space_color(row.space_color, palette));
     let icon = (
         status_icon(row.status, config.status_indicators),
         Style::default().fg(status_color(row.status, palette)),

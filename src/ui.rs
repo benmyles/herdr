@@ -5,6 +5,7 @@ mod panes;
 mod release_notes;
 mod scrollbar;
 mod sidebar;
+mod space_colors;
 mod status;
 mod tab_surface;
 mod text;
@@ -35,6 +36,9 @@ pub(crate) use self::sidebar::{
     agent_panel_entries_from, expanded_sidebar_sections, resolved_token_spans, sidebar_agent_rows,
     sidebar_section_divider_rect, sidebar_space_rows, AgentPanelEntry, AgentTokenContext,
     ResolvedToken, ResolvedTokenKind, SpaceTokenContext,
+};
+pub(crate) use self::space_colors::{
+    mute_color, SpaceKey, SpaceLayout, SpacePresentation, SpaceWorkspace,
 };
 use self::status::copy_feedback_rect;
 pub(crate) use self::status::{render_config_diagnostic_buffer, render_copy_feedback_buffer};

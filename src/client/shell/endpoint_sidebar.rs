@@ -121,7 +121,8 @@ pub(super) fn render_collapsed(
         let Some(snapshot) = endpoint.snapshot.as_deref() else {
             continue;
         };
-        for workspace in &snapshot.workspaces {
+        let spaces = super::sidebar::space_presentation(snapshot, palette);
+        for (workspace_index, workspace) in snapshot.workspaces.iter().enumerate() {
             if skip > 0 {
                 skip -= 1;
                 continue;
@@ -165,12 +166,16 @@ pub(super) fn render_collapsed(
                 number_width,
                 &number,
                 Style::default()
-                    .fg(if focused && !stale {
-                        palette.text
-                    } else {
+                    .fg(if stale {
                         palette.overlay0
+                    } else {
+                        spaces.color(workspace_index)
                     })
-                    .add_modifier(dim),
+                    .add_modifier(if focused && !stale {
+                        Modifier::BOLD
+                    } else {
+                        dim
+                    }),
             );
             put_text(
                 buffer,
@@ -397,6 +402,16 @@ pub(super) fn render_expanded(
         .saturating_sub(metrics.offset_from_bottom);
     let show_scrollbar = metrics.max_offset_from_bottom > 0 && body.width > 1;
     let content_width = body.width.saturating_sub(u16::from(show_scrollbar));
+    let endpoint_spaces = state
+        .endpoints
+        .iter()
+        .map(|endpoint| {
+            endpoint
+                .snapshot
+                .as_deref()
+                .map(|snapshot| super::sidebar::space_presentation(snapshot, palette))
+        })
+        .collect::<Vec<_>>();
     let mut y = body.y;
     for (row_index, row) in rows.iter().enumerate().skip(*state.workspace_scroll) {
         match row {
@@ -433,6 +448,9 @@ pub(super) fn render_expanded(
                     .saturating_add(gaps.get(row_index).copied().unwrap_or(0));
             }
             Row::Workspace { endpoint, entry } => {
+                let Some(spaces) = endpoint_spaces[*endpoint].as_ref() else {
+                    continue;
+                };
                 let endpoint = &state.endpoints[*endpoint];
                 let Some(snapshot) = endpoint.snapshot.as_deref() else {
                     continue;
@@ -479,7 +497,10 @@ pub(super) fn render_expanded(
                     selected,
                     state.selected_workspace_id.is_some(),
                     false,
-                    palette,
+                    super::sidebar::WorkspaceRowColors {
+                        palette,
+                        space: spaces.color(entry.index),
+                    },
                 );
                 if endpoint.status != ClientEndpointStatus::Online {
                     buffer.set_style(
@@ -495,7 +516,7 @@ pub(super) fn render_expanded(
                     snapshot,
                     entry.index,
                     collapsed_groups,
-                    palette,
+                    spaces.color(entry.index),
                 );
                 hits.workspaces.push(WorkspaceHit {
                     rect,

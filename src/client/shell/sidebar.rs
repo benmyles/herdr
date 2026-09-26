@@ -24,6 +24,42 @@ pub(in crate::client::shell) fn workspace_active_background(
     }
 }
 
+fn space_workspaces(
+    snapshot: &ClientShellSnapshot,
+) -> impl Iterator<Item = crate::ui::SpaceWorkspace<'_>> {
+    snapshot
+        .workspaces
+        .iter()
+        .map(|workspace| crate::ui::SpaceWorkspace {
+            key: workspace.worktree.as_ref().map_or(
+                crate::ui::SpaceKey::Workspace(workspace.workspace_id.as_str()),
+                |worktree| crate::ui::SpaceKey::Worktree(worktree.key.as_str()),
+            ),
+            is_parent: workspace
+                .worktree
+                .as_ref()
+                .is_none_or(|worktree| !worktree.is_linked_worktree),
+            pinned_order: None,
+        })
+}
+
+/// Space colors for one endpoint's workspaces, indexed like `snapshot.workspaces`.
+pub(in crate::client::shell) fn space_presentation(
+    snapshot: &ClientShellSnapshot,
+    palette: &Palette,
+) -> crate::ui::SpacePresentation {
+    crate::ui::SpacePresentation::new(palette, space_workspaces(snapshot))
+}
+
+/// Workspace indices with each space's members adjacent, primary checkout first.
+pub(in crate::client::shell) fn space_workspace_order(
+    snapshot: &ClientShellSnapshot,
+) -> Vec<usize> {
+    crate::ui::SpaceLayout::new(space_workspaces(snapshot))
+        .workspace_order()
+        .to_vec()
+}
+
 pub(in crate::client::shell) fn collapsed_sidebar_sections(
     area: Rect,
 ) -> (Rect, Option<u16>, Rect) {
@@ -56,6 +92,7 @@ pub(crate) fn render_collapsed_sidebar(
     let selection_background = workspace_selection_background(palette);
     let active_background = workspace_active_background(palette, selected_workspace_id.is_some());
     render_sidebar_background(buffer, area, palette);
+    let spaces = space_presentation(snapshot, palette);
     let (workspace_area, divider_y, detail_area) = collapsed_sidebar_sections(area);
     for (index, workspace) in snapshot
         .workspaces
@@ -75,14 +112,19 @@ pub(crate) fn render_collapsed_sidebar(
         } else if workspace.focused {
             buffer.set_style(rect, Style::default().bg(active_background));
         }
+        let space_color = spaces.color(index);
         let number_style = if selected {
             Style::default()
-                .fg(palette.overlay1)
+                .fg(space_color)
                 .bg(selection_background)
+                .add_modifier(Modifier::BOLD)
         } else if workspace.focused {
-            Style::default().fg(palette.text).bg(active_background)
+            Style::default()
+                .fg(space_color)
+                .bg(active_background)
+                .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(palette.overlay0)
+            Style::default().fg(space_color)
         };
         put_text(
             buffer,
@@ -148,17 +190,26 @@ pub(crate) fn render_collapsed_sidebar(
         if agent.focused {
             buffer.set_style(rect, Style::default().bg(palette.active_row_bg));
         }
+        let space_color = snapshot
+            .workspaces
+            .iter()
+            .position(|workspace| workspace.workspace_id == agent.workspace_id)
+            .map_or(palette.overlay0, |workspace_index| {
+                spaces.color(workspace_index)
+            });
         put_text(
             buffer,
             rect.x,
             rect.y,
             rect.width.min(2),
             &format!("{:<2}", index + 1),
-            Style::default().fg(if agent.focused {
-                palette.text
+            if agent.focused {
+                Style::default()
+                    .fg(space_color)
+                    .add_modifier(Modifier::BOLD)
             } else {
-                palette.overlay0
-            }),
+                Style::default().fg(space_color)
+            },
         );
         put_text(
             buffer,
@@ -227,6 +278,7 @@ pub(crate) fn render_sidebar(
     );
 
     let entries = workspace_entries(snapshot, state.collapsed_groups);
+    let spaces = space_presentation(snapshot, palette);
     let body = Rect::new(
         workspace_area.x,
         workspace_area.y.saturating_add(WORKSPACE_HEADER_ROWS),
@@ -332,7 +384,10 @@ pub(crate) fn render_sidebar(
             selected,
             state.selected_workspace_id.is_some(),
             dragged,
-            palette,
+            WorkspaceRowColors {
+                palette,
+                space: spaces.color(entry.index),
+            },
         );
         let group_toggle = render_parent_group_toggle(
             buffer,
@@ -340,7 +395,7 @@ pub(crate) fn render_sidebar(
             snapshot,
             entry.index,
             state.collapsed_groups,
-            palette,
+            spaces.color(entry.index),
         );
         hits.workspaces.push(WorkspaceHit {
             rect,
@@ -570,7 +625,7 @@ pub(in crate::client::shell) fn render_parent_group_toggle(
     snapshot: &ClientShellSnapshot,
     workspace_index: usize,
     collapsed_groups: &HashSet<String>,
-    palette: &Palette,
+    space_color: ratatui::style::Color,
 ) -> Option<(Rect, String)> {
     let key = parent_group_key(snapshot, workspace_index)?;
     let toggle = Rect::new(
@@ -589,7 +644,7 @@ pub(in crate::client::shell) fn render_parent_group_toggle(
         } else {
             "▾"
         },
-        Style::default().fg(palette.accent),
+        Style::default().fg(space_color),
     );
     Some((toggle, key))
 }
@@ -652,6 +707,22 @@ pub(in crate::client::shell) fn workspace_rows(
     )
 }
 
+/// Secondary sidebar text keeps its space hue but recedes toward the sidebar
+/// background instead of stacking terminal faint on a muted color.
+pub(in crate::client::shell) fn muted_space_color(
+    color: ratatui::style::Color,
+    palette: &Palette,
+) -> ratatui::style::Color {
+    crate::ui::mute_color(color, palette.sidebar_bg, 60)
+}
+
+/// Theme palette plus the workspace's space color for one sidebar row.
+#[derive(Clone, Copy)]
+pub(in crate::client::shell) struct WorkspaceRowColors<'a> {
+    pub(in crate::client::shell) palette: &'a Palette,
+    pub(in crate::client::shell) space: ratatui::style::Color,
+}
+
 pub(in crate::client::shell) fn render_workspace_rows(
     buffer: &mut Buffer,
     area: Rect,
@@ -663,8 +734,12 @@ pub(in crate::client::shell) fn render_workspace_rows(
     selected: bool,
     navigating: bool,
     dragged: bool,
-    palette: &Palette,
+    colors: WorkspaceRowColors<'_>,
 ) {
+    let WorkspaceRowColors {
+        palette,
+        space: space_color,
+    } = colors;
     for (row_index, row) in rows.iter().enumerate() {
         let y = area.y + row_index as u16;
         if y >= area.bottom() {
@@ -689,29 +764,25 @@ pub(in crate::client::shell) fn render_workspace_rows(
                 y,
                 area.right(),
                 prefix,
-                Style::default().fg(palette.overlay0),
+                Style::default().fg(space_color),
             );
         } else if row_index == 0 {
             x = x.saturating_add(1);
         } else {
             x = x.saturating_add(3);
         }
-        let highlighted = focused || dragged;
+        let highlighted = focused || selected || dragged;
         let workspace_style = Style::default()
-            .fg(if highlighted {
-                palette.text
-            } else {
-                palette.subtext0
-            })
+            .fg(space_color)
             .add_modifier(if highlighted {
                 Modifier::BOLD
             } else {
                 Modifier::empty()
             });
-        let secondary_style = Style::default().fg(if focused {
-            palette.mauve
+        let secondary_style = Style::default().fg(if highlighted {
+            space_color
         } else {
-            palette.overlay0
+            muted_space_color(space_color, palette)
         });
         let spans = crate::ui::resolved_token_spans(
             row,

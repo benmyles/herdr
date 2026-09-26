@@ -1462,3 +1462,118 @@ fn semantic_notifications_use_client_policy_and_stable_navigation_targets() {
     assert!(state.visible_notification.is_none());
     assert_eq!(state.pending_notifications.len(), 1);
 }
+
+fn space_color_snapshot() -> ClientShellSnapshot {
+    fn workspace(id: &str, label: &str, worktree: Option<(&str, bool)>) -> ClientShellWorkspace {
+        let mut workspace = snapshot().workspaces.remove(0);
+        workspace.workspace_id = id.into();
+        workspace.active_tab_id = format!("{id}_tab");
+        workspace.label = label.into();
+        workspace.branch = None;
+        workspace.focused = false;
+        workspace.worktree = worktree.map(|(key, linked)| ClientShellWorktree {
+            key: key.into(),
+            label: key.into(),
+            is_linked_worktree: linked,
+        });
+        workspace
+    }
+    fn agent(workspace_id: &str, agent: &str) -> ClientShellAgent {
+        ClientShellAgent {
+            pane_id: format!("{workspace_id}_pane"),
+            workspace_id: workspace_id.into(),
+            tab_id: format!("{workspace_id}_tab"),
+            name: None,
+            display_agent: None,
+            agent: Some(agent.into()),
+            title: None,
+            terminal_title: None,
+            terminal_title_stripped: None,
+            agent_status: AgentStatus::Idle,
+            state_change_seq: 1,
+            state_labels: Vec::new(),
+            tokens: Vec::new(),
+            focused: false,
+        }
+    }
+
+    let mut projected = snapshot();
+    projected.workspaces = vec![
+        workspace("ws_issue", "issue", Some(("repo-key", true))),
+        workspace("ws_notes", "notes", None),
+        workspace("ws_main", "main", Some(("repo-key", false))),
+    ];
+    projected.agents = vec![
+        agent("ws_issue", "pi"),
+        agent("ws_notes", "claude"),
+        agent("ws_main", "codex"),
+    ];
+    projected
+}
+
+#[test]
+fn expanded_sidebar_uses_matching_space_colors_and_grouped_agent_order() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(space_color_snapshot()));
+    state.set_pane_surface(surface());
+    let frame = state.compose(106, 30).expect("sidebar frame");
+    let buffer = frame.to_ratatui_buffer().expect("sidebar buffer");
+    let fg_at = |rect: Rect, needle: &str| {
+        let position = cell_symbol_position(&frame, rect, needle);
+        buffer[position].fg
+    };
+
+    let workspaces = state
+        .hits
+        .workspaces
+        .iter()
+        .map(|hit| (hit.workspace_id.as_str(), hit.rect))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        workspaces.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+        ["ws_main", "ws_issue", "ws_notes"]
+    );
+    let main = fg_at(workspaces[0].1, "main");
+    let issue = fg_at(workspaces[1].1, "issue");
+    let notes = fg_at(workspaces[2].1, "notes");
+    assert_eq!(main, issue, "worktree members share one space color");
+    assert_ne!(main, notes, "unrelated spaces use distinct colors");
+    assert_ne!(main, state.config.palette.subtext0);
+
+    let agents = state
+        .hits
+        .agents
+        .iter()
+        .map(|(rect, pane_id)| (pane_id.as_str(), *rect))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        agents.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+        ["ws_main_pane", "ws_issue_pane", "ws_notes_pane"],
+        "grouped agents keep each space's members adjacent, primary first"
+    );
+    assert_eq!(fg_at(agents[0].1, "main"), main);
+    assert_eq!(fg_at(agents[1].1, "issue"), issue);
+    assert_eq!(fg_at(agents[2].1, "notes"), notes);
+}
+
+#[test]
+fn collapsed_sidebar_numbers_use_space_colors() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(space_color_snapshot()));
+    state.set_pane_surface(surface());
+    state.sidebar_collapsed = true;
+    let frame = state.compose(106, 30).expect("collapsed frame");
+    let buffer = frame.to_ratatui_buffer().expect("collapsed buffer");
+    let number_fg = |workspace_id: &str| {
+        let hit = state
+            .hits
+            .workspaces
+            .iter()
+            .find(|hit| hit.workspace_id == workspace_id)
+            .expect("collapsed workspace hit");
+        buffer[(hit.rect.x, hit.rect.y)].fg
+    };
+
+    assert_eq!(number_fg("ws_issue"), number_fg("ws_main"));
+    assert_ne!(number_fg("ws_notes"), number_fg("ws_main"));
+}

@@ -138,12 +138,14 @@ fn agent_rows(
         .iter()
         .filter_map(|endpoint| {
             endpoint.snapshot.as_deref().map(|snapshot| {
+                let spaces = super::sidebar::space_presentation(snapshot, &config.palette);
                 snapshot
                     .agents
                     .iter()
                     .filter_map(|agent| {
                         super::agent_sidebar::agent_row(
                             snapshot,
+                            &spaces,
                             &agent.pane_id,
                             config,
                             Some(&endpoint.label),
