@@ -54,6 +54,7 @@ impl ClientShellState {
                 && self.endpoint_status(&self.active_endpoint_id)
                     == Some(ClientEndpointStatus::Online)
         });
+        let agent_grid = self.agent_grid_toggle_state();
         let mut render_state = render::ShellRenderState {
             machine_diagnostics: &self.machine_diagnostics,
             endpoints: &self.endpoints,
@@ -77,6 +78,7 @@ impl ClientShellState {
             reveal_navigation_workspace: &mut self.reveal_navigation_workspace,
             dragged_workspace_id: None,
             workspace_drop_indicator_row: None,
+            agent_grid,
         };
         if let Some(snapshot) = local_snapshot {
             render::render_sidebar(
@@ -204,6 +206,7 @@ impl ClientShellState {
             ),
             _ => (None, None),
         };
+        let agent_grid = self.agent_grid_toggle_state();
         let mut buffer = Buffer::empty(Rect::new(0, 0, cols, rows));
         self.hits = render::render_shell(
             &mut buffer,
@@ -233,6 +236,7 @@ impl ClientShellState {
                 reveal_navigation_workspace: &mut self.reveal_navigation_workspace,
                 dragged_workspace_id,
                 workspace_drop_indicator_row,
+                agent_grid,
             },
         );
         self.hits.panes = surface

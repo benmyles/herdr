@@ -365,63 +365,19 @@ pub(super) fn render_pane_surface(
         );
     let panes = target
         .map(|target| {
-            let workspace_index = target.workspace_index;
             layout
                 .pane_infos
                 .iter()
                 .filter_map(|pane| {
-                    app.public_pane_id(workspace_index, pane.id).map(|pane_id| {
-                        let runtime = app.state.runtime_for_pane_in_workspace(
-                            &app.terminal_runtimes,
-                            workspace_index,
-                            pane.id,
-                        );
-                        let mouse_reporting =
-                            runtime.is_some_and(|runtime| runtime.mouse_reporting_enabled());
-                        let sgr_pixel_mouse =
-                            runtime.is_some_and(|runtime| runtime.sgr_pixel_mouse_enabled());
-                        let (pixel_width, pixel_height) = if cell_size.is_known() {
-                            (
-                                u32::from(pane.inner_rect.width) * cell_size.width_px,
-                                u32::from(pane.inner_rect.height) * cell_size.height_px,
-                            )
-                        } else {
-                            (0, 0)
-                        };
-                        let content_revision = runtime.map_or(0, |runtime| {
-                            let after = runtime.content_seq();
-                            if content_revisions_before
-                                .get(&pane.id)
-                                .is_some_and(|&(_, before)| before == after)
-                                && after.is_multiple_of(2)
-                            {
-                                after
-                            } else {
-                                after | 1
-                            }
-                        });
-                        protocol::PaneSurfacePane {
-                            pane_id,
-                            content_revision,
-                            rect: pane.rect.into(),
-                            inner_rect: pane.inner_rect.into(),
-                            scrollbar_rect: pane.scrollbar_rect.map(Into::into),
-                            scroll: runtime.and_then(|runtime| runtime.scroll_metrics()).map(
-                                |metrics| protocol::PaneSurfaceScrollMetrics {
-                                    offset_from_bottom: metrics.offset_from_bottom as u64,
-                                    max_offset_from_bottom: metrics.max_offset_from_bottom as u64,
-                                    viewport_rows: metrics.viewport_rows as u64,
-                                },
-                            ),
-                            focused: pane.is_focused,
-                            mouse_reporting,
-                            sgr_pixel_mouse,
-                            alternate_screen_active: runtime
-                                .is_some_and(|runtime| runtime.alternate_screen_active()),
-                            pixel_width,
-                            pixel_height,
-                        }
-                    })
+                    surface_pane(
+                        app,
+                        target.workspace_index,
+                        pane,
+                        content_revisions_before
+                            .get(&pane.id)
+                            .map(|&(_, before)| before),
+                        cell_size,
+                    )
                 })
                 .collect()
         })
@@ -513,6 +469,132 @@ pub(super) fn render_pane_surface(
         graphics,
         graphics_delivery: next_graphics_delivery,
         graphics_sources,
+    })
+}
+
+/// Wire geometry and input metadata for one rendered pane. An odd content
+/// revision tells the client the pane changed while it was being rendered.
+fn surface_pane(
+    app: &app::App,
+    workspace_index: usize,
+    pane: &crate::layout::PaneInfo,
+    content_revision_before: Option<u64>,
+    cell_size: crate::kitty_graphics::HostCellSize,
+) -> Option<protocol::PaneSurfacePane> {
+    let pane_id = app.public_pane_id(workspace_index, pane.id)?;
+    let runtime =
+        app.state
+            .runtime_for_pane_in_workspace(&app.terminal_runtimes, workspace_index, pane.id);
+    let (pixel_width, pixel_height) = if cell_size.is_known() {
+        (
+            u32::from(pane.inner_rect.width) * cell_size.width_px,
+            u32::from(pane.inner_rect.height) * cell_size.height_px,
+        )
+    } else {
+        (0, 0)
+    };
+    let content_revision = runtime.map_or(0, |runtime| {
+        let after = runtime.content_seq();
+        if content_revision_before == Some(after) && after.is_multiple_of(2) {
+            after
+        } else {
+            after | 1
+        }
+    });
+    Some(protocol::PaneSurfacePane {
+        pane_id,
+        content_revision,
+        rect: pane.rect.into(),
+        inner_rect: pane.inner_rect.into(),
+        scrollbar_rect: pane.scrollbar_rect.map(Into::into),
+        scroll: runtime
+            .and_then(|runtime| runtime.scroll_metrics())
+            .map(|metrics| protocol::PaneSurfaceScrollMetrics {
+                offset_from_bottom: metrics.offset_from_bottom as u64,
+                max_offset_from_bottom: metrics.max_offset_from_bottom as u64,
+                viewport_rows: metrics.viewport_rows as u64,
+            }),
+        focused: pane.is_focused,
+        mouse_reporting: runtime.is_some_and(|runtime| runtime.mouse_reporting_enabled()),
+        sgr_pixel_mouse: runtime.is_some_and(|runtime| runtime.sgr_pixel_mouse_enabled()),
+        alternate_screen_active: runtime.is_some_and(|runtime| runtime.alternate_screen_active()),
+        pixel_width,
+        pixel_height,
+    })
+}
+
+/// Renders a client's live agent grid: every live agent terminal across all
+/// workspaces and tabs, tiled over the pane surface. Grid tiles carry no
+/// splits, popup, or native graphics. `focused` is the client's selected pane.
+pub(super) fn render_agent_grid_surface(
+    app: &app::App,
+    focused: Option<(usize, crate::layout::PaneId)>,
+    area: Rect,
+    cell_size: crate::kitty_graphics::HostCellSize,
+    graphics_delivery: &crate::kitty_graphics::surface::DeliveryCache,
+) -> Result<RenderedPaneSurface, SurfaceRenderDeferred> {
+    let tiles =
+        crate::ui::compute_agent_grid(&app.state, &app.terminal_runtimes, area, focused, None);
+    let mut revisions_before = std::collections::HashMap::new();
+    for tile in &tiles {
+        if let Some(runtime) = app.state.runtime_for_pane_in_workspace(
+            &app.terminal_runtimes,
+            tile.workspace_index,
+            tile.info.id,
+        ) {
+            let (synchronized, epoch) = runtime.synchronized_output_state();
+            if synchronized {
+                return Err(SurfaceRenderDeferred::Synchronized);
+            }
+            revisions_before.insert(tile.info.id, (epoch, runtime.content_seq()));
+        }
+    }
+    let (buffer, cursor, hyperlinks) = crate::server::render_stream::render_agent_grid_virtual(
+        &app.state,
+        &app.terminal_runtimes,
+        &tiles,
+        area,
+    );
+    let panes = tiles
+        .iter()
+        .filter_map(|tile| {
+            surface_pane(
+                app,
+                tile.workspace_index,
+                &tile.info,
+                revisions_before
+                    .get(&tile.info.id)
+                    .map(|&(_, before)| before),
+                cell_size,
+            )
+        })
+        .collect();
+    for tile in &tiles {
+        let Some(&(epoch, _)) = revisions_before.get(&tile.info.id) else {
+            continue;
+        };
+        if let Some(runtime) = app.state.runtime_for_pane_in_workspace(
+            &app.terminal_runtimes,
+            tile.workspace_index,
+            tile.info.id,
+        ) {
+            let (synchronized, after_epoch) = runtime.synchronized_output_state();
+            if synchronized {
+                return Err(SurfaceRenderDeferred::Synchronized);
+            }
+            if after_epoch != epoch {
+                return Err(SurfaceRenderDeferred::Changed);
+            }
+        }
+    }
+    Ok(RenderedPaneSurface {
+        frame: FrameData::from_ratatui_buffer_with_hyperlinks(&buffer, cursor, &hyperlinks),
+        panes,
+        splits: Vec::new(),
+        popup: None,
+        graphics: protocol::SurfaceGraphicsScene::default(),
+        graphics_delivery: graphics_delivery.clone(),
+        graphics_sources: Default::default(),
     })
 }
 

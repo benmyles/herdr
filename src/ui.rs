@@ -1,5 +1,6 @@
 use ratatui::layout::Rect;
 
+mod agent_grid;
 mod onboarding;
 mod panes;
 mod release_notes;
@@ -11,6 +12,10 @@ mod tab_surface;
 mod text;
 mod widgets;
 
+pub(crate) use self::agent_grid::{
+    agent_grid_cursor, agent_grid_hyperlinks, compute_agent_grid, live_agent_targets,
+    pane_is_live_agent, render_agent_grid, AgentGridTile,
+};
 pub(crate) use self::onboarding::{
     onboarding_welcome_continue_rect, ONBOARDING_DESCRIPTION, ONBOARDING_HELP_LABEL,
     ONBOARDING_HELP_SUFFIX, ONBOARDING_NEXT, ONBOARDING_PREFIX_LABEL, ONBOARDING_PREFIX_SUFFIX,

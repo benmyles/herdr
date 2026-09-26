@@ -466,6 +466,14 @@ fn handle_request(
         );
     }
 
+    if matches!(&request.method, Method::ClientShellAgentGridSet(_)) {
+        return error_response_json(
+            request.id,
+            "connection_local_only",
+            "client_shell.agent_grid.set is only available through a client shell endpoint".into(),
+        );
+    }
+
     if matches!(&request.method, Method::ServerStop(_)) {
         if let Some(server_stop) = server_stop {
             server_stop.store(true, Ordering::Release);
@@ -502,6 +510,7 @@ pub(crate) fn api_method_name(method: &Method) -> &'static str {
         Method::ClientWindowTitleSet(_) => "client.window_title.set",
         Method::ClientWindowTitleClear(_) => "client.window_title.clear",
         Method::ClientShellSurfaceSet(_) => "client_shell.surface.set",
+        Method::ClientShellAgentGridSet(_) => "client_shell.agent_grid.set",
         Method::SessionSnapshot(_) => "session.snapshot",
         Method::SpacePin(_) => "space.pin",
         Method::SpaceUnpin(_) => "space.unpin",

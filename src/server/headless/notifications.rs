@@ -119,7 +119,8 @@ impl HeadlessServer {
         let is_active_tab = self
             .app
             .state
-            .pane_is_in_active_tab(update.ws_idx, update.pane_id);
+            .pane_is_in_active_tab(update.ws_idx, update.pane_id)
+            || self.any_agent_grid_contains_pane(update.pane_id);
         let suppress_active_tab_notifications =
             self.active_tab_suppresses_notifications(is_active_tab);
 
@@ -371,7 +372,8 @@ impl HeadlessServer {
                     .is_some_and(|ws| {
                         ws.find_tab_index_for_pane(pane_id_val)
                             .is_some_and(|tab_idx| ws.active_tab_index() == tab_idx)
-                    });
+                    })
+                    || self.any_agent_grid_contains_pane(pane_id_val);
 
                 let suppress_active_tab_notifications =
                     self.active_tab_suppresses_notifications(is_active_tab);
@@ -465,7 +467,8 @@ impl HeadlessServer {
                     .is_some_and(|ws| {
                         ws.find_tab_index_for_pane(pane_id_val)
                             .is_some_and(|tab_idx| ws.active_tab_index() == tab_idx)
-                    });
+                    })
+                    || self.any_agent_grid_contains_pane(pane_id_val);
 
                 let suppress_active_tab_notifications =
                     self.active_tab_suppresses_notifications(is_active_tab);

@@ -336,6 +336,112 @@ fn print_token_rule_profiles() {
     }
 }
 
+/// Live agent grid: every background workspace's pane is a detected agent
+/// shown as a grid tile, so tile count grows with the workspace count.
+fn agent_grid_pipeline(agent_count: usize) -> RenderPipeline {
+    let mut pipeline = RenderPipeline::new(workspaces(agent_count));
+    pipeline.app.state.ensure_test_terminals();
+    for terminal in pipeline.app.state.terminals.values_mut() {
+        terminal.set_detected_state(
+            Some(crate::detect::Agent::Pi),
+            crate::detect::AgentState::Working,
+        );
+    }
+    pipeline
+        .client
+        .set_snapshot(Box::new(super::client_shell::snapshot(
+            &pipeline.app,
+            "bench-boot",
+            1,
+            None,
+            None,
+        )));
+    pipeline.client.show_test_agent_grid();
+    pipeline
+}
+
+fn render_agent_grid_once(pipeline: &mut RenderPipeline) -> (Duration, Duration) {
+    let surface_size = pipeline.client.surface_size(COLS, ROWS);
+    let area = Rect::new(0, 0, surface_size.cols, surface_size.rows);
+    let cell_size = HostCellSize {
+        width_px: 1,
+        height_px: 1,
+    };
+    let started = Instant::now();
+    // Mirrors the per-frame geometry sync: lock every live agent, then size
+    // its PTY to its tile before the grid surface renders.
+    black_box(
+        crate::ui::live_agent_targets(&pipeline.app.state, &pipeline.app.terminal_runtimes).len(),
+    );
+    crate::ui::compute_agent_grid(
+        &pipeline.app.state,
+        &pipeline.app.terminal_runtimes,
+        area,
+        None,
+        Some(cell_size),
+    );
+    let rendered = super::client_shell::render_agent_grid_surface(
+        &pipeline.app,
+        None,
+        area,
+        cell_size,
+        &pipeline.graphics_delivery,
+    )
+    .expect("benchmark grid surface");
+    let server_elapsed = started.elapsed();
+
+    let started = Instant::now();
+    pipeline.client.set_pane_surface(PaneSurfaceFrame {
+        boot_id: "bench-boot".into(),
+        projection_revision: 1,
+        surface_revision: 0,
+        frame: rendered.frame,
+        panes: rendered.panes,
+        splits: rendered.splits,
+        popup: rendered.popup,
+        graphics: rendered.graphics,
+    });
+    black_box(
+        pipeline
+            .client
+            .compose(COLS, ROWS)
+            .expect("benchmark grid should compose a complete frame"),
+    );
+    (server_elapsed, started.elapsed())
+}
+
+fn print_agent_grid_profiles() {
+    let rows = CARDINALITIES.map(|count| {
+        let mut pipeline = agent_grid_pipeline(count);
+        for _ in 0..WARMUP_COUNT {
+            black_box(render_agent_grid_once(&mut pipeline));
+        }
+        let mut server = Vec::with_capacity(SAMPLE_COUNT);
+        let mut client = Vec::with_capacity(SAMPLE_COUNT);
+        let mut total = Vec::with_capacity(SAMPLE_COUNT);
+        for _ in 0..SAMPLE_COUNT {
+            let (server_elapsed, client_elapsed) = render_agent_grid_once(&mut pipeline);
+            server.push(server_elapsed);
+            client.push(client_elapsed);
+            total.push(server_elapsed + client_elapsed);
+        }
+        (
+            count,
+            PipelineStats {
+                server: summarize(server),
+                client: summarize(client),
+                total: summarize(total),
+            },
+        )
+    });
+    println!("live agent grid (one agent tile per workspace)");
+    print_stage("server grid surface + geometry sync", &rows, |stats| {
+        stats.server
+    });
+    print_stage("client shell composition", &rows, |stats| stats.client);
+    print_stage("combined pipeline", &rows, |stats| stats.total);
+}
+
 #[derive(Clone, Copy)]
 enum SurfaceDamagePattern {
     Dense,
@@ -584,6 +690,7 @@ async fn render_scale_profile() {
     print_snapshot_encoding_profiles("background workspaces", workspaces);
     print_profiles("active panes (one workspace)", active_panes);
     print_snapshot_encoding_profiles("active panes", active_panes);
+    print_agent_grid_profiles();
     print_token_rule_profiles();
     print_surface_reuse_profiles();
     print_surface_damage_profiles();

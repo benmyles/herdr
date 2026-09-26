@@ -72,6 +72,7 @@ use crate::server::socket_paths::{
 };
 use crate::server::terminal_attach::paste_payload_for_runtime;
 
+mod agent_grid;
 mod bootstrap;
 mod client_views;
 mod endpoint_requests;

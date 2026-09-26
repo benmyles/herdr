@@ -67,6 +67,13 @@ pub struct ClientShellSurfaceSetParams {
     pub active: bool,
 }
 
+/// Shows or hides the requesting client shell's live agent grid: a transient,
+/// per-connection projection of every live agent terminal in place of its tab.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct ClientShellAgentGridSetParams {
+    pub active: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SplitDirection {

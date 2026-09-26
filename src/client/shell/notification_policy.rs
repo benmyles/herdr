@@ -256,6 +256,15 @@ impl ClientShellState {
         else {
             return false;
         };
+        // The live agent grid shows every agent at once, like an active tab.
+        if self.agent_grid_active()
+            && event
+                .pane_id
+                .as_deref()
+                .is_some_and(|pane_id| snapshot.agents.iter().any(|agent| agent.pane_id == pane_id))
+        {
+            return true;
+        }
         if let Some(tab_id) = event.tab_id.as_deref() {
             return snapshot.focused_tab_id.as_deref() == Some(tab_id);
         }

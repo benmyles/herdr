@@ -2011,6 +2011,10 @@ impl ClientShellState {
                 if self.handle_endpoint_machine_click(point, outcome) {
                     return;
                 }
+                if super::contains(self.hits.agent_grid_toggle, point) {
+                    self.toggle_agent_grid(outcome);
+                    return;
+                }
                 if super::contains(self.hits.global_launcher, point) {
                     self.toggle_global_menu();
                     outcome.repaint = true;
@@ -2060,6 +2064,9 @@ impl ClientShellState {
                 }
                 if super::contains(self.hits.sidebar_toggle, point) {
                     self.sidebar_collapsed = !self.sidebar_collapsed;
+                    if self.sidebar_collapsed {
+                        self.set_agent_grid(false, outcome);
+                    }
                     self.sidebar_collapsed_manual = true;
                     self.invalidate_pane_surface();
                     outcome.repaint = true;

@@ -499,6 +499,14 @@ impl HeadlessServer {
         workspace_index: usize,
         pane_id: crate::layout::PaneId,
     ) -> bool {
+        if self.client_shows_agent_grid(client_id) {
+            return crate::ui::pane_is_live_agent(
+                &self.app.state,
+                &self.app.terminal_runtimes,
+                workspace_index,
+                pane_id,
+            );
+        }
         let Some(target) = self.shell_target_for_client(client_id) else {
             return false;
         };

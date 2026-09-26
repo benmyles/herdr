@@ -229,6 +229,10 @@ impl HeadlessServer {
                 if !client.is_active_shell_client() || client.writer.is_none() {
                     continue;
                 }
+                if client.shell_agent_grid {
+                    pane_ids.extend(self.agent_grid_pane_ids());
+                    continue;
+                }
                 let Some(target) = self.shell_target_for_client(client_id) else {
                     continue;
                 };
@@ -356,6 +360,9 @@ impl HeadlessServer {
             {
                 return self.popup_owner_tab_id == self.shell_tab_id_for_client(client_id);
             }
+            if client.shell_agent_grid {
+                return self.any_agent_grid_contains_pane(pane_id);
+            }
             let Some(target) = self.shell_target_for_client(client_id) else {
                 return false;
             };
@@ -383,6 +390,7 @@ impl HeadlessServer {
 
     fn render_and_stream_with_graphics_limit(&mut self, graphics_frame_limit: usize) {
         let full_started = crate::render_prof::timer();
+        self.sync_agent_grid_geometry();
         let render_targets = render_targets(&self.clients, self.foreground_client_id);
 
         if render_targets.is_empty() {
@@ -520,16 +528,27 @@ impl HeadlessServer {
                 } else {
                     crate::kitty_graphics::HostCellSize::default()
                 };
-                let result = render_client_shell_pane_surface(
-                    &mut self.app,
-                    shell_target,
-                    area,
-                    false,
-                    shell_shows_popup,
-                    render_cell_size,
-                    &shell_graphics_delivery,
-                    client_id,
-                );
+                let result = if self.client_shows_agent_grid(client_id) {
+                    crate::server::client_shell::render_agent_grid_surface(
+                        &self.app,
+                        self.shell_focus_target(client_id)
+                            .map(|target| (target.workspace_index, target.pane_id)),
+                        area,
+                        render_cell_size,
+                        &shell_graphics_delivery,
+                    )
+                } else {
+                    render_client_shell_pane_surface(
+                        &mut self.app,
+                        shell_target,
+                        area,
+                        false,
+                        shell_shows_popup,
+                        render_cell_size,
+                        &shell_graphics_delivery,
+                        client_id,
+                    )
+                };
                 crate::render_prof::duration_since(
                     "full_render.render_tab_surface_virtual",
                     render_started,

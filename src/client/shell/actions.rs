@@ -12,6 +12,9 @@ impl ClientShellState {
             }
             crate::input::KeybindMatch::Action(crate::input::KeybindAction::ToggleSidebar) => {
                 self.sidebar_collapsed = !self.sidebar_collapsed;
+                if self.sidebar_collapsed {
+                    self.set_agent_grid(false, outcome);
+                }
                 self.sidebar_collapsed_manual = true;
                 self.reveal_navigation_workspace = true;
                 self.invalidate_pane_surface();
@@ -360,6 +363,7 @@ impl ClientShellState {
         kind: PendingEndpointKind,
         outcome: &mut ClientShellInput,
     ) -> bool {
+        self.close_agent_grid_for_navigation(&method, outcome);
         let changes_focus = match &method {
             crate::api::schema::Method::WorkspaceFocus(_)
             | crate::api::schema::Method::TabFocus(_)

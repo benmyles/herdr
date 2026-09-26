@@ -13,6 +13,7 @@ pub(crate) const MAX_ENDPOINT_REQUEST_ID_BYTES: usize = 128;
 const ENDPOINT_RESPONSE_CHUNK_BYTES: usize = 512 * 1024;
 
 const CLIENT_SHELL_METHODS: &[&str] = &[
+    "client_shell.agent_grid.set",
     "client_shell.surface.set",
     "command.invoke",
     "integration.install",
@@ -300,7 +301,11 @@ mod tests {
             actual.remove("pane.link.resolve").as_deref(),
             Some("f5e4a3e01453ae7b188f127ce951c12c20e0bebcc17cc364eeb6d1a01fd5bf81")
         );
-        // Fork-only pinned space methods, frozen at their first published shape.
+        // Fork-only methods, frozen at their first published shape.
+        assert_eq!(
+            actual.remove("client_shell.agent_grid.set").as_deref(),
+            Some("f8de7ab79e3a8dea9fe850d3d61f1a48a409c518b89fc4a7b47f3e5fdaa29c57")
+        );
         assert_eq!(
             actual.remove("space.open").as_deref(),
             Some("e1727fd6ae96cc7e008406742e1c1fdafe73116c9283a59492fbbdbc592e468f")

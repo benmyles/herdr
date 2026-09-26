@@ -1231,6 +1231,25 @@ async fn run_client_loop(
                 } else if let Err(e) = write_to_server(&mut write_stream, &msg) {
                     return Err(ClientError::ConnectionLost(e));
                 }
+                let close_grid = state
+                    .shell
+                    .as_mut()
+                    .map(|shell| shell.close_hidden_agent_grid(new_cols))
+                    .filter(|outcome| !outcome.actions.is_empty());
+                if let Some(outcome) = close_grid {
+                    if finish_client_shell_input(
+                        &mut state,
+                        outcome,
+                        None,
+                        &mut write_stream,
+                        &mut pending_activation,
+                        &mut endpoint_commands,
+                        &mut prefix_input_source,
+                        &mut scheduled_activation,
+                    )? {
+                        return Ok(());
+                    }
+                }
             }
             ClientLoopEvent::EndpointSupervisor(event) => match event {
                 endpoint::EndpointSupervisorEvent::Status {

@@ -549,6 +549,31 @@ pub(crate) fn render_tab_surface_virtual(
     )
 }
 
+pub(crate) type RenderedAgentGrid = (
+    ratatui::buffer::Buffer,
+    Option<CursorState>,
+    Vec<((u16, u16), String, String)>,
+);
+
+/// Renders a client's live agent grid at an origin-relative client viewport.
+pub(crate) fn render_agent_grid_virtual(
+    app_state: &AppState,
+    terminal_runtimes: &TerminalRuntimeRegistry,
+    tiles: &[crate::ui::AgentGridTile],
+    area: Rect,
+) -> RenderedAgentGrid {
+    let cursor = crate::ui::agent_grid_cursor(app_state, terminal_runtimes, tiles);
+    let hyperlinks = crate::ui::agent_grid_hyperlinks(app_state, terminal_runtimes, tiles);
+    let backend = CursorTrackingBackend::new(area.width, area.height);
+    let mut terminal = ratatui::Terminal::new(backend).expect("TestBackend::new should never fail");
+    terminal
+        .draw(|frame| {
+            crate::ui::render_agent_grid(app_state, terminal_runtimes, tiles, frame, area);
+        })
+        .expect("render to TestBackend should never fail");
+    (terminal.backend().buffer().clone(), cursor, hyperlinks)
+}
+
 /// Renders one server-owned terminal directly for `terminal attach` clients.
 pub(crate) fn render_terminal_virtual(
     runtime: &crate::terminal::TerminalRuntime,

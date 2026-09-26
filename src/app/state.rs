@@ -791,6 +791,9 @@ pub struct AppState {
         std::collections::HashMap<crate::terminal::TerminalId, crate::terminal::TerminalState>,
     /// Terminal ids whose size is currently owned by a direct attach client.
     pub direct_attach_resize_locks: std::collections::HashSet<crate::terminal::TerminalId>,
+    /// Terminal ids sized by a client's live agent grid. Tab geometry leaves
+    /// them alone until the grid closes, so tiles and tabs never fight.
+    pub(crate) agent_grid_resize_locks: std::collections::HashSet<crate::terminal::TerminalId>,
     pub(crate) pane_id_aliases: std::collections::HashMap<u32, PaneId>,
     pub(crate) public_pane_id_aliases: std::collections::HashMap<String, PaneId>,
     pub workspaces: Vec<Workspace>,
@@ -901,6 +904,13 @@ impl AppState {
 
     pub(crate) fn remove_alias_shadowed_by_new_pane(&mut self, pane_id: PaneId) {
         self.pane_id_aliases.remove(&pane_id.raw());
+    }
+
+    /// Whether tab geometry must leave this terminal's PTY size alone because
+    /// a direct attach client or a live agent grid owns it.
+    pub(crate) fn terminal_resize_locked(&self, terminal_id: &crate::terminal::TerminalId) -> bool {
+        self.direct_attach_resize_locks.contains(terminal_id)
+            || self.agent_grid_resize_locks.contains(terminal_id)
     }
 
     pub(crate) fn pane_exposes_host_cursor(
@@ -1025,6 +1035,7 @@ impl AppState {
         Self {
             terminals: std::collections::HashMap::new(),
             direct_attach_resize_locks: std::collections::HashSet::new(),
+            agent_grid_resize_locks: std::collections::HashSet::new(),
             pane_id_aliases: std::collections::HashMap::new(),
             public_pane_id_aliases: std::collections::HashMap::new(),
             workspaces: Vec::new(),

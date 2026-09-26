@@ -428,6 +428,9 @@ impl HeadlessServer {
                 changed_panes.push(pane.clone());
             }
 
+            if self.client_shows_agent_grid(client_id) {
+                refresh_graphics = false;
+            }
             let cursor = retained_cursor(&self.app, &panes);
             let cursor_changed = cursor != surface.frame.cursor;
             let patch = protocol::PaneSurfacePatch {

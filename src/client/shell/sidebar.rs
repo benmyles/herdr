@@ -573,6 +573,7 @@ pub(crate) fn render_sidebar(
         detail_area,
         snapshot,
         config,
+        state.agent_grid,
         state.agent_scroll,
         hits,
     );

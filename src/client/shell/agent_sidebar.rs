@@ -73,6 +73,7 @@ pub(super) fn render_agent_panel(
     area: Rect,
     snapshot: &ClientShellSnapshot,
     config: &ClientShellConfig,
+    agent_grid: Option<bool>,
     agent_scroll: &mut usize,
     hits: &mut ShellHitMap,
 ) {
@@ -81,6 +82,7 @@ pub(super) fn render_agent_panel(
         area,
         snapshot.agent_view_label.as_deref(),
         config,
+        agent_grid,
         hits,
     ) {
         return;
@@ -111,6 +113,7 @@ pub(super) fn render_agent_panel_header(
     area: Rect,
     agent_view_label: Option<&str>,
     config: &ClientShellConfig,
+    agent_grid: Option<bool>,
     hits: &mut ShellHitMap,
 ) -> bool {
     if area.height == 0 {
@@ -127,16 +130,6 @@ pub(super) fn render_agent_panel_header(
     if area.height < 2 {
         return false;
     }
-    put_text(
-        buffer,
-        area.x,
-        area.y + 1,
-        area.width,
-        " agents",
-        Style::default()
-            .fg(config.palette.overlay0)
-            .add_modifier(Modifier::BOLD),
-    );
     let sort_label = agent_view_label.unwrap_or(match config.agent_panel_sort {
         crate::config::AgentPanelSortConfig::Spaces => "grouped",
         crate::config::AgentPanelSortConfig::Priority => "priority",
@@ -148,6 +141,33 @@ pub(super) fn render_agent_panel_header(
         sort_width,
         1,
     );
+    // The heading toggles the live agent grid and never overlaps the sort control.
+    let title = " agents";
+    let title_rect = Rect::new(
+        area.x,
+        area.y + 1,
+        (display_width(title) as u16).min(sort_rect.x.saturating_sub(area.x)),
+        1,
+    );
+    put_text(
+        buffer,
+        title_rect.x,
+        title_rect.y,
+        title_rect.width,
+        title,
+        Style::default()
+            .fg(if agent_grid == Some(true) {
+                config.palette.accent
+            } else {
+                config.palette.overlay0
+            })
+            .add_modifier(Modifier::BOLD),
+    );
+    hits.agent_grid_toggle = if config.mouse_capture && agent_grid.is_some() {
+        title_rect
+    } else {
+        Rect::default()
+    };
     hits.agent_sort_toggle = if config.mouse_capture && agent_view_label.is_none() {
         sort_rect
     } else {

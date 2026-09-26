@@ -105,6 +105,8 @@ pub(super) struct ShellHitMap {
     pub(super) agent_scroll_metrics: Option<crate::pane::ScrollMetrics>,
     pub(super) agent_max_scroll: usize,
     pub(super) agent_sort_toggle: Rect,
+    /// The agents heading, which shows or hides the live agent grid.
+    pub(super) agent_grid_toggle: Rect,
     pub(super) sidebar_divider: Rect,
     pub(super) sidebar_section_divider: Rect,
     pub(super) sidebar_toggle: Rect,
@@ -956,6 +958,7 @@ pub(crate) struct ClientShellState {
     pub(super) endpoint_error: Option<String>,
     pub(super) endpoint_error_deadline: Option<std::time::Instant>,
     pub(super) dismissed_product_announcement: Option<(String, String)>,
+    pub(super) agent_grid_owner: Option<super::agent_grid::ClientAgentGridOwner>,
 }
 
 pub(super) fn product_announcement_state(
@@ -1121,6 +1124,7 @@ impl ClientShellState {
             endpoint_error: None,
             endpoint_error_deadline: None,
             dismissed_product_announcement: None,
+            agent_grid_owner: None,
         }
     }
 
@@ -1213,13 +1217,19 @@ impl ClientShellState {
     }
 
     pub(super) fn layout(&self, cols: u16, rows: u16) -> ClientShellLayout {
-        self.config.layout(
+        let mut layout = self.config.layout(
             cols,
             rows,
             self.sidebar_collapsed,
             self.focused_tab_count(),
             self.sidebar_width,
-        )
+        );
+        // The grid replaces the tab view, so its surface takes the tab bar's row.
+        if self.agent_grid_active() && layout.tab_bar.height > 0 {
+            layout.pane_surface = layout.pane_surface.union(layout.tab_bar);
+            layout.tab_bar = Rect::default();
+        }
+        layout
     }
 
     pub(crate) fn surface_size(&self, cols: u16, rows: u16) -> ClientSurfaceSize {

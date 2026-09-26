@@ -1,5 +1,6 @@
 use super::*;
 
+mod agent_grid;
 mod native_graphics;
 #[path = "pane_move.rs"]
 mod pane_move_tests;

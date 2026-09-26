@@ -1698,6 +1698,18 @@
           ],
           "type": "object"
         },
+        "ClientShellAgentGridSetParams": {
+          "description": "Shows or hides the requesting client shell's live agent grid: a transient,\nper-connection projection of every live agent terminal in place of its tab.",
+          "properties": {
+            "active": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "active"
+          ],
+          "type": "object"
+        },
         "ClientShellSurfaceSetParams": {
           "description": "Updates whether the requesting client shell receives and controls pane presentation.",
           "properties": {
@@ -4902,6 +4914,22 @@
             },
             "params": {
               "$ref": "#/schemas/request/$defs/ClientShellSurfaceSetParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "client_shell.agent_grid.set",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/ClientShellAgentGridSetParams"
             }
           },
           "required": [

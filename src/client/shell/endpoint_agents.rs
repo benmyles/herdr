@@ -49,6 +49,7 @@ pub(super) fn render_expanded(
     endpoints: &[ClientShellEndpoint],
     active_endpoint_id: &ClientEndpointId,
     config: &ClientShellConfig,
+    agent_grid: Option<bool>,
     agent_scroll: &mut usize,
     hits: &mut ShellHitMap,
 ) {
@@ -57,6 +58,7 @@ pub(super) fn render_expanded(
         area,
         agent_view_label,
         config,
+        agent_grid,
         hits,
     ) {
         return;

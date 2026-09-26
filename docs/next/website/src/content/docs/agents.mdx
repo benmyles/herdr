@@ -15,6 +15,8 @@ Grid order follows space, workspace, tab, and pane order and does not change whe
 
 Ordinary shell panes are excluded. If no agents are live, the grid shows an empty state and does not forward input to a hidden shell.
 
+While the grid is shown, each agent terminal is resized to fit its tile, and leaving the grid restores the workspace layout sizes. If several clients show the grid at once, the earliest-connected one sets the tile sizes. With more than one machine connected, the grid shows the agents on the machine selected in the sidebar. Inline images are not drawn inside tiles; open the agent's workspace to see them.
+
 Click **Agents** again to return to the selected agent's workspace view. Switching workspaces directly also leaves the grid. Collapsing the sidebar or entering the mobile layout closes the grid so its toggle never becomes inaccessible.
 
 ## Supported agents
