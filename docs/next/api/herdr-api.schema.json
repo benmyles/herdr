@@ -4104,6 +4104,27 @@
           ],
           "type": "object"
         },
+        "SpaceWorktreeOpenParams": {
+          "description": "Files an existing checkout (any Git work tree) under a space, opening a\nworkspace for it unless one is already open.",
+          "properties": {
+            "focus": {
+              "default": false,
+              "type": "boolean"
+            },
+            "path": {
+              "description": "Absolute path of the checkout (`~` allowed).",
+              "type": "string"
+            },
+            "space_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "space_id",
+            "path"
+          ],
+          "type": "object"
+        },
         "SplitDirection": {
           "enum": [
             "right",
@@ -5284,6 +5305,22 @@
             },
             "params": {
               "$ref": "#/schemas/request/$defs/SpaceWorktreeCreateParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "space.worktree.open",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/SpaceWorktreeOpenParams"
             }
           },
           "required": [

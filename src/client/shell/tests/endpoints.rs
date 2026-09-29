@@ -690,12 +690,17 @@ fn saved_machine_preserves_endpoint_scoped_space_collapses() {
         .find(|hit| hit.endpoint_id == remote_id)
         .expect("remote space header")
         .rect;
-    state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-        kind: MouseEventKind::Down(MouseButton::Left),
-        column: remote_header.x + 3,
-        row: remote_header.y,
-        modifiers: KeyModifiers::empty(),
-    })]);
+    for kind in [
+        MouseEventKind::Down(MouseButton::Left),
+        MouseEventKind::Up(MouseButton::Left),
+    ] {
+        state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
+            kind,
+            column: remote_header.x + 3,
+            row: remote_header.y,
+            modifiers: KeyModifiers::empty(),
+        })]);
+    }
     state.compose(100, 28).expect("both spaces collapsed");
     assert!(!state
         .hits
@@ -710,12 +715,17 @@ fn saved_machine_preserves_endpoint_scoped_space_collapses() {
         .find(|hit| hit.endpoint_id == ClientEndpointId::Local)
         .expect("collapsed local header")
         .rect;
-    state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-        kind: MouseEventKind::Down(MouseButton::Left),
-        column: local_header.x + 3,
-        row: local_header.y,
-        modifiers: KeyModifiers::empty(),
-    })]);
+    for kind in [
+        MouseEventKind::Down(MouseButton::Left),
+        MouseEventKind::Up(MouseButton::Left),
+    ] {
+        state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
+            kind,
+            column: local_header.x + 3,
+            row: local_header.y,
+            modifiers: KeyModifiers::empty(),
+        })]);
+    }
     state.compose(100, 28).expect("only remote space collapsed");
     assert!(state
         .hits

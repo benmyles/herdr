@@ -16,6 +16,7 @@ impl ClientContextMenuOverlay {
                 let mut items = Vec::new();
                 if *worktrees {
                     items.push(item("New worktree…", Action::NewSpaceWorktree));
+                    items.push(item("Add existing worktree…", Action::AddExistingWorktree));
                 }
                 if *editable && !*built_in {
                     items.push(item("Rename", Action::RenameSpace));
@@ -29,11 +30,28 @@ impl ClientContextMenuOverlay {
                 }
                 items
             }
+            ClientContextMenuTarget::AddWorktree { .. } => vec![
+                item("New worktree…", Action::NewSpaceWorktree),
+                item("Add existing worktree…", Action::AddExistingWorktree),
+            ],
             ClientContextMenuTarget::ClosedMember { .. } => vec![
                 item("Open", Action::OpenClosedMember),
                 item("Remove from space", Action::RemoveClosedMember),
             ],
-            ClientContextMenuTarget::Workspace { is_git: false, .. } => {
+            ClientContextMenuTarget::Workspace {
+                is_linked_worktree: true,
+                space_worktrees: true,
+                ..
+            } => vec![
+                item("Rename", Action::Rename),
+                item("Close", Action::Close),
+                item("Delete worktree checkout...", Action::RemoveWorktree),
+            ],
+            ClientContextMenuTarget::Workspace { is_git: false, .. }
+            | ClientContextMenuTarget::Workspace {
+                space_worktrees: true,
+                ..
+            } => {
                 vec![item("Rename", Action::Rename), item("Close", Action::Close)]
             }
             ClientContextMenuTarget::Workspace {
@@ -104,11 +122,15 @@ impl ClientShellState {
             return;
         };
         let worktree = workspace.worktree.as_ref();
+        let is_git = worktree.is_some() || workspace.branch.is_some();
+        let is_linked_worktree = worktree.is_some_and(|worktree| worktree.is_linked_worktree);
+        let space_worktrees = self.endpoint_supports_space_worktrees();
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Workspace {
                 workspace_id,
-                is_git: worktree.is_some() || workspace.branch.is_some(),
-                is_linked_worktree: worktree.is_some_and(|worktree| worktree.is_linked_worktree),
+                is_git,
+                is_linked_worktree,
+                space_worktrees,
             },
             x,
             y,
@@ -137,6 +159,18 @@ impl ClientShellState {
                 editable,
                 worktrees,
             },
+            x,
+            y,
+            highlighted: 0,
+        }));
+    }
+
+    pub(super) fn open_add_worktree_menu(&mut self, space_id: String, x: u16, y: u16) {
+        if !self.endpoint_supports_space_worktrees() {
+            return;
+        }
+        self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
+            target: ClientContextMenuTarget::AddWorktree { space_id },
             x,
             y,
             highlighted: 0,
@@ -281,7 +315,8 @@ impl ClientShellState {
             ClientContextMenuTarget::Workspace { workspace_id, .. } => {
                 self.activate_workspace_context_action(workspace_id, action, outcome)
             }
-            ClientContextMenuTarget::Space { space_id, .. } => {
+            ClientContextMenuTarget::Space { space_id, .. }
+            | ClientContextMenuTarget::AddWorktree { space_id } => {
                 self.activate_space_context_action(space_id, action, outcome)
             }
             ClientContextMenuTarget::ClosedMember {
@@ -390,6 +425,9 @@ impl ClientShellState {
         match action {
             ClientContextMenuAction::NewSpaceWorktree => {
                 self.open_space_worktree_dialog(&space_id);
+            }
+            ClientContextMenuAction::AddExistingWorktree => {
+                self.open_existing_worktree_picker(&space_id, outcome);
             }
             ClientContextMenuAction::RenameSpace => {
                 let name = self.snapshot.as_deref().and_then(|snapshot| {

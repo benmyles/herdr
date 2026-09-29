@@ -69,6 +69,17 @@ pub struct SpaceWorktreeCreateParams {
     pub focus: bool,
 }
 
+/// Files an existing checkout (any Git work tree) under a space, opening a
+/// workspace for it unless one is already open.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct SpaceWorktreeOpenParams {
+    pub space_id: String,
+    /// Absolute path of the checkout (`~` allowed).
+    pub path: String,
+    #[serde(default)]
+    pub focus: bool,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum WorktreeBranchSource {

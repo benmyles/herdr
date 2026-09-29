@@ -537,7 +537,10 @@ impl ClientShellState {
             // These dialogs show the server's rejection inline.
             let shown_inline = matches!(
                 pending.kind,
-                PendingEndpointKind::SpaceWorktreeCreate | PendingEndpointKind::RepoSave
+                PendingEndpointKind::SpaceWorktreeCreate
+                    | PendingEndpointKind::SpaceWorktreeList { .. }
+                    | PendingEndpointKind::SpaceWorktreeOpen
+                    | PendingEndpointKind::RepoSave
             ) && !matches!(
                 code,
                 "endpoint_timeout" | "endpoint_cancelled" | "server_unavailable"
@@ -840,6 +843,13 @@ impl ClientShellState {
             kind @ (PendingEndpointKind::IntegrationList
             | PendingEndpointKind::IntegrationInstall) => {
                 return self.handle_settings_endpoint_result(kind, result);
+            }
+            kind @ (PendingEndpointKind::SpaceWorktreeList { .. }
+            | PendingEndpointKind::SpaceWorktreeOpen) => {
+                return (
+                    self.handle_existing_worktree_result(kind, result),
+                    Vec::new(),
+                );
             }
             kind @ (PendingEndpointKind::SpaceCreate
             | PendingEndpointKind::SpaceWorktreeCreate

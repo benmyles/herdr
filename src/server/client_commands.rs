@@ -52,6 +52,7 @@ const CLIENT_SHELL_METHODS: &[&str] = &[
     "space.move",
     "space.rename",
     "space.worktree.create",
+    "space.worktree.open",
     "tab.close",
     "tab.create",
     "tab.focus",
@@ -351,6 +352,10 @@ mod tests {
         assert_eq!(
             actual.remove("space.worktree.create").as_deref(),
             Some("fdf672702207e31ffe5f7e9309e0503a683c7180c90b4ee4c666ff03949d6c10")
+        );
+        assert_eq!(
+            actual.remove("space.worktree.open").as_deref(),
+            Some("7b8504fa1e39e973fc3d3553a0198deaad6a5487f7f4c06df3c63844ec2c1c65")
         );
         assert_eq!(
             actual.remove("repo.add").as_deref(),

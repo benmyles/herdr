@@ -203,7 +203,11 @@ fn workspace_click_waits_for_release_and_drag_reorders_by_stable_id() {
         state.chrome_drag,
         Some(ClientChromeDrag::Workspace {
             ref source_workspace_id,
-            target: Some((None, _)),
+            target: Some(WorkspaceDropTarget {
+                space_id: None,
+                before_workspace_id: None,
+                ..
+            }),
         }) if source_workspace_id == "ws_1"
     ));
     let frame = state.compose(106, 24).expect("workspace drop indicator");
@@ -1541,6 +1545,22 @@ fn click(state: &mut ClientShellState, button: MouseButton, rect: Rect) -> Clien
     })])
 }
 
+/// A full left click: press and release.
+fn press_release(state: &mut ClientShellState, rect: Rect) -> ClientShellInput {
+    let at = |kind| {
+        RawInputEvent::Mouse(crossterm::event::MouseEvent {
+            kind,
+            column: rect.x + 1,
+            row: rect.y,
+            modifiers: KeyModifiers::empty(),
+        })
+    };
+    state.handle_raw_events(vec![
+        at(MouseEventKind::Down(MouseButton::Left)),
+        at(MouseEventKind::Up(MouseButton::Left)),
+    ])
+}
+
 fn single_endpoint_method(outcome: &ClientShellInput) -> crate::api::schema::Method {
     let [ClientShellAction::Endpoint { request, .. }] = &outcome.actions[..] else {
         panic!("expected one endpoint request, got {:?}", outcome.actions);
@@ -1605,6 +1625,11 @@ fn clicking_a_space_header_collapses_it_to_the_focused_member() {
     let header = state.hits.space_headers[0].rect;
 
     click(&mut state, MouseButton::Left, header);
+    assert!(
+        !state.group_is_collapsed(&ClientEndpointId::Local, "space_knowledge"),
+        "a header collapses on release so it can be dragged"
+    );
+    press_release(&mut state, header);
     let frame = state.compose(106, 30).expect("collapsed frame");
     assert!(state.group_is_collapsed(&ClientEndpointId::Local, "space_knowledge"));
     assert!(state.hits.closed_members.is_empty());
@@ -1663,12 +1688,9 @@ fn space_header_menu_edits_supported_endpoints_only() {
             .collect::<Vec<_>>(),
         _ => panic!("space context menu"),
     };
-    assert_eq!(
-        labels(&state),
-        ["New worktree…", "Rename", "Collapse", "Delete space"]
-    );
+    assert_eq!(labels(&state), ["Rename", "Collapse", "Delete space"]);
     let mut outcome = ClientShellInput::default();
-    state.activate_context_menu_item(3, &mut outcome);
+    state.activate_context_menu_item(2, &mut outcome);
     assert!(matches!(
         single_endpoint_method(&outcome),
         crate::api::schema::Method::SpaceDelete(target) if target.space_id == "space_knowledge"
@@ -1989,4 +2011,256 @@ fn creating_a_space_offers_its_first_worktree() {
         Some(ClientShellOverlay::SpaceWorktree(dialog))
             if dialog.space_id == "space_launch" && dialog.name.as_str() == "launch"
     ));
+}
+
+fn two_space_snapshot() -> ClientShellSnapshot {
+    let mut projected = repo_snapshot();
+    let mut second = projected.workspaces[0].clone();
+    second.workspace_id = "ws_2".into();
+    second.number = 2;
+    second.label = "billing-api".into();
+    second.focused = false;
+    second.worktree = None;
+    second.space_id = Some("space_billing".into());
+    projected.workspaces.push(second);
+    projected.spaces.insert(
+        1,
+        crate::protocol::ClientShellSpace {
+            space_id: "space_billing".into(),
+            name: "billing".into(),
+            color: 3,
+            built_in: false,
+            closed: Vec::new(),
+        },
+    );
+    projected
+}
+
+fn mouse(
+    state: &mut ClientShellState,
+    kind: MouseEventKind,
+    column: u16,
+    row: u16,
+) -> ClientShellInput {
+    state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
+        kind,
+        column,
+        row,
+        modifiers: KeyModifiers::empty(),
+    })])
+}
+
+#[test]
+fn add_worktree_row_adds_an_existing_checkout_to_the_space() {
+    let mut state = repo_state();
+    let text = screen_text(&mut state);
+    assert!(text.contains("+ worktree"), "{text}");
+    let add = state.hits.add_worktree[0].clone();
+    assert_eq!(add.space_id, "space_knowledge");
+
+    click(&mut state, MouseButton::Left, add.rect);
+    let labels = match state.overlay.as_ref() {
+        Some(ClientShellOverlay::ContextMenu(menu)) => menu
+            .items()
+            .iter()
+            .map(|item| item.label)
+            .collect::<Vec<_>>(),
+        _ => panic!("add worktree menu"),
+    };
+    assert_eq!(labels, ["New worktree…", "Add existing worktree…"]);
+    let mut outcome = ClientShellInput::default();
+    state.activate_context_menu_item(1, &mut outcome);
+    let requests = outcome
+        .actions
+        .iter()
+        .map(|action| match action {
+            ClientShellAction::Endpoint { request, .. } => request.clone(),
+            other => panic!("unexpected action {other:?}"),
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(requests.len(), 2, "one listing per repo");
+    assert!(matches!(
+        &requests[1].method,
+        crate::api::schema::Method::WorktreeList(params)
+            if params.cwd.as_deref() == Some("~/code/guided") && params.workspace_id.is_none()
+    ));
+    let listing = |path: &str, branch: &str, linked: bool| crate::api::schema::WorktreeInfo {
+        path: path.into(),
+        branch: Some(branch.into()),
+        is_bare: false,
+        is_detached: false,
+        is_prunable: false,
+        is_linked_worktree: linked,
+        open_workspace_id: None,
+        label: "repo".into(),
+    };
+    let source = crate::api::schema::WorktreeSourceInfo {
+        repo_key: "key".into(),
+        repo_name: "repo".into(),
+        repo_root: "/code/repo".into(),
+        source_checkout_path: "/code/repo".into(),
+        source_workspace_id: None,
+    };
+    state.handle_endpoint_result(
+        "boot-1",
+        &requests[0].id,
+        Ok(crate::api::schema::ResponseResult::WorktreeList {
+            source: source.clone(),
+            worktrees: vec![listing("/code/pyshiftup", "main", false)],
+        }),
+    );
+    state.handle_endpoint_result(
+        "boot-1",
+        &requests[1].id,
+        Ok(crate::api::schema::ResponseResult::WorktreeList {
+            source,
+            worktrees: vec![
+                listing("/code/guided", "main", false),
+                listing("/wt/other/guided/spike", "spike", true),
+            ],
+        }),
+    );
+    let text = screen_text(&mut state);
+    assert!(
+        text.contains("add existing worktree to knowledge"),
+        "{text}"
+    );
+    assert!(text.contains("guided · spike"), "{text}");
+    assert!(text.contains("main checkout"), "{text}");
+
+    state.handle_input_bytes(b"spike");
+    let submit = state.handle_input_bytes(b"\r");
+    let [ClientShellAction::Endpoint { request, .. }] = &submit.actions[..] else {
+        panic!("expected space.worktree.open, got {:?}", submit.actions);
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::SpaceWorktreeOpen(params)
+            if params.space_id == "space_knowledge"
+                && params.path == "/wt/other/guided/spike"
+                && params.focus
+    ));
+}
+
+#[test]
+fn dropping_a_workspace_on_another_space_files_it_there() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(two_space_snapshot()));
+    state.set_pane_surface(surface());
+    state.compose(120, 34).expect("sidebar");
+    let source = state.hits.workspaces[0].rect;
+    let billing = state
+        .hits
+        .space_headers
+        .iter()
+        .find(|hit| hit.space_id == "space_billing")
+        .expect("billing header")
+        .rect;
+
+    mouse(
+        &mut state,
+        MouseEventKind::Down(MouseButton::Left),
+        source.x + 2,
+        source.y,
+    );
+    mouse(
+        &mut state,
+        MouseEventKind::Drag(MouseButton::Left),
+        billing.x + 2,
+        billing.y,
+    );
+    assert!(matches!(
+        &state.chrome_drag,
+        Some(ClientChromeDrag::Workspace {
+            target: Some(WorkspaceDropTarget { space_id: Some(space), before_workspace_id: None, .. }),
+            ..
+        }) if space == "space_billing"
+    ));
+    let text = screen_text(&mut state);
+    assert!(text.contains("─"), "drop indicator: {text}");
+    let drop = mouse(
+        &mut state,
+        MouseEventKind::Up(MouseButton::Left),
+        billing.x + 2,
+        billing.y,
+    );
+    assert!(matches!(
+        single_endpoint_method(&drop),
+        crate::api::schema::Method::SpaceAssign(params)
+            if params.workspace_id == "ws_1"
+                && params.space_id == "space_billing"
+                && params.before_workspace_id.is_none()
+    ));
+
+    // Dropping back where it started sends nothing.
+    state.compose(120, 34).expect("sidebar");
+    let source = state.hits.workspaces[0].rect;
+    mouse(
+        &mut state,
+        MouseEventKind::Down(MouseButton::Left),
+        source.x + 2,
+        source.y,
+    );
+    mouse(
+        &mut state,
+        MouseEventKind::Drag(MouseButton::Left),
+        source.x + 3,
+        source.y,
+    );
+    let none = mouse(
+        &mut state,
+        MouseEventKind::Up(MouseButton::Left),
+        source.x + 3,
+        source.y,
+    );
+    assert!(none.actions.is_empty(), "{:?}", none.actions);
+}
+
+#[test]
+fn dragging_a_space_header_reorders_spaces() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(two_space_snapshot()));
+    state.set_pane_surface(surface());
+    state.compose(120, 34).expect("sidebar");
+    let knowledge = state.hits.space_headers[0].rect;
+    let billing_add = state
+        .hits
+        .add_worktree
+        .iter()
+        .find(|hit| hit.space_id == "space_billing")
+        .expect("billing + worktree")
+        .rect;
+
+    mouse(
+        &mut state,
+        MouseEventKind::Down(MouseButton::Left),
+        knowledge.x + 2,
+        knowledge.y,
+    );
+    mouse(
+        &mut state,
+        MouseEventKind::Drag(MouseButton::Left),
+        billing_add.x + 2,
+        billing_add.bottom(),
+    );
+    assert!(matches!(
+        &state.chrome_drag,
+        Some(ClientChromeDrag::Space { space_id, target: Some((None, _)) })
+            if space_id == "space_knowledge"
+    ));
+    let drop = mouse(
+        &mut state,
+        MouseEventKind::Up(MouseButton::Left),
+        billing_add.x + 2,
+        billing_add.bottom(),
+    );
+    assert!(matches!(
+        single_endpoint_method(&drop),
+        crate::api::schema::Method::SpaceMove(params)
+            if params.space_id == "space_knowledge" && params.before_space_id.is_none()
+    ));
+    assert!(
+        !state.group_is_collapsed(&ClientEndpointId::Local, "space_knowledge"),
+        "dragging a header does not collapse it"
+    );
 }

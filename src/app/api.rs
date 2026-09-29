@@ -1045,6 +1045,9 @@ impl App {
                     "space.worktree.create is handled asynchronously by the app runtime",
                 );
             }
+            Method::SpaceWorktreeOpen(params) => {
+                return self.handle_space_worktree_open(request.id, params);
+            }
             Method::RepoList(params) => return self.handle_repo_list(request.id, params),
             Method::RepoAdd(params) => return self.handle_repo_add(request.id, params),
             Method::RepoUpdate(params) => return self.handle_repo_update(request.id, params),

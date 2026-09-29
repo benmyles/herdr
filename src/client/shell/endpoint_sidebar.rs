@@ -287,7 +287,10 @@ pub(super) fn render_expanded(
         if let Some(snapshot) = endpoint.snapshot.as_deref() {
             let collapsed_groups = collapsed_groups_for_endpoint(state, &endpoint.endpoint_id)
                 .unwrap_or(&empty_collapsed_groups);
-            let space_rows = super::sidebar::sidebar_rows(snapshot, collapsed_groups);
+            let dragging_here = state.dragged_workspace_id.is_some()
+                && &endpoint.endpoint_id == state.active_endpoint_id;
+            let space_rows =
+                super::sidebar::sidebar_rows(snapshot, collapsed_groups, dragging_here);
             endpoint_rows.push((endpoint_index, rows.len(), space_rows.clone()));
             rows.extend(space_rows.into_iter().map(|row| Row::Space {
                 endpoint: endpoint_index,
@@ -311,7 +314,8 @@ pub(super) fn render_expanded(
             | Row::Space {
                 row:
                     super::sidebar::SidebarRow::SpaceHeader { .. }
-                    | super::sidebar::SidebarRow::ClosedMember { .. },
+                    | super::sidebar::SidebarRow::ClosedMember { .. }
+                    | super::sidebar::SidebarRow::AddWorktree { .. },
                 ..
             } => 1,
             Row::Space {
@@ -500,6 +504,15 @@ pub(super) fn render_expanded(
                             member_id: member.member_id.clone(),
                         });
                     }
+                    super::sidebar::SidebarRow::AddWorktree { space_index } => {
+                        let space = &snapshot.spaces[*space_index];
+                        super::sidebar::render_add_worktree_row(buffer, nested, space, palette);
+                        hits.add_worktree.push(AddWorktreeHit {
+                            rect,
+                            endpoint_id: endpoint.endpoint_id.clone(),
+                            space_id: space.space_id.clone(),
+                        });
+                    }
                     super::sidebar::SidebarRow::Workspace(entry) => {
                         let Some(workspace) = snapshot.workspaces.get(entry.index) else {
                             continue;
@@ -515,6 +528,11 @@ pub(super) fn render_expanded(
                         let selected = state.selected_workspace_id.is_some_and(|target| {
                             target.matches(&endpoint.endpoint_id, &workspace.workspace_id)
                         });
+                        let dragged = endpoint_active
+                            && state.dragged_workspace_id == Some(workspace.workspace_id.as_str());
+                        if dragged && !selected {
+                            buffer.set_style(rect, Style::default().bg(palette.surface1));
+                        }
                         super::sidebar::render_workspace_rows(
                             buffer,
                             nested,
@@ -525,7 +543,7 @@ pub(super) fn render_expanded(
                             endpoint_active && workspace.focused,
                             selected,
                             state.selected_workspace_id.is_some(),
-                            false,
+                            dragged,
                             super::sidebar::WorkspaceRowColors {
                                 palette,
                                 space: spaces.color(entry.index),
@@ -557,6 +575,9 @@ pub(super) fn render_expanded(
         let track = Rect::new(body.right().saturating_sub(1), body.y, 1, body.height);
         hits.workspace_scrollbar = track;
         super::scroll::render_list_scrollbar(buffer, track, metrics, palette);
+    }
+    if let Some(row) = state.workspace_drop_indicator_row {
+        super::sidebar::render_drop_indicator(buffer, workspace_area, body, row, palette);
     }
 
     let footer_y = workspace_area.bottom().saturating_sub(1);

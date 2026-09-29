@@ -172,6 +172,31 @@ impl ClientShellState {
         let Some(workspace_id) = self.workspace_action_id() else {
             return;
         };
+        // With spaces, new and open work on the workspace's space, not its repo.
+        if matches!(
+            action,
+            crate::input::KeybindAction::NewWorktree | crate::input::KeybindAction::OpenWorktree
+        ) && self.endpoint_supports_space_worktrees()
+        {
+            let space_id = self
+                .snapshot
+                .as_deref()
+                .and_then(|snapshot| {
+                    snapshot
+                        .workspaces
+                        .iter()
+                        .find(|workspace| workspace.workspace_id == workspace_id)
+                })
+                .and_then(|workspace| workspace.space_id.clone())
+                .unwrap_or_else(|| crate::space::OTHER_SPACE_ID.to_owned());
+            if action == crate::input::KeybindAction::NewWorktree {
+                self.open_space_worktree_dialog(&space_id);
+            } else {
+                self.open_existing_worktree_picker(&space_id, outcome);
+            }
+            outcome.repaint = true;
+            return;
+        }
         self.begin_worktree_action_for(action, workspace_id, outcome);
     }
 
@@ -541,6 +566,8 @@ impl ClientShellState {
                 | PendingEndpointKind::CopyMotion { .. }
                 | PendingEndpointKind::CopySearch { .. }
                 | PendingEndpointKind::SpaceCreate
+                | PendingEndpointKind::SpaceWorktreeList { .. }
+                | PendingEndpointKind::SpaceWorktreeOpen
                 | PendingEndpointKind::SpaceWorktreeCreate
                 | PendingEndpointKind::RepoSave
                 | PendingEndpointKind::RepoRemove,

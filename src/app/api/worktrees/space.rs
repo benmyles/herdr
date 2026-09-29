@@ -314,3 +314,110 @@ impl App {
         Self::send_api_response(api.respond_to, response);
     }
 }
+
+impl App {
+    /// The configured repo a checkout belongs to, matched by Git common dir.
+    fn configured_repo_for_key(&self, key: &str) -> Option<&crate::repos::Repo> {
+        self.state.repos.iter().find(|repo| {
+            crate::workspace::git_space_metadata(&repo.root_path())
+                .is_some_and(|space| space.key == key)
+        })
+    }
+
+    pub(in crate::app::api) fn handle_space_worktree_open(
+        &mut self,
+        id: String,
+        params: crate::api::schema::SpaceWorktreeOpenParams,
+    ) -> String {
+        if self.state.space_index(&params.space_id).is_none() {
+            return encode_error(
+                id,
+                "space_not_found",
+                format!("space {} not found", params.space_id),
+            );
+        }
+        let path = crate::worktree::expand_tilde_path(params.path.trim());
+        if !path.is_absolute() {
+            return encode_error(id, "invalid_request", "worktree path must be absolute");
+        }
+        let Some(git_space) = crate::workspace::git_space_metadata(&path) else {
+            return encode_error(
+                id,
+                "not_git_worktree",
+                format!("{} is not a Git checkout", path.display()),
+            );
+        };
+        let checkout = git_space.repo_root.clone();
+        let repo = self.configured_repo_for_key(&git_space.key).cloned();
+        let label = repo
+            .as_ref()
+            .map(|repo| repo.name.clone())
+            .unwrap_or_else(|| git_space.repo_name.clone());
+        let main_root = repo
+            .as_ref()
+            .map(crate::repos::Repo::root_path)
+            .unwrap_or_else(|| {
+                let common = std::path::Path::new(&git_space.key);
+                match common.file_name().and_then(|name| name.to_str()) {
+                    Some(".git") => common.parent().unwrap_or(common).to_path_buf(),
+                    _ => checkout.clone(),
+                }
+            });
+        let order_before = self
+            .state
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.id.clone())
+            .collect::<Vec<_>>();
+        let (ws_idx, created) = match self.open_workspace_idx_for_checkout(&checkout) {
+            Some(ws_idx) => (ws_idx, false),
+            None => match self.create_workspace_with_options(checkout.clone(), params.focus) {
+                Ok(ws_idx) => (ws_idx, true),
+                Err(err) => {
+                    return encode_error(id, "worktree_open_failed", err.to_string());
+                }
+            },
+        };
+        if self.state.workspaces[ws_idx].worktree_space().is_none() {
+            let membership = crate::workspace::WorktreeSpaceMembership {
+                key: git_space.key,
+                label: label.clone(),
+                repo_root: main_root,
+                checkout_path: checkout,
+                is_linked_worktree: git_space.is_linked_worktree,
+            };
+            self.set_worktree_membership(ws_idx, membership, !created);
+        }
+        let workspace_id = self.state.workspaces[ws_idx].id.clone();
+        if created {
+            let workspace = &mut self.state.workspaces[ws_idx];
+            workspace.set_custom_name(label);
+            workspace.space_id.clone_from(&params.space_id);
+            self.state.normalize_spaces();
+        } else if let Err(error) =
+            self.state
+                .assign_workspace_to_space(&workspace_id, &params.space_id, None)
+        {
+            return encode_error(id, error.code(), error.to_string());
+        }
+        self.state.mark_session_dirty();
+        let Some(ws_idx) = self.parse_workspace_id(&workspace_id) else {
+            return encode_error(id, "worktree_open_failed", "workspace disappeared");
+        };
+        if created {
+            self.emit_workspace_open_events(ws_idx);
+        } else {
+            self.emit_space_workspace_reorder(&order_before);
+            if params.focus {
+                self.state.switch_workspace(ws_idx);
+            }
+        }
+        self.schedule_session_save();
+        encode_success(
+            id,
+            ResponseResult::WorkspaceInfo {
+                workspace: self.workspace_info(ws_idx),
+            },
+        )
+    }
+}

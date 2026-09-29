@@ -99,6 +99,8 @@ pub enum Method {
     SpaceMemberRemove(SpaceMemberTarget),
     #[serde(rename = "space.worktree.create")]
     SpaceWorktreeCreate(SpaceWorktreeCreateParams),
+    #[serde(rename = "space.worktree.open")]
+    SpaceWorktreeOpen(SpaceWorktreeOpenParams),
     #[serde(rename = "repo.list")]
     RepoList(EmptyParams),
     #[serde(rename = "repo.add")]

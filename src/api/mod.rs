@@ -44,6 +44,7 @@ pub(crate) fn request_changes_ui(request: &Request) -> bool {
             | Method::WorkspaceClose(_)
             | Method::WorktreeCreate(_)
             | Method::SpaceWorktreeCreate(_)
+            | Method::SpaceWorktreeOpen(_)
             | Method::RepoAdd(_)
             | Method::RepoUpdate(_)
             | Method::RepoRemove(_)

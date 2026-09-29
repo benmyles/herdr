@@ -521,6 +521,7 @@ pub(crate) fn api_method_name(method: &Method) -> &'static str {
         Method::SpaceMemberOpen(_) => "space.member.open",
         Method::SpaceMemberRemove(_) => "space.member.remove",
         Method::SpaceWorktreeCreate(_) => "space.worktree.create",
+        Method::SpaceWorktreeOpen(_) => "space.worktree.open",
         Method::RepoList(_) => "repo.list",
         Method::RepoAdd(_) => "repo.add",
         Method::RepoUpdate(_) => "repo.update",

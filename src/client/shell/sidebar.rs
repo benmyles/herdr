@@ -292,7 +292,11 @@ pub(crate) fn render_sidebar(
             .add_modifier(Modifier::BOLD),
     );
 
-    let rows = sidebar_rows(snapshot, state.collapsed_groups);
+    let rows = sidebar_rows(
+        snapshot,
+        state.collapsed_groups,
+        state.dragged_workspace_id.is_some(),
+    );
     let spaces = space_presentation(snapshot, palette);
     let body = Rect::new(
         workspace_area.x,
@@ -321,7 +325,9 @@ pub(crate) fn render_sidebar(
                     .min(u16::MAX as usize) as u16
                 })
                 .unwrap_or(1),
-            SidebarRow::SpaceHeader { .. } | SidebarRow::ClosedMember { .. } => 1,
+            SidebarRow::SpaceHeader { .. }
+            | SidebarRow::ClosedMember { .. }
+            | SidebarRow::AddWorktree { .. } => 1,
         })
         .collect::<Vec<_>>();
     let gaps = (0..rows.len())
@@ -394,6 +400,15 @@ pub(crate) fn render_sidebar(
                     member_id: member.member_id.clone(),
                 });
             }
+            SidebarRow::AddWorktree { space_index } => {
+                let space = &snapshot.spaces[*space_index];
+                render_add_worktree_row(buffer, rect, space, palette);
+                hits.add_worktree.push(AddWorktreeHit {
+                    rect,
+                    endpoint_id: ClientEndpointId::Local,
+                    space_id: space.space_id.clone(),
+                });
+            }
             SidebarRow::Workspace(entry) => {
                 let Some(workspace) = snapshot.workspaces.get(entry.index) else {
                     continue;
@@ -444,18 +459,8 @@ pub(crate) fn render_sidebar(
         super::scroll::render_list_scrollbar(buffer, track, metrics, palette);
     }
 
-    if let Some(row) = state.workspace_drop_indicator_row.filter(|row| {
-        *row >= workspace_area.y.saturating_add(1)
-            && *row < workspace_area.bottom().saturating_sub(1)
-    }) {
-        put_text(
-            buffer,
-            body.x,
-            row,
-            body.width,
-            &"─".repeat(body.width as usize),
-            Style::default().fg(palette.accent),
-        );
+    if let Some(row) = state.workspace_drop_indicator_row {
+        render_drop_indicator(buffer, workspace_area, body, row, palette);
     }
 
     let footer_y = workspace_area.bottom().saturating_sub(1);
@@ -552,15 +557,23 @@ pub(in crate::client::shell) enum SidebarRow {
         member_index: usize,
         last_child: bool,
     },
+    /// "+ worktree" at the end of an expanded user space.
+    AddWorktree {
+        space_index: usize,
+    },
 }
 
 /// Sidebar rows: each space's header, then its live members, then its closed
-/// members. Empty `other` is hidden. Servers without spaces list workspaces
-/// flat, as before spaces existed.
+/// members, then "+ worktree" when the server can create worktrees. Empty
+/// `other` is hidden unless `show_empty_other` (a drag needs it as a target).
+/// Servers without spaces list workspaces flat, as before spaces existed.
 pub(in crate::client::shell) fn sidebar_rows(
     snapshot: &ClientShellSnapshot,
     collapsed_groups: &HashSet<String>,
+    show_empty_other: bool,
 ) -> Vec<SidebarRow> {
+    // Servers without space worktrees send no path template.
+    let add_rows = !snapshot.worktree_path_template.is_empty();
     let mut rows = Vec::new();
     let mut listed = vec![false; snapshot.workspaces.len()];
     for (space_index, space) in snapshot.spaces.iter().enumerate() {
@@ -574,7 +587,7 @@ pub(in crate::client::shell) fn sidebar_rows(
         for &index in &members {
             listed[index] = true;
         }
-        if space.built_in && members.is_empty() && space.closed.is_empty() {
+        if space.built_in && members.is_empty() && space.closed.is_empty() && !show_empty_other {
             continue;
         }
         let collapsed = collapsed_groups.contains(&space.space_id);
@@ -597,7 +610,8 @@ pub(in crate::client::shell) fn sidebar_rows(
             }
             continue;
         }
-        let total = members.len() + space.closed.len();
+        let add_row = add_rows && !space.built_in;
+        let total = members.len() + space.closed.len() + usize::from(add_row);
         for (position, index) in members.iter().copied().enumerate() {
             rows.push(SidebarRow::Workspace(WorkspaceEntry {
                 index,
@@ -611,6 +625,9 @@ pub(in crate::client::shell) fn sidebar_rows(
                 member_index,
                 last_child: members.len() + member_index + 1 == total,
             });
+        }
+        if add_row {
+            rows.push(SidebarRow::AddWorktree { space_index });
         }
     }
     for (index, listed) in listed.into_iter().enumerate() {
@@ -630,7 +647,7 @@ pub(crate) fn workspace_entries(
     snapshot: &ClientShellSnapshot,
     collapsed_groups: &HashSet<String>,
 ) -> Vec<WorkspaceEntry> {
-    sidebar_rows(snapshot, collapsed_groups)
+    sidebar_rows(snapshot, collapsed_groups, false)
         .into_iter()
         .filter_map(|row| match row {
             SidebarRow::Workspace(entry) => Some(entry),
@@ -741,6 +758,52 @@ pub(in crate::client::shell) fn render_space_header(
 }
 
 /// Render a closed member: tree prefix, dimmed label, and a `closed` tag.
+/// Draws the drag insertion line through the blank cells of `row`, so the
+/// text it passes over stays readable.
+pub(in crate::client::shell) fn render_drop_indicator(
+    buffer: &mut Buffer,
+    workspace_area: Rect,
+    body: Rect,
+    row: u16,
+    palette: &Palette,
+) {
+    if row < workspace_area.y.saturating_add(1) || row >= workspace_area.bottom().saturating_sub(1)
+    {
+        return;
+    }
+    let style = Style::default().fg(palette.accent);
+    for x in body.x..body.right() {
+        let cell = &mut buffer[(x, row)];
+        if cell.symbol() == " " {
+            cell.set_symbol("─").set_style(style);
+        }
+    }
+}
+
+pub(in crate::client::shell) fn render_add_worktree_row(
+    buffer: &mut Buffer,
+    rect: Rect,
+    space: &crate::protocol::ClientShellSpace,
+    palette: &Palette,
+) {
+    let x = put_segment(
+        buffer,
+        rect.x,
+        rect.y,
+        rect.right(),
+        " └─ ",
+        Style::default().fg(space_header_color(space, palette)),
+    );
+    put_text(
+        buffer,
+        x,
+        rect.y,
+        rect.right().saturating_sub(x),
+        "+ worktree",
+        Style::default().fg(palette.overlay0),
+    );
+}
+
 pub(in crate::client::shell) fn render_closed_member(
     buffer: &mut Buffer,
     rect: Rect,

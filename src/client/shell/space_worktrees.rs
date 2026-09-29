@@ -79,18 +79,24 @@ impl ClientShellState {
     pub(super) fn endpoint_supports_space_worktrees(&self) -> bool {
         use crate::api::schema::{Method, RepoAddParams, SpaceWorktreeCreateParams};
 
-        [
-            Method::SpaceWorktreeCreate(SpaceWorktreeCreateParams {
-                space_id: String::new(),
-                repo: String::new(),
-                name: String::new(),
-                sync: true,
-                focus: false,
-            }),
-            Method::RepoAdd(RepoAddParams::default()),
-        ]
-        .iter()
-        .all(|method| self.supports_endpoint_method(method))
+        // Servers with space worktrees always send their path template.
+        let has_template = self
+            .snapshot
+            .as_deref()
+            .is_some_and(|snapshot| !snapshot.worktree_path_template.is_empty());
+        has_template
+            && [
+                Method::SpaceWorktreeCreate(SpaceWorktreeCreateParams {
+                    space_id: String::new(),
+                    repo: String::new(),
+                    name: String::new(),
+                    sync: true,
+                    focus: false,
+                }),
+                Method::RepoAdd(RepoAddParams::default()),
+            ]
+            .iter()
+            .all(|method| self.supports_endpoint_method(method))
     }
 
     pub(super) fn open_space_worktree_dialog(&mut self, space_id: &str) {
@@ -533,6 +539,12 @@ impl ClientShellState {
                     }
                 }
             }
+            ClientOverlayHit::ExistingWorktree(index) => {
+                if let Some(ClientShellOverlay::SpaceWorktreeOpen(picker)) = self.overlay.as_mut() {
+                    picker.selected = index;
+                }
+                self.submit_existing_worktree(outcome);
+            }
             ClientOverlayHit::RepoEditField(index) => {
                 if let Some(ClientShellOverlay::RepoEdit(edit)) = self.overlay.as_mut() {
                     edit.field = index.min(edit.fields.len() - 1);
@@ -555,15 +567,31 @@ impl ClientShellState {
             Some(ClientShellOverlay::RepoEdit(edit)) if !edit.saving => {
                 self.close_repo_editor(None, outcome);
             }
+            Some(ClientShellOverlay::SpaceWorktreeOpen(picker)) if !picker.opening => {
+                self.overlay = None;
+            }
             _ => {}
         }
         outcome.repaint = true;
+    }
+
+    pub(super) fn scroll_repo_overlay(&mut self, delta: isize) {
+        match self.overlay.as_ref() {
+            Some(ClientShellOverlay::SpaceWorktree(_)) => self.move_space_worktree_repo(delta),
+            Some(ClientShellOverlay::SpaceWorktreeOpen(_)) => {
+                self.move_existing_worktree_selection(delta)
+            }
+            _ => {}
+        }
     }
 
     pub(super) fn submit_repo_overlay(&mut self, outcome: &mut ClientShellInput) {
         match self.overlay.as_ref() {
             Some(ClientShellOverlay::SpaceWorktree(_)) => self.submit_space_worktree(outcome),
             Some(ClientShellOverlay::RepoEdit(_)) => self.submit_repo_edit(outcome),
+            Some(ClientShellOverlay::SpaceWorktreeOpen(_)) => {
+                self.submit_existing_worktree(outcome)
+            }
             _ => {}
         }
     }
@@ -663,6 +691,223 @@ impl ClientShellState {
             (_, Ok(_)) => return false,
         }
         true
+    }
+}
+
+impl ClientShellState {
+    /// Lists every configured repo's checkouts, then lets the user file one
+    /// under the space.
+    pub(super) fn open_existing_worktree_picker(
+        &mut self,
+        space_id: &str,
+        outcome: &mut ClientShellInput,
+    ) {
+        let Some(space_name) = self.snapshot.as_deref().and_then(|snapshot| {
+            snapshot
+                .spaces
+                .iter()
+                .find(|space| space.space_id == space_id)
+                .map(|space| space.name.clone())
+        }) else {
+            return;
+        };
+        let repos = self.endpoint_repos().to_vec();
+        if repos.is_empty() {
+            self.open_repo_editor(
+                None,
+                ClientRepoEditReturn::SpaceWorktree {
+                    space_id: space_id.to_owned(),
+                },
+            );
+            outcome.repaint = true;
+            return;
+        }
+        self.overlay = Some(ClientShellOverlay::SpaceWorktreeOpen(
+            ClientSpaceWorktreeOpenOverlay {
+                space_id: space_id.to_owned(),
+                space_name,
+                entries: Vec::new(),
+                loading: 0,
+                query: TextEditor::default(),
+                selected: 0,
+                error: None,
+                opening: false,
+            },
+        ));
+        for repo in repos {
+            let queued = self.push_endpoint_method_with_kind(
+                crate::api::schema::Method::WorktreeList(crate::api::schema::WorktreeListParams {
+                    workspace_id: None,
+                    cwd: Some(repo.root.clone()),
+                    trust_repository: false,
+                }),
+                PendingEndpointKind::SpaceWorktreeList {
+                    space_id: space_id.to_owned(),
+                    repo: repo.name,
+                },
+                outcome,
+            );
+            if queued {
+                if let Some(ClientShellOverlay::SpaceWorktreeOpen(picker)) = self.overlay.as_mut() {
+                    picker.loading += 1;
+                }
+            }
+        }
+        outcome.repaint = true;
+    }
+
+    fn move_existing_worktree_selection(&mut self, delta: isize) {
+        let Some(ClientShellOverlay::SpaceWorktreeOpen(picker)) = self.overlay.as_mut() else {
+            return;
+        };
+        let filtered = picker.filtered_indices();
+        if filtered.is_empty() {
+            return;
+        }
+        let current = filtered
+            .iter()
+            .position(|index| *index == picker.selected)
+            .unwrap_or(0);
+        let next = (current as isize + delta).clamp(0, filtered.len() as isize - 1) as usize;
+        picker.selected = filtered[next];
+    }
+
+    fn submit_existing_worktree(&mut self, outcome: &mut ClientShellInput) {
+        outcome.repaint = true;
+        let Some(ClientShellOverlay::SpaceWorktreeOpen(picker)) = self.overlay.as_mut() else {
+            return;
+        };
+        if picker.opening {
+            return;
+        }
+        let filtered = picker.filtered_indices();
+        let index = if filtered.contains(&picker.selected) {
+            picker.selected
+        } else if let Some(first) = filtered.first() {
+            *first
+        } else {
+            return;
+        };
+        let Some(entry) = picker.entries.get(index) else {
+            return;
+        };
+        let method = crate::api::schema::Method::SpaceWorktreeOpen(
+            crate::api::schema::SpaceWorktreeOpenParams {
+                space_id: picker.space_id.clone(),
+                path: entry.path.clone(),
+                focus: true,
+            },
+        );
+        picker.selected = index;
+        picker.opening = true;
+        picker.error = None;
+        if !self.push_endpoint_method_with_kind(
+            method,
+            PendingEndpointKind::SpaceWorktreeOpen,
+            outcome,
+        ) {
+            if let Some(ClientShellOverlay::SpaceWorktreeOpen(picker)) = self.overlay.as_mut() {
+                picker.opening = false;
+            }
+        }
+    }
+
+    pub(super) fn route_existing_worktree_key(
+        &mut self,
+        key: &crate::input::TerminalKey,
+        outcome: &mut ClientShellInput,
+    ) -> bool {
+        let Some(ClientShellOverlay::SpaceWorktreeOpen(picker)) = self.overlay.as_mut() else {
+            return false;
+        };
+        outcome.repaint = true;
+        if picker.opening {
+            return true;
+        }
+        let (code, modifiers) = crate::config::normalize_key_combo((key.code, key.modifiers));
+        let ctrl = modifiers == KeyModifiers::CONTROL;
+        match code {
+            KeyCode::Esc => self.overlay = None,
+            KeyCode::Enter => self.submit_existing_worktree(outcome),
+            KeyCode::Up => self.move_existing_worktree_selection(-1),
+            KeyCode::Down => self.move_existing_worktree_selection(1),
+            KeyCode::Char('p') if ctrl => self.move_existing_worktree_selection(-1),
+            KeyCode::Char('n') if ctrl => self.move_existing_worktree_selection(1),
+            _ => {
+                if picker.query.handle_key(key) == Some(true) {
+                    if let Some(first) = picker.filtered_indices().first().copied() {
+                        picker.selected = first;
+                    }
+                }
+            }
+        }
+        true
+    }
+
+    pub(super) fn insert_existing_worktree_text(&mut self, text: &str) -> bool {
+        let Some(ClientShellOverlay::SpaceWorktreeOpen(picker)) = self.overlay.as_mut() else {
+            return false;
+        };
+        if !picker.opening && picker.query.insert(text) {
+            if let Some(first) = picker.filtered_indices().first().copied() {
+                picker.selected = first;
+            }
+        }
+        true
+    }
+
+    pub(super) fn handle_existing_worktree_result(
+        &mut self,
+        kind: PendingEndpointKind,
+        result: Result<crate::api::schema::ResponseResult, ClientShellEndpointError>,
+    ) -> bool {
+        use crate::api::schema::ResponseResult;
+
+        match (kind, result) {
+            (PendingEndpointKind::SpaceWorktreeList { space_id, repo }, result) => {
+                let Some(ClientShellOverlay::SpaceWorktreeOpen(picker)) = self.overlay.as_mut()
+                else {
+                    return false;
+                };
+                if picker.space_id != space_id {
+                    return false;
+                }
+                picker.loading = picker.loading.saturating_sub(1);
+                match result {
+                    Ok(ResponseResult::WorktreeList { worktrees, .. }) => {
+                        picker.entries.extend(
+                            worktrees
+                                .into_iter()
+                                .filter(|entry| !entry.is_bare && !entry.is_prunable)
+                                .map(|entry| ClientExistingWorktree {
+                                    repo: repo.clone(),
+                                    path: entry.path,
+                                    branch: entry.branch,
+                                    is_linked_worktree: entry.is_linked_worktree,
+                                    open_workspace_id: entry.open_workspace_id,
+                                }),
+                        );
+                    }
+                    Ok(_) => picker.error = Some(format!("{repo}: unexpected result")),
+                    Err(error) => picker.error = Some(format!("{repo}: {}", error.message)),
+                }
+                true
+            }
+            (PendingEndpointKind::SpaceWorktreeOpen, Ok(_)) => {
+                if matches!(self.overlay, Some(ClientShellOverlay::SpaceWorktreeOpen(_))) {
+                    self.overlay = None;
+                }
+                true
+            }
+            (PendingEndpointKind::SpaceWorktreeOpen, Err(error)) => {
+                if let Some(ClientShellOverlay::SpaceWorktreeOpen(picker)) = self.overlay.as_mut() {
+                    picker.opening = false;
+                    picker.error = Some(error.message);
+                }
+                true
+            }
+            _ => false,
+        }
     }
 }
 

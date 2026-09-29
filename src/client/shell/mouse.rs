@@ -508,7 +508,10 @@ impl ClientShellState {
         Some(last_index + 1)
     }
 
-    fn workspace_drop_target_at(&self, point: (u16, u16)) -> Option<(Option<String>, u16)> {
+    pub(super) fn legacy_workspace_drop_target_at(
+        &self,
+        point: (u16, u16),
+    ) -> Option<(Option<String>, u16)> {
         if self.hits.workspace_body.height == 0
             || point.1 < self.hits.workspace_body.y.saturating_sub(1)
             || point.1 >= self.hits.new_workspace.y
@@ -563,7 +566,7 @@ impl ClientShellState {
             .map(|(_, target)| target)
     }
 
-    fn workspace_move_method(
+    pub(super) fn workspace_move_method(
         &self,
         source_workspace_id: &str,
         before_workspace_id: Option<&str>,
@@ -1185,7 +1188,36 @@ impl ClientShellState {
                     outcome.repaint = true;
                     return;
                 }
+                Some(ClientChromeDrag::Space { .. }) => {
+                    let target = self.space_drop_target_at(point);
+                    if let Some(ClientChromeDrag::Space {
+                        target: current, ..
+                    }) = self.chrome_drag.as_mut()
+                    {
+                        *current = target;
+                    }
+                    outcome.repaint = true;
+                    return;
+                }
                 None => {}
+            }
+            if let Some(press) = self.space_press.as_ref() {
+                let delta = mouse
+                    .column
+                    .abs_diff(press.start_column)
+                    .max(mouse.row.abs_diff(press.start_row));
+                if delta >= 1 && self.endpoint_space_is_draggable(press) {
+                    let space_id = press.space_id.clone();
+                    if let Some(target) = self.space_drop_target_at(point) {
+                        self.space_press = None;
+                        self.chrome_drag = Some(ClientChromeDrag::Space {
+                            space_id,
+                            target: Some(target),
+                        });
+                        outcome.repaint = true;
+                    }
+                }
+                return;
             }
             if let Some(press) = self.workspace_press.as_ref() {
                 let delta = mouse
@@ -1228,6 +1260,7 @@ impl ClientShellState {
         if mouse.kind == MouseEventKind::Up(MouseButton::Left) {
             if let Some(drag) = self.chrome_drag.take() {
                 self.workspace_press = None;
+                self.space_press = None;
                 self.tab_press = None;
                 match drag {
                     ClientChromeDrag::Tab {
@@ -1267,13 +1300,18 @@ impl ClientShellState {
                         source_workspace_id,
                         target,
                     } => {
-                        if let Some((before_workspace_id, _)) = target {
-                            if let Some(method) = self.workspace_move_method(
-                                &source_workspace_id,
-                                before_workspace_id.as_deref(),
-                            ) {
-                                self.push_endpoint_method(method, outcome);
-                            }
+                        if let Some(method) = target.and_then(|target| {
+                            self.workspace_drop_method(&source_workspace_id, &target)
+                        }) {
+                            self.push_endpoint_method(method, outcome);
+                        }
+                        outcome.repaint = true;
+                    }
+                    ClientChromeDrag::Space { space_id, target } => {
+                        if let Some(method) = target.and_then(|(before, _)| {
+                            self.space_move_method(&space_id, before.as_deref())
+                        }) {
+                            self.push_endpoint_method(method, outcome);
                         }
                         outcome.repaint = true;
                     }
@@ -1341,6 +1379,12 @@ impl ClientShellState {
             }
             if let Some(press) = self.workspace_press.take() {
                 self.finish_endpoint_workspace_press(press, outcome);
+                return;
+            }
+            if let Some(press) = self.space_press.take() {
+                self.toggle_collapsed_group(&press.endpoint_id, press.space_id);
+                outcome.repaint = true;
+                self.persist_chrome_preferences(outcome);
                 return;
             }
             if let Some(press) = self.tab_press.take() {
@@ -1491,15 +1535,19 @@ impl ClientShellState {
         }
         if matches!(
             self.overlay,
-            Some(ClientShellOverlay::SpaceWorktree(_) | ClientShellOverlay::RepoEdit(_))
+            Some(
+                ClientShellOverlay::SpaceWorktree(_)
+                    | ClientShellOverlay::SpaceWorktreeOpen(_)
+                    | ClientShellOverlay::RepoEdit(_)
+            )
         ) {
             match mouse.kind {
                 MouseEventKind::ScrollUp => {
-                    self.move_space_worktree_repo(-1);
+                    self.scroll_repo_overlay(-1);
                     outcome.repaint = true;
                 }
                 MouseEventKind::ScrollDown => {
-                    self.move_space_worktree_repo(1);
+                    self.scroll_repo_overlay(1);
                     outcome.repaint = true;
                 }
                 MouseEventKind::Down(MouseButton::Left) => {
@@ -1969,6 +2017,7 @@ impl ClientShellState {
                 self.word_selection_gesture = None;
                 let previous_pane_click = self.last_pane_click.take();
                 self.workspace_press = None;
+                self.space_press = None;
                 self.tab_press = None;
                 self.chrome_drag = None;
                 if super::contains(self.hits.sidebar_divider, point)
@@ -2133,9 +2182,31 @@ impl ClientShellState {
                     return;
                 }
                 if let Some(hit) = self.space_header_at(point) {
-                    self.toggle_collapsed_group(&hit.endpoint_id, hit.space_id);
+                    // Collapse on release, so a header can be dragged instead.
+                    self.space_press = Some(ClientSpacePress {
+                        endpoint_id: hit.endpoint_id,
+                        space_id: hit.space_id,
+                        start_column: mouse.column,
+                        start_row: mouse.row,
+                    });
+                    return;
+                }
+                if let Some(hit) = self
+                    .hits
+                    .add_worktree
+                    .iter()
+                    .find(|hit| super::contains(hit.rect, point))
+                    .cloned()
+                {
+                    if hit.endpoint_id == self.active_endpoint_id {
+                        self.open_add_worktree_menu(hit.space_id, mouse.column, mouse.row);
+                    } else {
+                        outcome.actions.push(ClientShellAction::ActivateEndpoint {
+                            endpoint_id: hit.endpoint_id,
+                            target: None,
+                        });
+                    }
                     outcome.repaint = true;
-                    self.persist_chrome_preferences(outcome);
                     return;
                 }
                 let workspace_press = self

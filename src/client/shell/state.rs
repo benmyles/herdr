@@ -100,6 +100,7 @@ pub(super) struct ShellHitMap {
     pub(super) pane_splits: Vec<PaneSplitHit>,
     pub(super) agents: Vec<(Rect, String)>,
     pub(super) space_headers: Vec<SpaceHeaderHit>,
+    pub(super) add_worktree: Vec<AddWorktreeHit>,
     pub(super) closed_members: Vec<ClosedMemberHit>,
     pub(super) endpoint_agents: Vec<(Rect, ClientEndpointId, String)>,
     pub(super) agent_body: Rect,
@@ -182,6 +183,23 @@ pub(super) struct ClientPaneMouseGesture {
     pub(super) last_position: crate::protocol::ClientMousePosition,
 }
 
+/// Where a dragged workspace lands.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct WorkspaceDropTarget {
+    /// Target space; `None` for servers without spaces.
+    pub(super) space_id: Option<String>,
+    pub(super) before_workspace_id: Option<String>,
+    /// Row for the insertion indicator.
+    pub(super) row: u16,
+}
+
+pub(super) struct ClientSpacePress {
+    pub(super) endpoint_id: ClientEndpointId,
+    pub(super) space_id: String,
+    pub(super) start_column: u16,
+    pub(super) start_row: u16,
+}
+
 pub(super) struct ClientWorkspacePress {
     pub(super) endpoint_id: ClientEndpointId,
     pub(super) workspace_id: String,
@@ -224,6 +242,13 @@ pub(super) enum ClientChromeDrag {
     },
     Workspace {
         source_workspace_id: String,
+        target: Option<WorkspaceDropTarget>,
+    },
+    /// Reordering spaces by dragging a header.
+    Space {
+        space_id: String,
+        /// Place before this space (`None`: last user space) and the
+        /// indicator row.
         target: Option<(Option<String>, u16)>,
     },
     PaneSplit {
@@ -251,6 +276,14 @@ pub(super) struct WorkspaceHit {
 /// A space header row; clicking it collapses or expands the space.
 #[derive(Clone, Debug)]
 pub(super) struct SpaceHeaderHit {
+    pub(super) rect: Rect,
+    pub(super) endpoint_id: ClientEndpointId,
+    pub(super) space_id: String,
+}
+
+/// "+ worktree" under a space; clicking it offers new or existing worktrees.
+#[derive(Clone, Debug)]
+pub(super) struct AddWorktreeHit {
     pub(super) rect: Rect,
     pub(super) endpoint_id: ClientEndpointId,
     pub(super) space_id: String,
@@ -315,6 +348,7 @@ pub(super) enum ClientShellOverlayKind {
     WorktreeOpen,
     WorktreeRemove,
     SpaceWorktree,
+    SpaceWorktreeOpen,
     RepoEdit,
     ContextMenu,
     GlobalMenu,
@@ -482,6 +516,51 @@ pub(super) struct ClientSpaceWorktreeOverlay {
     pub(super) creating: bool,
 }
 
+/// A checkout of one of the endpoint's repos, offered by "Add existing".
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct ClientExistingWorktree {
+    pub(super) repo: String,
+    pub(super) path: String,
+    pub(super) branch: Option<String>,
+    pub(super) is_linked_worktree: bool,
+    pub(super) open_workspace_id: Option<String>,
+}
+
+/// Picks an existing checkout of any configured repo to file under a space.
+#[derive(Debug)]
+pub(super) struct ClientSpaceWorktreeOpenOverlay {
+    pub(super) space_id: String,
+    pub(super) space_name: String,
+    pub(super) entries: Vec<ClientExistingWorktree>,
+    /// Repos whose checkouts are still being listed.
+    pub(super) loading: usize,
+    pub(super) query: TextEditor,
+    /// Index into `entries`.
+    pub(super) selected: usize,
+    pub(super) error: Option<String>,
+    pub(super) opening: bool,
+}
+
+impl ClientSpaceWorktreeOpenOverlay {
+    pub(super) fn filtered_indices(&self) -> Vec<usize> {
+        let query = self.query.trim().to_lowercase();
+        self.entries
+            .iter()
+            .enumerate()
+            .filter(|(_, entry)| {
+                query.is_empty()
+                    || entry.repo.to_lowercase().contains(&query)
+                    || entry.path.to_lowercase().contains(&query)
+                    || entry
+                        .branch
+                        .as_deref()
+                        .is_some_and(|branch| branch.to_lowercase().contains(&query))
+            })
+            .map(|(index, _)| index)
+            .collect()
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) enum ClientRepoEditReturn {
     Settings,
@@ -510,6 +589,7 @@ pub(super) enum ClientOverlayHit {
     SpaceWorktreeName,
     SpaceWorktreeSync,
     SpaceWorktreeAddRepo,
+    ExistingWorktree(usize),
     RepoEditField(usize),
     SettingsAddRepo,
     SettingsRemoveRepo,
@@ -618,6 +698,7 @@ pub(super) enum ClientContextMenuAction {
     ToggleRightClickPassthrough,
     ClosePane,
     NewSpaceWorktree,
+    AddExistingWorktree,
     RenameSpace,
     DeleteSpace,
     ToggleSpace,
@@ -631,6 +712,8 @@ pub(super) enum ClientContextMenuTarget {
         workspace_id: String,
         is_git: bool,
         is_linked_worktree: bool,
+        /// Worktrees are created from spaces, so the repo-parent actions hide.
+        space_worktrees: bool,
     },
     Space {
         space_id: String,
@@ -640,6 +723,10 @@ pub(super) enum ClientContextMenuTarget {
         editable: bool,
         /// Whether the endpoint can create worktrees from its repos.
         worktrees: bool,
+    },
+    /// The "+ worktree" row under a space.
+    AddWorktree {
+        space_id: String,
     },
     ClosedMember {
         space_id: String,
@@ -698,6 +785,7 @@ pub(super) enum ClientShellOverlay {
     WorktreeOpen(ClientWorktreeOpenOverlay),
     WorktreeRemove(ClientWorktreeRemoveOverlay),
     SpaceWorktree(ClientSpaceWorktreeOverlay),
+    SpaceWorktreeOpen(ClientSpaceWorktreeOpenOverlay),
     RepoEdit(ClientRepoEditOverlay),
     ContextMenu(ClientContextMenuOverlay),
     GlobalMenu(ClientGlobalMenuOverlay),
@@ -718,6 +806,7 @@ impl ClientShellOverlay {
             Self::WorktreeOpen(_) => ClientShellOverlayKind::WorktreeOpen,
             Self::WorktreeRemove(_) => ClientShellOverlayKind::WorktreeRemove,
             Self::SpaceWorktree(_) => ClientShellOverlayKind::SpaceWorktree,
+            Self::SpaceWorktreeOpen(_) => ClientShellOverlayKind::SpaceWorktreeOpen,
             Self::RepoEdit(_) => ClientShellOverlayKind::RepoEdit,
             Self::ContextMenu(_) => ClientShellOverlayKind::ContextMenu,
             Self::GlobalMenu(_) => ClientShellOverlayKind::GlobalMenu,
@@ -755,6 +844,12 @@ pub(super) enum PendingEndpointKind {
     /// A space created from the sidebar; offer a worktree for it next.
     SpaceCreate,
     SpaceWorktreeCreate,
+    /// One repo's checkouts for the "Add existing" picker.
+    SpaceWorktreeList {
+        space_id: String,
+        repo: String,
+    },
+    SpaceWorktreeOpen,
     RepoSave,
     RepoRemove,
     SelectionCopy,
@@ -986,6 +1081,7 @@ pub(crate) struct ClientShellState {
     pub(super) last_sidebar_divider_click: Option<std::time::Instant>,
     pub(super) chrome_drag: Option<ClientChromeDrag>,
     pub(super) workspace_press: Option<ClientWorkspacePress>,
+    pub(super) space_press: Option<ClientSpacePress>,
     pub(super) tab_press: Option<ClientTabPress>,
     pub(super) collapsed_groups: HashSet<String>,
     pub(super) remote_collapsed_groups: HashMap<ClientEndpointId, HashSet<String>>,
@@ -1152,6 +1248,7 @@ impl ClientShellState {
             last_sidebar_divider_click: None,
             chrome_drag: None,
             workspace_press: None,
+            space_press: None,
             tab_press: None,
             collapsed_groups: preferences.collapsed_groups.into_iter().collect(),
             remote_collapsed_groups,
@@ -1347,6 +1444,7 @@ impl ClientShellState {
         self.popup_terminal_id = None;
         self.chrome_drag = None;
         self.workspace_press = None;
+        self.space_press = None;
         self.tab_press = None;
         self.workspace_scroll = 0;
         self.agent_scroll = 0;
@@ -1800,6 +1898,7 @@ impl ClientShellState {
             self.reset_copy_pipeline();
             self.chrome_drag = None;
             self.workspace_press = None;
+            self.space_press = None;
             self.tab_press = None;
             if self.pane_mouse_gesture.as_ref().is_some_and(|gesture| {
                 gesture.hit.popup && previous_popup.as_deref() == Some(gesture.hit.pane_id.as_str())

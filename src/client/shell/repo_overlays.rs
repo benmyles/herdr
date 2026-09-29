@@ -512,3 +512,196 @@ pub(super) fn render_repo_edit_overlay(
         ..OverlayRender::default()
     })
 }
+
+pub(super) fn render_existing_worktree_overlay(
+    b: &mut Buffer,
+    picker: &ClientSpaceWorktreeOpenOverlay,
+    s: &ClientShellSnapshot,
+    p: &Palette,
+) -> Option<OverlayRender> {
+    let filtered = picker.filtered_indices();
+    let height = (filtered.len().max(1).saturating_mul(2) + 9).clamp(13, 28) as u16;
+    let popup = popup(b.area, 92, height)?;
+    let inner = panel(b, popup, p.accent, p.panel_bg)?;
+    put_text(
+        b,
+        inner.x,
+        inner.y,
+        inner.width,
+        &format!("add existing worktree to {}", picker.space_name),
+        title_style(p),
+    );
+    let search = Rect::new(inner.x, inner.y + 1, inner.width, 1);
+    let count = if picker.loading > 0 {
+        "loading…".to_owned()
+    } else {
+        format!("{} checkouts", filtered.len())
+    };
+    put_text(
+        b,
+        search.x,
+        search.y,
+        search.width,
+        " / ",
+        Style::default().fg(p.overlay0).bg(p.panel_bg),
+    );
+    let cursor = text_editor::render(
+        b,
+        Rect::new(
+            search.x + 3,
+            search.y,
+            search.width.saturating_sub(4 + display_width(&count)),
+            1,
+        ),
+        &picker.query,
+        Style::default().fg(p.text).bg(p.panel_bg),
+    );
+    if picker.query.is_empty() {
+        put_text(
+            b,
+            search.x + 3,
+            search.y,
+            20,
+            "filter",
+            Style::default().fg(p.overlay0).bg(p.panel_bg),
+        );
+    }
+    put_right_text(
+        b,
+        search,
+        search.y,
+        &format!("{count} "),
+        Style::default().fg(p.overlay0).bg(p.panel_bg),
+    );
+    put_text(
+        b,
+        inner.x,
+        inner.y + 2,
+        inner.width,
+        &"─".repeat(inner.width as usize),
+        Style::default().fg(p.surface1).bg(p.panel_bg),
+    );
+    let body = Rect::new(
+        inner.x,
+        inner.y + 3,
+        inner.width,
+        inner.height.saturating_sub(6),
+    );
+    let visible = usize::from(body.height / 2).max(1);
+    let selected_position = filtered
+        .iter()
+        .position(|index| *index == picker.selected)
+        .unwrap_or(0);
+    let start = selected_position
+        .saturating_sub(visible.saturating_sub(1))
+        .min(filtered.len().saturating_sub(visible));
+    let mut hits = Vec::new();
+    for (row, index) in filtered
+        .iter()
+        .copied()
+        .skip(start)
+        .take(visible)
+        .enumerate()
+    {
+        let entry = &picker.entries[index];
+        let rect = Rect::new(body.x, body.y + row as u16 * 2, body.width, 2);
+        let selected =
+            index == picker.selected || (row == 0 && !filtered.contains(&picker.selected));
+        let style = if selected {
+            Style::default().fg(contrast(p)).bg(p.accent)
+        } else {
+            Style::default().fg(p.text).bg(p.panel_bg)
+        };
+        b.set_style(rect, style);
+        let branch = entry.branch.as_deref().unwrap_or("detached");
+        put_text(
+            b,
+            rect.x,
+            rect.y,
+            rect.width,
+            &format!(" {} · {branch}", entry.repo),
+            style.add_modifier(Modifier::BOLD),
+        );
+        let status = match entry.open_workspace_id.as_deref() {
+            Some(workspace_id) => {
+                let space = s
+                    .workspaces
+                    .iter()
+                    .find(|workspace| workspace.workspace_id == workspace_id)
+                    .and_then(|workspace| workspace.space_id.as_deref())
+                    .and_then(|space_id| s.spaces.iter().find(|space| space.space_id == space_id));
+                match space {
+                    Some(space) if space.space_id == picker.space_id => "already here".to_owned(),
+                    Some(space) if !space.built_in => format!("open in {}", space.name),
+                    _ => "open".to_owned(),
+                }
+            }
+            None if !entry.is_linked_worktree => "main checkout".to_owned(),
+            None => String::new(),
+        };
+        if !status.is_empty() {
+            put_right_text(b, rect, rect.y, &format!("{status} "), style);
+        }
+        let path_width = rect.width.saturating_sub(2);
+        put_text(
+            b,
+            rect.x + 1,
+            rect.y + 1,
+            path_width,
+            &tail_fit(&entry.path, path_width),
+            if selected {
+                style
+            } else {
+                Style::default().fg(p.overlay0).bg(p.panel_bg)
+            },
+        );
+        hits.push((rect, ClientOverlayHit::ExistingWorktree(index)));
+    }
+    if filtered.is_empty() && picker.loading == 0 {
+        put_text(
+            b,
+            body.x,
+            body.y,
+            body.width,
+            if picker.entries.is_empty() {
+                " no checkouts found"
+            } else {
+                " no matching checkouts"
+            },
+            Style::default().fg(p.overlay0).bg(p.panel_bg),
+        );
+    }
+    if picker.opening {
+        put_text(
+            b,
+            inner.x,
+            inner.bottom().saturating_sub(2),
+            inner.width,
+            " opening…",
+            Style::default().fg(p.accent).bg(p.panel_bg),
+        );
+    } else if let Some(error) = picker.error.as_deref() {
+        put_text(
+            b,
+            inner.x,
+            inner.bottom().saturating_sub(2),
+            inner.width,
+            &format!(" {error}"),
+            Style::default().fg(p.red).bg(p.panel_bg),
+        );
+    }
+    let buttons = row(inner, &[12, 12], 2, inner.height.saturating_sub(1));
+    let [primary, cancel] = buttons.as_slice() else {
+        return None;
+    };
+    button(b, *primary, " ↵ add ", primary_style(p));
+    button(b, *cancel, " esc cancel ", secondary_style(p));
+    Some(OverlayRender {
+        area: popup,
+        primary: *primary,
+        cancel: *cancel,
+        overlay_hits: hits,
+        cursor: cursor.filter(|_| !picker.opening),
+        ..OverlayRender::default()
+    })
+}

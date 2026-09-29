@@ -334,6 +334,7 @@ pub(super) fn render_shell(
         hits.machines.clear();
         hits.workspaces.clear();
         hits.space_headers.clear();
+        hits.add_worktree.clear();
         hits.closed_members.clear();
         hits.agents.clear();
         hits.endpoint_agents.clear();

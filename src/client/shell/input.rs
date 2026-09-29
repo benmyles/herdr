@@ -484,6 +484,9 @@ impl ClientShellState {
                     saving: false,
                     ..
                 }))
+                | Some(ClientShellOverlay::SpaceWorktreeOpen(
+                    ClientSpaceWorktreeOpenOverlay { opening: false, .. }
+                ))
                 | Some(ClientShellOverlay::Navigator(ClientNavigatorOverlay {
                     search_focused: true,
                     ..

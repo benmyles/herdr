@@ -12,6 +12,19 @@ impl ClientShellState {
     }
 
     pub(super) fn endpoint_workspace_is_draggable(&self, press: &ClientWorkspacePress) -> bool {
+        if press.endpoint_id != self.active_endpoint_id {
+            return false;
+        }
+        // In spaces every workspace moves on its own; before spaces, linked
+        // worktrees moved with their repo parent.
+        if self
+            .snapshot
+            .as_deref()
+            .is_some_and(|snapshot| !snapshot.spaces.is_empty())
+            && self.active_endpoint_supports_spaces()
+        {
+            return true;
+        }
         press.endpoint_id == self.active_endpoint_id
             && self
                 .snapshot

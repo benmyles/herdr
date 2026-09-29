@@ -709,6 +709,73 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn space_worktree_open_files_existing_checkouts_and_moves_open_ones() {
+        let repo = create_committed_repo("space-open-repo");
+        let checkout = unique_temp_path("space-open-checkout");
+        run_git(
+            &repo,
+            &[
+                "worktree",
+                "add",
+                "--quiet",
+                "-b",
+                "feature",
+                checkout.to_str().unwrap(),
+            ],
+        );
+        let mut app = test_app();
+        app.state.normalize_spaces();
+        let knowledge = app.state.create_space("knowledge").unwrap();
+        let billing = app.state.create_space("billing").unwrap();
+        app.state.repos = vec![crate::repos::Repo {
+            name: "pyshiftup".into(),
+            root: repo.display().to_string(),
+            base_branch: "main".into(),
+            remote: None,
+        }];
+        let open = |app: &mut App, space_id: &str| {
+            let response = app.handle_api_request(Request {
+                id: "req".into(),
+                method: crate::api::schema::Method::SpaceWorktreeOpen(
+                    crate::api::schema::SpaceWorktreeOpenParams {
+                        space_id: space_id.into(),
+                        path: checkout.join("src").display().to_string(),
+                        focus: true,
+                    },
+                ),
+            });
+            let success: SuccessResponse =
+                serde_json::from_str(&response).unwrap_or_else(|err| panic!("{response}: {err}"));
+            let ResponseResult::WorkspaceInfo { workspace } = success.result else {
+                panic!("expected workspace_info, got {response}");
+            };
+            workspace
+        };
+        std::fs::create_dir_all(checkout.join("src")).unwrap();
+
+        let workspace = open(&mut app, &knowledge);
+        assert_eq!(workspace.label, "pyshiftup");
+        assert_eq!(workspace.space_id.as_deref(), Some(knowledge.as_str()));
+        let membership = app.state.workspaces[0].worktree_space().unwrap();
+        assert!(membership.is_linked_worktree);
+        assert_eq!(
+            crate::worktree::canonical_or_original(&membership.checkout_path),
+            crate::worktree::canonical_or_original(&checkout)
+        );
+
+        let moved = open(&mut app, &billing);
+        assert_eq!(moved.workspace_id, workspace.workspace_id);
+        assert_eq!(moved.space_id.as_deref(), Some(billing.as_str()));
+        assert_eq!(app.state.workspaces.len(), 1);
+
+        for (_, runtime) in app.terminal_runtimes.drain() {
+            runtime.shutdown();
+        }
+        let _ = std::fs::remove_dir_all(checkout);
+        let _ = std::fs::remove_dir_all(repo);
+    }
+
+    #[tokio::test]
     async fn space_worktree_create_files_checkout_under_the_space() {
         let repo = create_committed_repo("space-worktree-repo");
         let worktree_root = unique_temp_path("space-worktree-root");

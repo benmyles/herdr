@@ -88,6 +88,9 @@ pub(crate) fn render_client_overlay(
         ClientShellOverlay::SpaceWorktree(v) => {
             repo_overlays::render_space_worktree_overlay(b, v, s, p)
         }
+        ClientShellOverlay::SpaceWorktreeOpen(v) => {
+            repo_overlays::render_existing_worktree_overlay(b, v, s, p)
+        }
         ClientShellOverlay::RepoEdit(v) => repo_overlays::render_repo_edit_overlay(b, v, p),
         ClientShellOverlay::ContextMenu(_) | ClientShellOverlay::GlobalMenu(_) => None,
     }

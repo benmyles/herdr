@@ -202,8 +202,11 @@ impl ClientShellState {
                 target,
             }) => (
                 Some(source_workspace_id.as_str()),
-                target.as_ref().map(|(_, row)| *row),
+                target.as_ref().map(|target| target.row),
             ),
+            Some(ClientChromeDrag::Space { target, .. }) => {
+                (None, target.as_ref().map(|(_, row)| *row))
+            }
             _ => (None, None),
         };
         let agent_grid = self.agent_grid_toggle_state();
