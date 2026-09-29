@@ -2192,6 +2192,29 @@ fn dropping_a_workspace_on_another_space_files_it_there() {
                 && params.before_workspace_id.is_none()
     ));
 
+    // Releasing over the panes cancels.
+    state.compose(120, 34).expect("sidebar");
+    let source = state.hits.workspaces[0].rect;
+    mouse(
+        &mut state,
+        MouseEventKind::Down(MouseButton::Left),
+        source.x + 2,
+        source.y,
+    );
+    mouse(
+        &mut state,
+        MouseEventKind::Drag(MouseButton::Left),
+        80,
+        source.y,
+    );
+    let cancelled = mouse(
+        &mut state,
+        MouseEventKind::Up(MouseButton::Left),
+        80,
+        source.y,
+    );
+    assert!(cancelled.actions.is_empty(), "{:?}", cancelled.actions);
+
     // Dropping back where it started sends nothing.
     state.compose(120, 34).expect("sidebar");
     let source = state.hits.workspaces[0].rect;

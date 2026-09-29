@@ -733,8 +733,10 @@ mod tests {
             base_branch: "main".into(),
             remote: None,
         }];
+        // The test shell exits at once; skip draining so its exit can't
+        // close the workspace between the two opens.
         let open = |app: &mut App, space_id: &str| {
-            let response = app.handle_api_request(Request {
+            let response = app.handle_api_request_after_internal_events_drained(Request {
                 id: "req".into(),
                 method: crate::api::schema::Method::SpaceWorktreeOpen(
                     crate::api::schema::SpaceWorktreeOpenParams {

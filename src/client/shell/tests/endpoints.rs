@@ -2465,7 +2465,13 @@ fn workspace_drag_rejects_foreign_endpoint_slots() {
     state.handle_raw_events(vec![mouse(MouseEventKind::Down(MouseButton::Left), local)]);
     state.handle_raw_events(vec![mouse(MouseEventKind::Drag(MouseButton::Left), remote)]);
 
-    assert!(state.chrome_drag.is_none());
+    assert!(matches!(
+        state.chrome_drag,
+        Some(ClientChromeDrag::Workspace { target: None, .. })
+    ));
+    let release =
+        state.handle_raw_events(vec![mouse(MouseEventKind::Up(MouseButton::Left), remote)]);
+    assert!(release.actions.is_empty(), "{:?}", release.actions);
 }
 
 #[test]

@@ -513,6 +513,8 @@ impl ClientShellState {
         point: (u16, u16),
     ) -> Option<(Option<String>, u16)> {
         if self.hits.workspace_body.height == 0
+            || point.0 < self.hits.workspace_body.x
+            || point.0 >= self.hits.workspace_body.right()
             || point.1 < self.hits.workspace_body.y.saturating_sub(1)
             || point.1 >= self.hits.new_workspace.y
             || self.hits.workspaces.iter().any(|hit| {
@@ -1230,14 +1232,16 @@ impl ClientShellState {
                 if delta >= 1 {
                     let source_workspace_id = press.workspace_id.clone();
                     let draggable = self.endpoint_workspace_is_draggable(press);
-                    if draggable {
-                        if let Some(target) = self.workspace_drop_target_at(point) {
-                            self.chrome_drag = Some(ClientChromeDrag::Workspace {
-                                source_workspace_id,
-                                target: Some(target),
-                            });
-                            outcome.repaint = true;
-                        }
+                    // Without a target yet (moved straight off the list), the drag
+                    // still starts so releasing cancels instead of clicking. The
+                    // collapsed sidebar has no list, so jitter there stays a click.
+                    let target = self.workspace_drop_target_at(point);
+                    if draggable && (target.is_some() || self.hits.workspace_body.height > 0) {
+                        self.chrome_drag = Some(ClientChromeDrag::Workspace {
+                            source_workspace_id,
+                            target,
+                        });
+                        outcome.repaint = true;
                     }
                 }
                 return;

@@ -59,9 +59,13 @@ impl ClientShellState {
             .collect()
     }
 
+    /// Inside the sidebar's list; releasing anywhere else cancels a drag.
     fn in_workspace_list(&self, point: (u16, u16)) -> bool {
-        self.hits.workspace_body.height > 0
-            && point.1 >= self.hits.workspace_body.y.saturating_sub(1)
+        let body = self.hits.workspace_body;
+        body.height > 0
+            && point.0 >= body.x
+            && point.0 < body.right()
+            && point.1 >= body.y.saturating_sub(1)
             && point.1 < self.hits.new_workspace.y
     }
 
