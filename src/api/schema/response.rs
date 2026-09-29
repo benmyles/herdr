@@ -15,6 +15,7 @@ use super::plugins::{
     InstalledPluginInfo, PluginActionInfo, PluginCommandLogInfo, PluginInvocationContext,
     PluginPaneInfo,
 };
+use super::repos::{RepoInfo, SpaceWorktreeCreatedInfo};
 use super::server::ServerCapabilities;
 use super::session::SessionSnapshot;
 use super::spaces::SpaceInfo;
@@ -68,6 +69,13 @@ pub enum ResponseResult {
     },
     SpaceList {
         spaces: Vec<SpaceInfo>,
+    },
+    SpaceWorktreeCreated(Box<SpaceWorktreeCreatedInfo>),
+    RepoInfo {
+        repo: RepoInfo,
+    },
+    RepoList {
+        repos: Vec<RepoInfo>,
     },
     WorktreeList {
         source: WorktreeSourceInfo,

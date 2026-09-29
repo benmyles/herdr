@@ -7,6 +7,7 @@ pub mod events;
 pub mod integrations;
 pub mod panes;
 pub mod plugins;
+pub mod repos;
 pub mod response;
 pub mod server;
 pub mod session;
@@ -22,6 +23,7 @@ pub use events::*;
 pub use integrations::*;
 pub use panes::*;
 pub use plugins::*;
+pub use repos::*;
 pub use response::*;
 pub use server::*;
 pub use session::*;
@@ -95,6 +97,16 @@ pub enum Method {
     SpaceMemberOpen(SpaceMemberTarget),
     #[serde(rename = "space.member.remove")]
     SpaceMemberRemove(SpaceMemberTarget),
+    #[serde(rename = "space.worktree.create")]
+    SpaceWorktreeCreate(SpaceWorktreeCreateParams),
+    #[serde(rename = "repo.list")]
+    RepoList(EmptyParams),
+    #[serde(rename = "repo.add")]
+    RepoAdd(RepoAddParams),
+    #[serde(rename = "repo.update")]
+    RepoUpdate(RepoUpdateParams),
+    #[serde(rename = "repo.remove")]
+    RepoRemove(RepoTarget),
     #[serde(rename = "workspace.create")]
     WorkspaceCreate(WorkspaceCreateParams),
     #[serde(rename = "workspace.list")]

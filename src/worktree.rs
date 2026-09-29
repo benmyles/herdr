@@ -1,6 +1,12 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+mod space_create;
+
+pub(crate) use space_create::{
+    create_space_worktree, BranchSource, SpaceWorktreePlan, SpaceWorktreeReport,
+};
+
 const DEFAULT_WORKTREE_PREFIX: &str = "worktree";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -170,6 +176,58 @@ fn repository_git_args(repo_root: &Path, trust_repository: bool) -> Vec<String> 
 
 pub(crate) fn default_checkout_path(root: &Path, repo_name: &str, branch: &str) -> PathBuf {
     root.join(repo_name).join(branch_to_path_slug(branch))
+}
+
+pub(crate) const DEFAULT_SPACE_PATH_TEMPLATE: &str = "{directory}/{space}/{repo}/{name}";
+
+/// One path segment from a user-facing name: case is kept, anything that
+/// isn't a letter, digit, `-`, `_` or `.` becomes `-`.
+pub(crate) fn path_component(name: &str) -> String {
+    let mut component = String::new();
+    let mut last_was_dash = false;
+    for ch in name.trim().chars() {
+        if ch.is_alphanumeric() || matches!(ch, '_' | '.') {
+            component.push(ch);
+            last_was_dash = false;
+        } else if !last_was_dash {
+            component.push('-');
+            last_was_dash = true;
+        }
+    }
+    let component = component.trim_matches(|ch| ch == '-' || ch == '.');
+    if component.is_empty() {
+        DEFAULT_WORKTREE_PREFIX.to_string()
+    } else {
+        component.to_string()
+    }
+}
+
+/// Resolves the configured template down to the parts that differ per
+/// worktree: `{directory}` and a leading `~` are filled in here, on the
+/// endpoint, so clients can preview paths without knowing its home directory.
+pub(crate) fn resolve_space_path_template(template: &str, directory: &Path) -> String {
+    let template = if template.trim().is_empty() {
+        DEFAULT_SPACE_PATH_TEMPLATE
+    } else {
+        template.trim()
+    };
+    let directory = directory.display().to_string();
+    let template = template.replace("{directory}", directory.trim_end_matches(['/', '\\']));
+    expand_tilde_absolute_path(&template).display().to_string()
+}
+
+/// Fills `{space}`, `{repo}` and `{name}` into a resolved template, each as a
+/// single sanitized path segment.
+pub(crate) fn expand_space_path_template(
+    resolved_template: &str,
+    space: &str,
+    repo: &str,
+    name: &str,
+) -> String {
+    resolved_template
+        .replace("{space}", &path_component(space))
+        .replace("{repo}", &path_component(repo))
+        .replace("{name}", &path_component(name))
 }
 
 pub(crate) fn build_worktree_remove_command(
@@ -604,6 +662,25 @@ mod tests {
         run_git(&repo, &["add", "README.md"]);
         run_git(&repo, &["commit", "--quiet", "-m", "initial"]);
         repo
+    }
+
+    #[test]
+    fn space_path_template_keeps_every_level() {
+        let resolved = resolve_space_path_template("", Path::new("/home/ben/worktrees/"));
+        assert_eq!(resolved, "/home/ben/worktrees/{space}/{repo}/{name}");
+        assert_eq!(
+            expand_space_path_template(&resolved, "knowledge", "pyshiftup", "knowledge"),
+            "/home/ben/worktrees/knowledge/pyshiftup/knowledge"
+        );
+        assert_eq!(
+            expand_space_path_template(&resolved, "Big Launch", "guided selling", "ben/fix #2"),
+            "/home/ben/worktrees/Big-Launch/guided-selling/ben-fix-2"
+        );
+        assert_eq!(
+            resolve_space_path_template("/src/{repo}-{name}", Path::new("/unused")),
+            "/src/{repo}-{name}"
+        );
+        assert_eq!(path_component("../.."), "worktree");
     }
 
     #[test]

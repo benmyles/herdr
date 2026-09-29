@@ -243,6 +243,8 @@ mod tests {
             agents: Vec::new(),
             commands: Vec::new(),
             spaces: Vec::new(),
+            repos: Vec::new(),
+            worktree_path_template: String::new(),
         }
     }
 

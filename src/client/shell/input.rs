@@ -473,6 +473,17 @@ impl ClientShellState {
                         ..
                     }
                 ))
+                | Some(ClientShellOverlay::SpaceWorktree(
+                    ClientSpaceWorktreeOverlay {
+                        creating: false,
+                        field: SpaceWorktreeField::Name,
+                        ..
+                    }
+                ))
+                | Some(ClientShellOverlay::RepoEdit(ClientRepoEditOverlay {
+                    saving: false,
+                    ..
+                }))
                 | Some(ClientShellOverlay::Navigator(ClientNavigatorOverlay {
                     search_focused: true,
                     ..

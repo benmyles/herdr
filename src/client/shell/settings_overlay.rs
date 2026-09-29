@@ -37,6 +37,7 @@ pub(super) fn render_settings_overlay(
     buffer: &mut Buffer,
     settings: &ClientSettingsOverlay,
     integration_updates_available: bool,
+    repos: &[crate::protocol::ClientShellRepo],
     palette: &Palette,
 ) -> Option<OverlayRender> {
     let integration_height = 14u16
@@ -47,7 +48,12 @@ pub(super) fn render_settings_overlay(
     } else {
         22
     };
-    let popup = popup(buffer.area, 76, height)?;
+    let width = if settings.section == ClientSettingsSection::Repos {
+        92
+    } else {
+        76
+    };
+    let popup = popup(buffer.area, width, height)?;
     let inner = panel(buffer, popup, palette.accent, palette.panel_bg)?;
     if inner.width < 20 || inner.height < 8 {
         return None;
@@ -197,6 +203,12 @@ pub(super) fn render_settings_overlay(
         ClientSettingsSection::Integrations => {
             render_integrations(buffer, content, settings, palette);
         }
+        ClientSettingsSection::Repos => {
+            render_repos(buffer, content, settings, repos, palette, &mut choice_hits);
+        }
+    }
+    if settings.section == ClientSettingsSection::Repos {
+        return render_repo_buttons(buffer, inner, popup, tab_hits, choice_hits, repos, palette);
     }
 
     let installable = settings
@@ -412,4 +424,111 @@ fn render_integrations(
             Style::default().fg(palette.overlay1).bg(palette.panel_bg),
         );
     }
+}
+
+fn render_repos(
+    buffer: &mut Buffer,
+    area: Rect,
+    settings: &ClientSettingsOverlay,
+    repos: &[crate::protocol::ClientShellRepo],
+    palette: &Palette,
+    hits: &mut Vec<(Rect, usize)>,
+) {
+    put_text(
+        buffer,
+        area.x,
+        area.y,
+        area.width,
+        "repos",
+        Style::default()
+            .fg(palette.text)
+            .bg(palette.panel_bg)
+            .add_modifier(Modifier::BOLD),
+    );
+    put_text(
+        buffer,
+        area.x,
+        area.y + 1,
+        area.width,
+        "new worktrees in a space branch from these checkouts on this machine",
+        Style::default().fg(palette.overlay1).bg(palette.panel_bg),
+    );
+    if repos.is_empty() {
+        put_text(
+            buffer,
+            area.x,
+            area.y + 3,
+            area.width,
+            " no repos yet; add one with ↵ or a",
+            Style::default().fg(palette.overlay1).bg(palette.panel_bg),
+        );
+        return;
+    }
+    let list = Rect::new(
+        area.x,
+        area.y + 3,
+        area.width,
+        area.height.saturating_sub(3),
+    );
+    hits.extend(super::repo_overlays::render_repo_rows(
+        buffer,
+        list,
+        repos,
+        settings.selected.min(repos.len() - 1),
+        palette,
+    ));
+}
+
+fn render_repo_buttons(
+    buffer: &mut Buffer,
+    inner: Rect,
+    popup: Rect,
+    tab_hits: Vec<(Rect, ClientSettingsSection)>,
+    choice_hits: Vec<(Rect, usize)>,
+    repos: &[crate::protocol::ClientShellRepo],
+    palette: &Palette,
+) -> Option<OverlayRender> {
+    let primary_style = Style::default()
+        .fg(contrast(palette))
+        .bg(palette.accent)
+        .add_modifier(Modifier::BOLD);
+    let secondary_style = Style::default()
+        .fg(palette.text)
+        .bg(palette.surface0)
+        .add_modifier(Modifier::BOLD);
+    let y = inner.height.saturating_sub(1);
+    let mut overlay_hits = Vec::new();
+    let (primary, close) = if repos.is_empty() {
+        let buttons = row(inner, &[16, 12], 2, y);
+        button(buffer, buttons[0], " ↵ add repo ", primary_style);
+        overlay_hits.push((buttons[0], ClientOverlayHit::SettingsAddRepo));
+        (Rect::default(), buttons[1])
+    } else {
+        let buttons = row(inner, &[10, 9, 12, 12], 2, y);
+        button(buffer, buttons[0], " ↵ edit ", primary_style);
+        button(buffer, buttons[1], " a add ", secondary_style);
+        button(buffer, buttons[2], " x remove ", secondary_style);
+        overlay_hits.push((buttons[1], ClientOverlayHit::SettingsAddRepo));
+        overlay_hits.push((buttons[2], ClientOverlayHit::SettingsRemoveRepo));
+        (buttons[0], buttons[3])
+    };
+    button(buffer, close, " esc close ", secondary_style);
+    put_text(
+        buffer,
+        inner.x,
+        inner.bottom().saturating_sub(2),
+        inner.width,
+        " ↑↓ select  tab section",
+        Style::default().fg(palette.overlay1).bg(palette.panel_bg),
+    );
+    Some(OverlayRender {
+        area: popup,
+        primary,
+        cancel: close,
+        settings_popup: popup,
+        settings_tabs: tab_hits,
+        settings_choices: choice_hits,
+        overlay_hits,
+        ..OverlayRender::default()
+    })
 }

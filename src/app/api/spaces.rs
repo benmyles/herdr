@@ -64,7 +64,7 @@ impl App {
 
     /// Workspace order changed under a space operation; tell subscribers the
     /// same way a workspace reorder does.
-    fn emit_space_workspace_reorder(&mut self, before: &[String]) {
+    pub(crate) fn emit_space_workspace_reorder(&mut self, before: &[String]) {
         let after = self
             .state
             .workspaces

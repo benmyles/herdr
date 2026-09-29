@@ -38,6 +38,10 @@ const CLIENT_SHELL_METHODS: &[&str] = &[
     "pane.zoom",
     "product_announcement.dismiss",
     "release_notes.dismiss",
+    "repo.add",
+    "repo.list",
+    "repo.remove",
+    "repo.update",
     "server.reload_config",
     "space.assign",
     "space.create",
@@ -47,6 +51,7 @@ const CLIENT_SHELL_METHODS: &[&str] = &[
     "space.member.remove",
     "space.move",
     "space.rename",
+    "space.worktree.create",
     "tab.close",
     "tab.create",
     "tab.focus",
@@ -342,6 +347,26 @@ mod tests {
         assert_eq!(
             actual.remove("space.rename").as_deref(),
             Some("9b309afaf46ff29873df6479864724cdaf1e9164ebbc1cb501846f9a1b3400c1")
+        );
+        assert_eq!(
+            actual.remove("space.worktree.create").as_deref(),
+            Some("fdf672702207e31ffe5f7e9309e0503a683c7180c90b4ee4c666ff03949d6c10")
+        );
+        assert_eq!(
+            actual.remove("repo.add").as_deref(),
+            Some("96e1123a273e1eb3569bbb5f8a61589fd36ea5d4371950bf83e84684280c2e21")
+        );
+        assert_eq!(
+            actual.remove("repo.list").as_deref(),
+            Some("57acf565e49671a4c7de45f4139cc360b280ca6eebbcb87466edf92d258660bb")
+        );
+        assert_eq!(
+            actual.remove("repo.remove").as_deref(),
+            Some("50b8428105fb42df870426ec2cd2a8d7506a739d5cedb54892caebaae5684657")
+        );
+        assert_eq!(
+            actual.remove("repo.update").as_deref(),
+            Some("51cda2972d737344655ae26655f60d136e539adeb820bf79ddc1017634787a10")
         );
 
         assert_eq!(

@@ -95,20 +95,27 @@ new_cwd = "follow"
 
 ## Worktrees
 
-Set the root directory Herdr uses for Git worktree checkouts created from the sidebar:
+Spaces organize workspaces by what you are working on, such as a feature that spans several repos. Each machine keeps a list of repos in settings → repos: a name, the main checkout, the base branch, and the remote. `New worktree…` on a space header picks one of those repos and a name (the space name by default) and:
+
+1. fetches the remote and fast-forwards the base branch, when "sync first" is on (the default). The main checkout is only fast-forwarded when it is clean and on the base branch; otherwise the local branch is left alone and a warning is shown;
+2. creates the branch with the worktree name as-is, from `<remote>/<base>` (or the local base branch when sync is off), or checks out the branch if it already exists locally or on the remote;
+3. opens the checkout as a workspace in that space.
+
+If the fetch fails, for example when offline, the dialog offers to create the worktree from the local base branch instead.
+
+Checkouts are placed according to a path template:
 
 ```toml
 [worktrees]
-directory = "~/.herdr/worktrees"
+directory = "~/worktrees"
+path = "{directory}/{space}/{repo}/{name}"
 ```
 
-Herdr creates checkouts under `<directory>/<repo>/<branch-slug>`. For sibling-style checkouts, set this to a directory such as `~/Projects/herdr-worktrees`. Relative values are resolved to an absolute path when the app applies the config.
+Every level is always present, so a space with a single repo still gets `~/worktrees/<space>/<repo>/<name>`. `{space}`, `{repo}`, and `{name}` are reduced to single path segments; anything other than letters, digits, `-`, `_`, and `.` becomes `-`.
 
-Worktree actions are available from Git workspace rows. `New worktree` creates a checkout. It checks out an existing local branch when the entered branch exists; otherwise, it creates the branch. It then opens the checkout as a new Herdr workspace and groups it under the source workspace. `Open worktree...` lists existing Git worktree checkouts for that repo. Choosing an already-open checkout focuses it, while choosing a closed checkout opens it in the same group.
+Repos are stored in `repos.toml` next to `config.toml` on each machine, so remote machines keep their own list.
 
-Grouped worktrees still behave like normal Herdr workspaces: they can be focused, renamed, closed, and contain their own tabs and panes. The parent row is the original workspace. Closing the parent row closes the whole Herdr group, but it does not delete checkout folders or branches.
-
-To delete a worktree checkout, use `Delete worktree checkout...` on a grouped child workspace. Herdr runs `git worktree remove`, first asking Git to remove safely. If Git refuses because the checkout has modified or untracked files, Herdr asks again before running the forced remove. Branches are not deleted.
+To delete a worktree checkout, use `Delete worktree checkout...` on its workspace. Herdr runs `git worktree remove`, first asking Git to remove safely. If Git refuses because the checkout has modified or untracked files, Herdr asks again before running the forced remove. Branches are not deleted.
 
 ## Remote attach
 

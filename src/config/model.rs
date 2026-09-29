@@ -839,8 +839,11 @@ pub struct IndexedKeysConfig {
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct WorktreesConfig {
-    /// Root directory under which Herdr creates <repo>/<branch-slug> checkouts.
+    /// Root directory for new worktree checkouts.
     pub directory: String,
+    /// Checkout path for worktrees created from a space. Placeholders:
+    /// `{directory}`, `{space}`, `{repo}`, `{name}`.
+    pub path: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
@@ -1158,7 +1161,8 @@ impl Default for KeysConfig {
 impl Default for WorktreesConfig {
     fn default() -> Self {
         Self {
-            directory: "~/.herdr/worktrees".into(),
+            directory: "~/worktrees".into(),
+            path: crate::worktree::DEFAULT_SPACE_PATH_TEMPLATE.into(),
         }
     }
 }
@@ -1536,14 +1540,20 @@ tab_bar_right_separator = " · "
     #[test]
     fn worktrees_directory_defaults_and_parses() {
         let default_config = Config::default();
-        assert_eq!(default_config.worktrees.directory, "~/.herdr/worktrees");
+        assert_eq!(default_config.worktrees.directory, "~/worktrees");
+        assert_eq!(
+            default_config.worktrees.path,
+            "{directory}/{space}/{repo}/{name}"
+        );
 
         let toml = r#"
 [worktrees]
 directory = "~/Projects/herdr-worktrees"
+path = "~/src/{repo}/{name}"
 "#;
         let config: Config = toml::from_str(toml).unwrap();
         assert_eq!(config.worktrees.directory, "~/Projects/herdr-worktrees");
+        assert_eq!(config.worktrees.path, "~/src/{repo}/{name}");
     }
 
     #[test]

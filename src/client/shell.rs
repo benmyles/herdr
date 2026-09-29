@@ -32,6 +32,7 @@ mod preferences;
 mod render;
 mod scroll;
 mod settings;
+mod space_worktrees;
 mod state;
 mod surface_patch;
 mod text_editor;

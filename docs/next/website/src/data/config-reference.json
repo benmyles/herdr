@@ -1456,8 +1456,14 @@
         {
           "key": "worktrees.directory",
           "type": "string",
-          "default": "\"~/.herdr/worktrees\"",
-          "description": "Root directory under which Herdr creates <repo>/<branch-slug> checkouts."
+          "default": "\"~/worktrees\"",
+          "description": "Root directory for new worktree checkouts."
+        },
+        {
+          "key": "worktrees.path",
+          "type": "string",
+          "default": "\"{directory}/{space}/{repo}/{name}\"",
+          "description": "Checkout path for worktrees created from a space. Placeholders: {directory}, {space}, {repo}, {name}."
         }
       ]
     },

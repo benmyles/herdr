@@ -51,7 +51,7 @@ impl ClientShellState {
             ClientSettingsSection::Indicators => indicator_index(self.config.status_indicators),
             ClientSettingsSection::Sound => usize::from(!self.config.sound_enabled),
             ClientSettingsSection::Toast => toast_index(self.config.toast_delivery),
-            ClientSettingsSection::Integrations => 0,
+            ClientSettingsSection::Integrations | ClientSettingsSection::Repos => 0,
         }
     }
 
@@ -100,6 +100,10 @@ impl ClientShellState {
                 ClientSettingsSection::Indicators | ClientSettingsSection::Sound => 2,
                 ClientSettingsSection::Toast => 4,
                 ClientSettingsSection::Integrations => settings.integrations.len(),
+                ClientSettingsSection::Repos => self
+                    .snapshot
+                    .as_deref()
+                    .map_or(0, |snapshot| snapshot.repos.len()),
             },
             _ => 0,
         }
@@ -223,6 +227,19 @@ impl ClientShellState {
                 );
             }
             ClientSettingsSection::Integrations => self.install_recommended_integrations(outcome),
+            ClientSettingsSection::Repos => {
+                let has_repos = self
+                    .snapshot
+                    .as_deref()
+                    .is_some_and(|snapshot| !snapshot.repos.is_empty());
+                if has_repos {
+                    self.edit_selected_settings_repo();
+                } else {
+                    self.cancel_settings_overlay();
+                    self.open_repo_editor(None, ClientRepoEditReturn::Settings);
+                }
+                outcome.repaint = true;
+            }
         }
     }
 
@@ -394,6 +411,24 @@ impl ClientShellState {
         if matches!(code, KeyCode::Enter | KeyCode::Char(' ')) && modifiers.is_empty() {
             self.apply_settings_choice(outcome);
             return true;
+        }
+        let repos_section = matches!(
+            self.overlay,
+            Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
+                section: ClientSettingsSection::Repos,
+                ..
+            }))
+        );
+        if repos_section && modifiers.difference(KeyModifiers::SHIFT).is_empty() {
+            match code {
+                KeyCode::Char('a') => {
+                    self.click_overlay_hit(ClientOverlayHit::SettingsAddRepo, outcome)
+                }
+                KeyCode::Char('x') | KeyCode::Delete => {
+                    self.click_overlay_hit(ClientOverlayHit::SettingsRemoveRepo, outcome)
+                }
+                _ => {}
+            }
         }
         true
     }

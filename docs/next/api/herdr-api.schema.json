@@ -3855,6 +3855,86 @@
           ],
           "type": "object"
         },
+        "RepoAddParams": {
+          "properties": {
+            "base_branch": {
+              "description": "Defaults to the remote's default branch, else the checked-out branch.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "description": "Defaults to the repo directory name.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "remote": {
+              "description": "Defaults to `origin` (or the only remote). Empty means no remote.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "root": {
+              "description": "Any path inside the repo's main checkout.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "root"
+          ],
+          "type": "object"
+        },
+        "RepoTarget": {
+          "properties": {
+            "repo": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repo"
+          ],
+          "type": "object"
+        },
+        "RepoUpdateParams": {
+          "properties": {
+            "base_branch": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "remote": {
+              "description": "Empty removes the remote.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "repo": {
+              "type": "string"
+            },
+            "root": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "repo"
+          ],
+          "type": "object"
+        },
         "ServerLiveHandoffParams": {
           "properties": {
             "expected_protocol": {
@@ -3992,6 +4072,35 @@
           },
           "required": [
             "space_id"
+          ],
+          "type": "object"
+        },
+        "SpaceWorktreeCreateParams": {
+          "properties": {
+            "focus": {
+              "default": false,
+              "type": "boolean"
+            },
+            "name": {
+              "description": "Worktree name, used as the branch name as-is.",
+              "type": "string"
+            },
+            "repo": {
+              "type": "string"
+            },
+            "space_id": {
+              "type": "string"
+            },
+            "sync": {
+              "default": true,
+              "description": "Fetch the remote and fast-forward the repo's base branch first.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "space_id",
+            "repo",
+            "name"
           ],
           "type": "object"
         },
@@ -5159,6 +5268,86 @@
             },
             "params": {
               "$ref": "#/schemas/request/$defs/SpaceMemberTarget"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "space.worktree.create",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/SpaceWorktreeCreateParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "repo.list",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/EmptyParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "repo.add",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/RepoAddParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "repo.update",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/RepoUpdateParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "repo.remove",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/RepoTarget"
             }
           },
           "required": [
@@ -9436,6 +9625,38 @@
           ],
           "type": "string"
         },
+        "RepoInfo": {
+          "description": "A repo registered on this endpoint for creating worktrees from a space.",
+          "properties": {
+            "base_branch": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "remote": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "root": {
+              "description": "Main checkout as configured (may start with `~`).",
+              "type": "string"
+            },
+            "root_path": {
+              "description": "`root` resolved to an absolute path on the endpoint.",
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "root",
+            "root_path",
+            "base_branch"
+          ],
+          "type": "object"
+        },
         "ResponseResult": {
           "oneOf": [
             {
@@ -9578,6 +9799,54 @@
               "required": [
                 "type",
                 "spaces"
+              ],
+              "type": "object"
+            },
+            {
+              "$ref": "#/schemas/success_response/$defs/SpaceWorktreeCreatedInfo",
+              "properties": {
+                "type": {
+                  "const": "space_worktree_created",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "repo": {
+                  "$ref": "#/schemas/success_response/$defs/RepoInfo"
+                },
+                "type": {
+                  "const": "repo_info",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "repo"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "repos": {
+                  "items": {
+                    "$ref": "#/schemas/success_response/$defs/RepoInfo"
+                  },
+                  "type": "array"
+                },
+                "type": {
+                  "const": "repo_list",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "repos"
               ],
               "type": "object"
             },
@@ -10879,6 +11148,33 @@
           ],
           "type": "object"
         },
+        "SpaceWorktreeCreatedInfo": {
+          "properties": {
+            "root_pane": {
+              "$ref": "#/schemas/success_response/$defs/PaneInfo"
+            },
+            "sync": {
+              "$ref": "#/schemas/success_response/$defs/WorktreeSyncInfo"
+            },
+            "tab": {
+              "$ref": "#/schemas/success_response/$defs/TabInfo"
+            },
+            "workspace": {
+              "$ref": "#/schemas/success_response/$defs/WorkspaceInfo"
+            },
+            "worktree": {
+              "$ref": "#/schemas/success_response/$defs/WorktreeInfo"
+            }
+          },
+          "required": [
+            "workspace",
+            "tab",
+            "root_pane",
+            "worktree",
+            "sync"
+          ],
+          "type": "object"
+        },
         "SplitDirection": {
           "enum": [
             "right",
@@ -11024,6 +11320,36 @@
           ],
           "type": "object"
         },
+        "WorktreeBranchSource": {
+          "oneOf": [
+            {
+              "enum": [
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "new",
+              "description": "A new branch from `start_point`.",
+              "type": "string"
+            },
+            {
+              "const": "local",
+              "description": "An existing local branch.",
+              "type": "string"
+            },
+            {
+              "const": "remote",
+              "description": "A branch that existed only on the remote, now tracked.",
+              "type": "string"
+            },
+            {
+              "const": "existing",
+              "description": "The checkout already existed and was reopened.",
+              "type": "string"
+            }
+          ]
+        },
         "WorktreeInfo": {
           "properties": {
             "branch": {
@@ -11093,6 +11419,37 @@
             "repo_name",
             "repo_root",
             "source_checkout_path"
+          ],
+          "type": "object"
+        },
+        "WorktreeSyncInfo": {
+          "properties": {
+            "branch_source": {
+              "$ref": "#/schemas/success_response/$defs/WorktreeBranchSource"
+            },
+            "fetched": {
+              "type": "boolean"
+            },
+            "root_updated": {
+              "type": "boolean"
+            },
+            "start_point": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "warnings": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "fetched",
+            "root_updated",
+            "branch_source"
           ],
           "type": "object"
         }

@@ -48,6 +48,7 @@ mod release_notes;
 mod remote;
 mod render_prof;
 mod render_signal;
+mod repos;
 mod selection;
 mod server;
 mod session;
@@ -228,7 +229,10 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # headless_rows = 40
 
 # [worktrees]
-# directory = "~/.herdr/worktrees"
+# directory = "~/worktrees"
+# Where worktrees created from a space are checked out. Placeholders:
+# {directory}, {space}, {repo}, {name}. Repos are configured in settings.
+# path = "{directory}/{space}/{repo}/{name}"
 
 [ui]
 # Sidebar width (auto-scaled based on workspace names, this sets the default)

@@ -7,6 +7,7 @@ mod integrations;
 mod layouts;
 mod panes;
 pub(crate) mod plugins;
+mod repos;
 pub(super) mod responses;
 mod session;
 mod spaces;
@@ -1037,6 +1038,17 @@ impl App {
             Method::SpaceMemberRemove(target) => {
                 return self.handle_space_member_remove(request.id, target);
             }
+            Method::SpaceWorktreeCreate(_) => {
+                return responses::encode_error(
+                    request.id,
+                    "invalid_request",
+                    "space.worktree.create is handled asynchronously by the app runtime",
+                );
+            }
+            Method::RepoList(params) => return self.handle_repo_list(request.id, params),
+            Method::RepoAdd(params) => return self.handle_repo_add(request.id, params),
+            Method::RepoUpdate(params) => return self.handle_repo_update(request.id, params),
+            Method::RepoRemove(target) => return self.handle_repo_remove(request.id, target),
             Method::WorkspaceList(_) => return self.handle_workspace_list(request.id),
             Method::WorkspaceGet(target) => return self.handle_workspace_get(request.id, target),
             Method::WorkspaceCreate(params) => {

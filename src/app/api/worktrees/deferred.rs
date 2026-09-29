@@ -28,6 +28,10 @@ impl App {
                 self.start_api_worktree_create(request.id, params, respond_to);
                 true
             }
+            crate::api::schema::Method::SpaceWorktreeCreate(params) => {
+                self.start_space_worktree_create(request.id, params, respond_to);
+                true
+            }
             crate::api::schema::Method::WorktreeRemove(params) => {
                 self.start_api_worktree_remove(request.id, params, respond_to);
                 true
@@ -36,11 +40,11 @@ impl App {
         }
     }
 
-    fn send_api_response(respond_to: std::sync::mpsc::Sender<String>, response: String) {
+    pub(super) fn send_api_response(respond_to: std::sync::mpsc::Sender<String>, response: String) {
         let _ = respond_to.send(response);
     }
 
-    fn next_api_worktree_operation_id(&mut self) -> u64 {
+    pub(super) fn next_api_worktree_operation_id(&mut self) -> u64 {
         let id = self.next_api_worktree_operation_id;
         self.next_api_worktree_operation_id = self.next_api_worktree_operation_id.saturating_add(1);
         id
@@ -188,6 +192,7 @@ impl App {
             repo_name: source.repo_name,
             label: params.label,
             focus: params.focus,
+            space_id: None,
             respond_to,
         };
         let path = checkout_path;
@@ -213,6 +218,7 @@ impl App {
                     path,
                     api_request: Some(api_request),
                     result,
+                    space_outcome: None,
                 },
             )));
         });
@@ -393,6 +399,11 @@ impl App {
             return;
         }
         self.pending_api_worktree_creates.remove(&checkout_key);
+
+        if api.space_id.is_some() {
+            self.finish_space_worktree_create(api, result);
+            return;
+        }
 
         if let Err(err) = result.result {
             Self::send_api_response(

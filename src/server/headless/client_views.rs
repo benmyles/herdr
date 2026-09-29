@@ -237,6 +237,7 @@ impl HeadlessServer {
                 | Method::SpaceMemberOpen(_)
                 | Method::WorkspaceClose(_)
                 | Method::WorkspaceCreate(_)
+                | Method::SpaceWorktreeCreate(_)
                 | Method::WorktreeCreate(_)
                 | Method::WorktreeOpen(_)
                 | Method::WorktreeRemove(_)
@@ -282,6 +283,7 @@ impl HeadlessServer {
                 | Method::WorkspaceMove(_)
                 | Method::WorkspaceMoveBlock(_)
                 | Method::WorkspaceRename(_)
+                | Method::SpaceWorktreeCreate(_)
                 | Method::WorktreeCreate(_)
                 | Method::WorktreeOpen(_)
                 | Method::WorktreeRemove(_)
@@ -311,6 +313,7 @@ impl HeadlessServer {
                 | Method::WorkspaceClose(_)
                 | Method::WorkspaceCreate(_)
                 | Method::WorkspaceFocus(_)
+                | Method::SpaceWorktreeCreate(_)
                 | Method::WorktreeCreate(_)
                 | Method::WorktreeOpen(_)
                 | Method::WorktreeRemove(_)
@@ -321,7 +324,7 @@ impl HeadlessServer {
         let response = serde_json::from_slice::<serde_json::Value>(response).ok()?;
         if !matches!(
             response.pointer("/result/type")?.as_str()?,
-            "worktree_created" | "worktree_opened"
+            "worktree_created" | "worktree_opened" | "space_worktree_created"
         ) {
             return None;
         }

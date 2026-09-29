@@ -2952,6 +2952,7 @@ impl HeadlessServer {
         if matches!(
             &msg.request.method,
             api::schema::Method::WorktreeCreate(_)
+                | api::schema::Method::SpaceWorktreeCreate(_)
                 | api::schema::Method::WorktreeRemove(_)
                 | api::schema::Method::WorktreeList(_)
                 | api::schema::Method::WorktreeOpen(_)

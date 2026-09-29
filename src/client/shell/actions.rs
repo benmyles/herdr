@@ -332,7 +332,10 @@ impl ClientShellState {
             code: code.into(),
         };
         let body = body.into();
-        if kind == ClientEndpointNoticeKind::Rejected {
+        if matches!(
+            kind,
+            ClientEndpointNoticeKind::Rejected | ClientEndpointNoticeKind::Warning
+        ) {
             if self
                 .visible_endpoint_notice
                 .as_ref()
@@ -531,10 +534,20 @@ impl ClientShellState {
                 self.pending_workspace_highlight = None;
             }
             let code = error.code.as_deref().unwrap_or("invalid_response");
-            if !matches!(
+            // These dialogs show the server's rejection inline.
+            let shown_inline = matches!(
+                pending.kind,
+                PendingEndpointKind::SpaceWorktreeCreate | PendingEndpointKind::RepoSave
+            ) && !matches!(
                 code,
-                "confirmation_required" | "stale_content" | "stale_target"
-            ) {
+                "endpoint_timeout" | "endpoint_cancelled" | "server_unavailable"
+            );
+            if !shown_inline
+                && !matches!(
+                    code,
+                    "confirmation_required" | "stale_content" | "stale_target"
+                )
+            {
                 let (kind, notice_code, title, body) = match code {
                     "endpoint_timeout" => (
                         ClientEndpointNoticeKind::Timeout,
@@ -827,6 +840,14 @@ impl ClientShellState {
             kind @ (PendingEndpointKind::IntegrationList
             | PendingEndpointKind::IntegrationInstall) => {
                 return self.handle_settings_endpoint_result(kind, result);
+            }
+            kind @ (PendingEndpointKind::SpaceCreate
+            | PendingEndpointKind::SpaceWorktreeCreate
+            | PendingEndpointKind::RepoSave
+            | PendingEndpointKind::RepoRemove) => {
+                let mut outcome = ClientShellInput::default();
+                let repaint = self.handle_repo_endpoint_result(kind, result, &mut outcome);
+                return (repaint || outcome.repaint, outcome.actions);
             }
             kind => {
                 let mut outcome = ClientShellInput::default();

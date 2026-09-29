@@ -809,6 +809,11 @@ pub struct AppState {
     /// their client-local sound config from disk.
     pub request_client_config_reload: bool,
     pub worktree_directory: std::path::PathBuf,
+    /// `[worktrees] path` with `{directory}` and `~` resolved; still holds
+    /// `{space}`, `{repo}` and `{name}`.
+    pub worktree_path_template: String,
+    /// Repos registered on this endpoint for creating worktrees from a space.
+    pub repos: Vec<crate::repos::Repo>,
     /// Latest endpoint-owned release notes, cached outside render paths.
     pub latest_release_notes: Option<crate::release_notes::ReleaseNotes>,
     pub product_announcement: Option<ProductAnnouncementState>,
@@ -1047,6 +1052,8 @@ impl AppState {
             should_quit: false,
             request_client_config_reload: false,
             worktree_directory: std::path::PathBuf::from("/tmp/herdr-worktrees"),
+            worktree_path_template: "/tmp/herdr-worktrees/{space}/{repo}/{name}".into(),
+            repos: Vec::new(),
             latest_release_notes: None,
             product_announcement: None,
             view: ViewState {

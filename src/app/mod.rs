@@ -121,6 +121,8 @@ pub struct App {
     pub(crate) git_identity_refresh_requested: bool,
     pub(crate) git_status_cache: HashMap<std::path::PathBuf, crate::workspace::GitStatusCacheEntry>,
     pub(crate) pending_api_worktree_creates: HashMap<std::path::PathBuf, u64>,
+    /// Where repos are persisted; `None` keeps them in memory (tests).
+    pub(crate) repos_path: Option<std::path::PathBuf>,
     pub(crate) worktree_read_slots: std::sync::Arc<tokio::sync::Semaphore>,
     pub(crate) pending_api_worktree_removes: HashMap<String, u64>,
     pub(crate) pending_api_worktree_remove_paths: HashMap<std::path::PathBuf, u64>,
@@ -413,6 +415,15 @@ impl App {
 
         let worktree_directory =
             crate::worktree::expand_tilde_absolute_path(&config.worktrees.directory);
+        let worktree_path_template = crate::worktree::resolve_space_path_template(
+            &config.worktrees.path,
+            &worktree_directory,
+        );
+        let repos_path = policy.persist_session.then(crate::repos::default_path);
+        let repos = repos_path
+            .as_deref()
+            .map(crate::repos::load)
+            .unwrap_or_default();
 
         info!(
             pane_scrollback_limit_bytes = config.advanced.scrollback_limit_bytes,
@@ -459,6 +470,8 @@ impl App {
             should_quit: false,
             request_client_config_reload: false,
             worktree_directory,
+            worktree_path_template,
+            repos,
             latest_release_notes,
             product_announcement: startup_product_announcement.map(|announcement| {
                 state::ProductAnnouncementState {
@@ -586,6 +599,7 @@ impl App {
             git_identity_refresh_requested: false,
             git_status_cache: HashMap::new(),
             pending_api_worktree_creates: HashMap::new(),
+            repos_path,
             worktree_read_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(8)),
             pending_api_worktree_removes: HashMap::new(),
             pending_api_worktree_remove_paths: HashMap::new(),
@@ -951,6 +965,10 @@ impl App {
         if !invalid_section("worktrees") {
             self.state.worktree_directory =
                 crate::worktree::expand_tilde_absolute_path(&config.worktrees.directory);
+            self.state.worktree_path_template = crate::worktree::resolve_space_path_template(
+                &config.worktrees.path,
+                &self.state.worktree_directory,
+            );
         }
 
         if !invalid_section("theme") {

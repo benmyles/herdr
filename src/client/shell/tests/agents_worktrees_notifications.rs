@@ -1663,9 +1663,12 @@ fn space_header_menu_edits_supported_endpoints_only() {
             .collect::<Vec<_>>(),
         _ => panic!("space context menu"),
     };
-    assert_eq!(labels(&state), ["Rename", "Collapse", "Delete space"]);
+    assert_eq!(
+        labels(&state),
+        ["New worktree…", "Rename", "Collapse", "Delete space"]
+    );
     let mut outcome = ClientShellInput::default();
-    state.activate_context_menu_item(2, &mut outcome);
+    state.activate_context_menu_item(3, &mut outcome);
     assert!(matches!(
         single_endpoint_method(&outcome),
         crate::api::schema::Method::SpaceDelete(target) if target.space_id == "space_knowledge"
@@ -1674,4 +1677,316 @@ fn space_header_menu_edits_supported_endpoints_only() {
     state.set_endpoint_methods(Some(vec!["workspace.rename".into()]));
     click(&mut state, MouseButton::Right, header);
     assert_eq!(labels(&state), ["Collapse"]);
+}
+
+fn shell_repo(name: &str) -> crate::protocol::ClientShellRepo {
+    crate::protocol::ClientShellRepo {
+        name: name.into(),
+        root: format!("~/code/{name}"),
+        base_branch: "main".into(),
+        remote: Some("origin".into()),
+    }
+}
+
+fn repo_snapshot() -> ClientShellSnapshot {
+    let mut projected = spaced_snapshot();
+    projected.workspaces[0].worktree = Some(crate::protocol::ClientShellWorktree {
+        key: "repo-key".into(),
+        label: "pyshiftup".into(),
+        is_linked_worktree: true,
+    });
+    projected.repos = vec![shell_repo("pyshiftup"), shell_repo("guided")];
+    projected.worktree_path_template = "/tmp/herdr-worktrees/{space}/{repo}/{name}".into();
+    projected
+}
+
+fn repo_state() -> ClientShellState {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(repo_snapshot()));
+    state.set_pane_surface(surface());
+    state.compose(120, 34).expect("sidebar frame");
+    state
+}
+
+fn screen_text(state: &mut ClientShellState) -> String {
+    frame_rows(&state.compose(120, 34).expect("frame")).join("\n")
+}
+
+fn space_worktree_created(warnings: &[&str]) -> crate::api::schema::ResponseResult {
+    serde_json::from_value(serde_json::json!({
+        "type": "space_worktree_created",
+        "workspace": {
+            "workspace_id": "ws_9", "number": 2, "label": "pyshiftup", "focused": false,
+            "space_id": "space_knowledge", "pane_count": 1, "tab_count": 1,
+            "active_tab_id": "ws_9:t1", "agent_status": "unknown"
+        },
+        "tab": {
+            "tab_id": "ws_9:t1", "workspace_id": "ws_9", "number": 1, "label": "1",
+            "focused": false, "pane_count": 1, "agent_status": "unknown"
+        },
+        "root_pane": {
+            "pane_id": "ws_9:p1", "terminal_id": "term_9", "workspace_id": "ws_9",
+            "tab_id": "ws_9:t1", "focused": false, "agent_status": "unknown", "revision": 0
+        },
+        "worktree": {
+            "path": "/tmp/herdr-worktrees/knowledge/pyshiftup/knowledge",
+            "branch": "knowledge", "is_bare": false, "is_detached": false,
+            "is_prunable": false, "is_linked_worktree": true, "label": "pyshiftup"
+        },
+        "sync": {
+            "fetched": true, "root_updated": false, "branch_source": "new",
+            "start_point": "origin/main", "warnings": warnings
+        }
+    }))
+    .expect("space worktree response")
+}
+
+#[test]
+fn space_worktree_dialog_creates_from_the_chosen_repo() {
+    let mut state = repo_state();
+    let header = state.hits.space_headers[0].rect;
+    click(&mut state, MouseButton::Right, header);
+    let mut outcome = ClientShellInput::default();
+    state.activate_context_menu_item(0, &mut outcome);
+    assert!(
+        matches!(
+            &state.overlay,
+            Some(ClientShellOverlay::SpaceWorktree(dialog))
+                if dialog.name.as_str() == "knowledge"
+                    && dialog.selected_repo.as_deref() == Some("guided")
+        ),
+        "defaults to the space name and a repo not in the space yet"
+    );
+    let text = screen_text(&mut state);
+    assert!(text.contains("new worktree in knowledge"), "{text}");
+    assert!(text.contains("sync main with origin first"), "{text}");
+    assert!(
+        text.contains("/tmp/herdr-worktrees/knowledge/guided/knowledge"),
+        "{text}"
+    );
+
+    state.handle_input_bytes(b"\x1b[A");
+    let submit = state.handle_input_bytes(b"\r");
+    let [ClientShellAction::Endpoint { request, .. }] = &submit.actions[..] else {
+        panic!("expected space.worktree.create, got {:?}", submit.actions);
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::SpaceWorktreeCreate(params)
+            if params.space_id == "space_knowledge"
+                && params.repo == "pyshiftup"
+                && params.name == "knowledge"
+                && params.sync
+                && !params.focus
+    ));
+    let (_, actions) = state.handle_endpoint_result(
+        "boot-1",
+        &request.id,
+        Err(ClientShellEndpointError {
+            code: Some("sync_fetch_failed".into()),
+            message: "couldn't fetch origin: offline".into(),
+        }),
+    );
+    assert!(actions.is_empty());
+    assert!(
+        state.visible_endpoint_notice.is_none(),
+        "the dialog shows the failure itself"
+    );
+    assert!(matches!(
+        &state.overlay,
+        Some(ClientShellOverlay::SpaceWorktree(dialog))
+            if !dialog.sync && dialog.offer_without_sync && !dialog.creating
+                && dialog.error.as_deref().is_some_and(|error| error.contains("local main"))
+    ));
+    assert!(screen_text(&mut state).contains("create from local main"));
+
+    let retry = state.handle_input_bytes(b"\r");
+    let [ClientShellAction::Endpoint { request, .. }] = &retry.actions[..] else {
+        panic!("expected a retry, got {:?}", retry.actions);
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::SpaceWorktreeCreate(params) if !params.sync
+    ));
+    let (_, actions) = state.handle_endpoint_result(
+        "boot-1",
+        &request.id,
+        Ok(space_worktree_created(&[
+            "main is checked out at /x; didn't update it",
+        ])),
+    );
+    assert!(state.overlay.is_none());
+    assert!(matches!(
+        &actions[..],
+        [ClientShellAction::Endpoint { request, .. }]
+            if matches!(&request.method, crate::api::schema::Method::TabFocus(target)
+                if target.tab_id == "ws_9:t1")
+    ));
+    assert!(state
+        .visible_endpoint_notice
+        .as_ref()
+        .is_some_and(
+            |notice| notice.key.kind == ClientEndpointNoticeKind::Warning
+                && notice.body.contains("didn't update")
+        ));
+}
+
+#[test]
+fn space_worktree_dialog_without_repos_leads_to_adding_one() {
+    let mut state = repo_state();
+    let mut snapshot = repo_snapshot();
+    snapshot.repos.clear();
+    state.set_snapshot(Box::new(snapshot));
+    state.open_space_worktree_dialog("space_knowledge");
+    assert!(screen_text(&mut state).contains("no repos yet"));
+
+    state.handle_input_bytes(b"\r");
+    assert!(matches!(
+        &state.overlay,
+        Some(ClientShellOverlay::RepoEdit(edit))
+            if edit.original_name.is_none()
+                && edit.return_to == ClientRepoEditReturn::SpaceWorktree {
+                    space_id: "space_knowledge".into()
+                }
+    ));
+    state.handle_input_bytes(b"~/code/new-repo");
+    let save = state.handle_input_bytes(b"\r");
+    let [ClientShellAction::Endpoint { request, .. }] = &save.actions[..] else {
+        panic!("expected repo.add, got {:?}", save.actions);
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::RepoAdd(params)
+            if params.root == "~/code/new-repo"
+                && params.name.is_none()
+                && params.base_branch.is_none()
+                && params.remote.is_none()
+    ));
+    state.handle_endpoint_result(
+        "boot-1",
+        &request.id,
+        Ok(crate::api::schema::ResponseResult::RepoInfo {
+            repo: crate::api::schema::RepoInfo {
+                name: "new-repo".into(),
+                root: "~/code/new-repo".into(),
+                root_path: "/home/me/code/new-repo".into(),
+                base_branch: "main".into(),
+                remote: None,
+            },
+        }),
+    );
+    assert!(
+        matches!(
+            &state.overlay,
+            Some(ClientShellOverlay::SpaceWorktree(dialog))
+                if dialog.selected_repo.as_deref() == Some("new-repo")
+        ),
+        "returns to the worktree dialog with the new repo selected"
+    );
+}
+
+#[test]
+fn settings_repos_tab_lists_adds_edits_and_removes() {
+    let mut state = repo_state();
+    state.open_settings_overlay();
+    let mut outcome = ClientShellInput::default();
+    state.select_settings_section(ClientSettingsSection::Repos, &mut outcome);
+    let text = screen_text(&mut state);
+    assert!(text.contains("pyshiftup"), "{text}");
+    assert!(text.contains("~/code/guided"), "{text}");
+    assert!(text.contains("main · origin"), "{text}");
+
+    state.handle_input_bytes(b"\x1b[B");
+    let remove = state.handle_input_bytes(b"x");
+    let [ClientShellAction::Endpoint { request, .. }] = &remove.actions[..] else {
+        panic!("expected repo.remove, got {:?}", remove.actions);
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::RepoRemove(target) if target.repo == "guided"
+    ));
+
+    state.handle_input_bytes(b"\r");
+    let Some(ClientShellOverlay::RepoEdit(edit)) = &state.overlay else {
+        panic!("enter edits the selected repo");
+    };
+    assert_eq!(edit.original_name.as_deref(), Some("guided"));
+    assert_eq!(edit.fields[0].as_str(), "~/code/guided");
+    // Move to the base branch field and change it.
+    state.handle_input_bytes(b"\t\t");
+    state.handle_input_bytes(b"\x15develop");
+    let save = state.handle_input_bytes(b"\r");
+    let [ClientShellAction::Endpoint { request, .. }] = &save.actions[..] else {
+        panic!("expected repo.update, got {:?}", save.actions);
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::RepoUpdate(params)
+            if params.repo == "guided"
+                && params.base_branch.as_deref() == Some("develop")
+                && params.name.is_none()
+                && params.root.is_none()
+                && params.remote.is_none()
+    ));
+
+    state.handle_input_bytes(b"\x1b");
+    state.handle_endpoint_result(
+        "boot-1",
+        &request.id,
+        Err(ClientShellEndpointError {
+            code: Some("invalid_branch".into()),
+            message: "'develop' is not a valid base branch".into(),
+        }),
+    );
+    assert!(
+        matches!(
+            &state.overlay,
+            Some(ClientShellOverlay::RepoEdit(edit))
+                if !edit.saving && edit.error.as_deref().is_some_and(|e| e.contains("develop"))
+        ),
+        "saving ignores escape and shows the rejection"
+    );
+    state.handle_input_bytes(b"\x1b");
+    assert!(
+        matches!(
+            &state.overlay,
+            Some(ClientShellOverlay::Settings(settings))
+                if settings.section == ClientSettingsSection::Repos
+        ),
+        "escape returns to settings"
+    );
+}
+
+#[test]
+fn creating_a_space_offers_its_first_worktree() {
+    let mut state = repo_state();
+    state.begin_new_space(None);
+    state.handle_input_bytes(b"launch");
+    let save = state.handle_input_bytes(b"\r");
+    let [ClientShellAction::Endpoint { request, .. }] = &save.actions[..] else {
+        panic!("expected space.create, got {:?}", save.actions);
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::SpaceCreate(params) if params.name == "launch"
+    ));
+    state.handle_endpoint_result(
+        "boot-1",
+        &request.id,
+        Ok(crate::api::schema::ResponseResult::SpaceInfo {
+            space: crate::api::schema::SpaceInfo {
+                space_id: "space_launch".into(),
+                name: "launch".into(),
+                color: 3,
+                built_in: false,
+                workspace_ids: Vec::new(),
+                closed: Vec::new(),
+            },
+        }),
+    );
+    assert!(matches!(
+        &state.overlay,
+        Some(ClientShellOverlay::SpaceWorktree(dialog))
+            if dialog.space_id == "space_launch" && dialog.name.as_str() == "launch"
+    ));
 }

@@ -225,7 +225,8 @@ fn print_ready_message(api_socket: &Path, client_socket: &Path) {
             .display()
     );
     eprintln!(
-        "did you mean to open the Herdr TUI? run `herdr`; you do not need `herdr-benmyles server`."
+        "did you mean to open the Herdr TUI? run `{bin}`; you do not need `{bin} server`.",
+        bin = crate::build_info::BIN_NAME
     );
 }
 

@@ -22,6 +22,8 @@ pub struct ApiWorktreeAddRequest {
     pub repo_name: String,
     pub label: Option<String>,
     pub focus: bool,
+    /// Set for `space.worktree.create`: the space that receives the checkout.
+    pub space_id: Option<String>,
     pub respond_to: std::sync::mpsc::Sender<String>,
 }
 
@@ -30,6 +32,9 @@ pub struct WorktreeAddResult {
     pub path: std::path::PathBuf,
     pub api_request: Option<ApiWorktreeAddRequest>,
     pub result: Result<(), String>,
+    /// Space worktree creation details: the sync report on success, or the
+    /// failure code for the error in `result`.
+    pub space_outcome: Option<Result<crate::worktree::SpaceWorktreeReport, &'static str>>,
 }
 
 #[derive(Debug)]

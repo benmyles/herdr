@@ -10,9 +10,13 @@ impl ClientContextMenuOverlay {
                 built_in,
                 collapsed,
                 editable,
+                worktrees,
                 ..
             } => {
                 let mut items = Vec::new();
+                if *worktrees {
+                    items.push(item("New worktree…", Action::NewSpaceWorktree));
+                }
                 if *editable && !*built_in {
                     items.push(item("Rename", Action::RenameSpace));
                 }
@@ -124,12 +128,14 @@ impl ClientShellState {
         let built_in = space.built_in;
         let collapsed = self.group_is_collapsed(&self.active_endpoint_id, &space_id);
         let editable = self.active_endpoint_supports_spaces();
+        let worktrees = editable && self.endpoint_supports_space_worktrees();
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Space {
                 space_id,
                 built_in,
                 collapsed,
                 editable,
+                worktrees,
             },
             x,
             y,
@@ -382,6 +388,9 @@ impl ClientShellState {
         outcome: &mut ClientShellInput,
     ) {
         match action {
+            ClientContextMenuAction::NewSpaceWorktree => {
+                self.open_space_worktree_dialog(&space_id);
+            }
             ClientContextMenuAction::RenameSpace => {
                 let name = self.snapshot.as_deref().and_then(|snapshot| {
                     snapshot

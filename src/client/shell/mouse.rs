@@ -1489,9 +1489,49 @@ impl ClientShellState {
             }
             return;
         }
+        if matches!(
+            self.overlay,
+            Some(ClientShellOverlay::SpaceWorktree(_) | ClientShellOverlay::RepoEdit(_))
+        ) {
+            match mouse.kind {
+                MouseEventKind::ScrollUp => {
+                    self.move_space_worktree_repo(-1);
+                    outcome.repaint = true;
+                }
+                MouseEventKind::ScrollDown => {
+                    self.move_space_worktree_repo(1);
+                    outcome.repaint = true;
+                }
+                MouseEventKind::Down(MouseButton::Left) => {
+                    if let Some((_, hit)) = self
+                        .hits
+                        .overlay_hits
+                        .iter()
+                        .find(|(rect, _)| super::contains(*rect, point))
+                        .copied()
+                    {
+                        self.click_overlay_hit(hit, outcome);
+                    } else if super::contains(self.hits.overlay_primary, point) {
+                        self.submit_repo_overlay(outcome);
+                    } else if super::contains(self.hits.overlay_cancel, point) {
+                        self.dismiss_repo_overlay(outcome);
+                    }
+                }
+                _ => {}
+            }
+            return;
+        }
         if matches!(self.overlay, Some(ClientShellOverlay::Settings(_))) {
             if mouse.kind == MouseEventKind::Down(MouseButton::Left) {
-                if let Some((_, section)) = self
+                if let Some((_, hit)) = self
+                    .hits
+                    .overlay_hits
+                    .iter()
+                    .find(|(rect, _)| super::contains(*rect, point))
+                    .copied()
+                {
+                    self.click_overlay_hit(hit, outcome);
+                } else if let Some((_, section)) = self
                     .hits
                     .settings_tabs
                     .iter()

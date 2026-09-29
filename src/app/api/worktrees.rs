@@ -10,6 +10,7 @@ use super::responses::{encode_error, encode_success};
 
 mod deferred;
 mod reads;
+mod space;
 
 struct ApiFailure {
     code: &'static str,
@@ -708,6 +709,102 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn space_worktree_create_files_checkout_under_the_space() {
+        let repo = create_committed_repo("space-worktree-repo");
+        let worktree_root = unique_temp_path("space-worktree-root");
+        let mut app = test_app();
+        app.state.worktree_directory = worktree_root.clone();
+        app.state.worktree_path_template = crate::worktree::resolve_space_path_template(
+            crate::worktree::DEFAULT_SPACE_PATH_TEMPLATE,
+            &worktree_root,
+        );
+        app.state.normalize_spaces();
+        let space_id = app.state.create_space("knowledge").unwrap();
+        app.state.repos = vec![crate::repos::Repo {
+            name: "pyshiftup".into(),
+            root: repo.display().to_string(),
+            base_branch: "HEAD".into(),
+            remote: None,
+        }];
+
+        // Opened workspaces emit PTY events too, so drain until the reply.
+        let create = |app: &mut App, name: &str| {
+            let (respond_to, response_rx) = response_channel();
+            let request = Request {
+                id: "req".into(),
+                method: crate::api::schema::Method::SpaceWorktreeCreate(
+                    crate::api::schema::SpaceWorktreeCreateParams {
+                        space_id: space_id.clone(),
+                        repo: "PYSHIFTUP".into(),
+                        name: name.into(),
+                        sync: true,
+                        focus: false,
+                    },
+                ),
+            };
+            assert!(app.handle_deferred_worktree_api_request(request, respond_to, false));
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+            loop {
+                if let Ok(response) = response_rx.try_recv() {
+                    return response;
+                }
+                assert!(std::time::Instant::now() < deadline, "no response");
+                match app.event_rx.try_recv() {
+                    Ok(event) => app.handle_internal_event(event),
+                    Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+                }
+            }
+        };
+        let base_branch = crate::workspace::git_branch(&repo).expect("repo branch");
+        app.state.repos[0].base_branch = base_branch;
+        let response = create(&mut app, "knowledge");
+
+        let success: SuccessResponse =
+            serde_json::from_str(&response).unwrap_or_else(|err| panic!("{response}: {err}"));
+        let ResponseResult::SpaceWorktreeCreated(info) = success.result else {
+            panic!("expected space_worktree_created, got {response}");
+        };
+        let expected = worktree_root.join("knowledge/pyshiftup/knowledge");
+        assert_eq!(Path::new(&info.worktree.path), expected);
+        assert!(expected.join("README.md").exists());
+        assert_eq!(info.worktree.branch.as_deref(), Some("knowledge"));
+        assert_eq!(info.workspace.space_id.as_deref(), Some(space_id.as_str()));
+        assert_eq!(info.workspace.label, "pyshiftup");
+        assert!(!info.sync.fetched, "no remote configured");
+        assert_eq!(
+            info.sync.branch_source,
+            crate::api::schema::WorktreeBranchSource::New
+        );
+        assert_eq!(app.state.workspaces.len(), 1);
+        let workspace = &app.state.workspaces[0];
+        assert_eq!(workspace.space_id, space_id);
+        assert!(workspace.worktree_space().unwrap().is_linked_worktree);
+
+        // Creating the same worktree again reopens the existing checkout.
+        let again = create(&mut app, "knowledge");
+        let success: SuccessResponse = serde_json::from_str(&again).unwrap();
+        let ResponseResult::SpaceWorktreeCreated(info) = success.result else {
+            panic!("expected space_worktree_created, got {again}");
+        };
+        assert_eq!(
+            info.sync.branch_source,
+            crate::api::schema::WorktreeBranchSource::Existing
+        );
+        assert_eq!(app.state.workspaces.len(), 1);
+
+        let missing = create(&mut app, "bad name");
+        assert!(missing.contains("invalid_worktree_name"), "{missing}");
+
+        for (_, runtime) in app.terminal_runtimes.drain() {
+            runtime.shutdown();
+        }
+        let remove = crate::worktree::build_worktree_remove_command(&repo, &expected, true, false);
+        crate::worktree::run_worktree_command(&remove).unwrap();
+        let _ = std::fs::remove_dir_all(worktree_root);
+        let _ = std::fs::remove_dir_all(repo);
+    }
+
+    #[tokio::test]
     async fn api_worktree_create_opens_workspace_and_marks_membership() {
         let repo = create_committed_repo("api-worktree-create-repo");
         let worktree_root = unique_temp_path("api-worktree-create-root");
@@ -1041,9 +1138,11 @@ mod tests {
                 repo_name: "herdr".into(),
                 label: None,
                 focus: false,
+                space_id: None,
                 respond_to,
             }),
             result: Ok(()),
+            space_outcome: None,
         });
 
         let response = response_rx

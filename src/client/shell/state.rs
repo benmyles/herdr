@@ -141,6 +141,7 @@ pub(super) struct ShellHitMap {
     pub(super) settings_popup: Rect,
     pub(super) settings_tabs: Vec<(Rect, ClientSettingsSection)>,
     pub(super) settings_choices: Vec<(Rect, usize)>,
+    pub(super) overlay_hits: Vec<(Rect, ClientOverlayHit)>,
     pub(super) product_announcement_scrollbar: Rect,
     pub(super) product_announcement_scroll_metrics: Option<crate::pane::ScrollMetrics>,
     pub(super) product_announcement_max_scroll: usize,
@@ -313,6 +314,8 @@ pub(super) enum ClientShellOverlayKind {
     WorktreeCreate,
     WorktreeOpen,
     WorktreeRemove,
+    SpaceWorktree,
+    RepoEdit,
     ContextMenu,
     GlobalMenu,
     Settings,
@@ -420,6 +423,7 @@ pub(super) enum ClientSettingsSection {
     Sound,
     Toast,
     Integrations,
+    Repos,
 }
 
 impl ClientSettingsSection {
@@ -429,6 +433,7 @@ impl ClientSettingsSection {
         Self::Sound,
         Self::Toast,
         Self::Integrations,
+        Self::Repos,
     ];
 
     pub(super) fn label(self) -> &'static str {
@@ -438,6 +443,7 @@ impl ClientSettingsSection {
             Self::Sound => "sound",
             Self::Toast => "toasts",
             Self::Integrations => "integrations",
+            Self::Repos => "repos",
         }
     }
 }
@@ -452,6 +458,61 @@ pub(super) struct ClientSettingsOverlay {
     pub(super) integration_messages: Vec<String>,
     pub(super) loading_integrations: bool,
     pub(super) installing_integrations: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum SpaceWorktreeField {
+    Name,
+    Sync,
+}
+
+/// New worktree for a space, from one of the endpoint's configured repos.
+#[derive(Debug)]
+pub(super) struct ClientSpaceWorktreeOverlay {
+    pub(super) space_id: String,
+    pub(super) space_name: String,
+    /// Selected repo by name, so it survives snapshot updates.
+    pub(super) selected_repo: Option<String>,
+    pub(super) name: TextEditor,
+    pub(super) sync: bool,
+    pub(super) field: SpaceWorktreeField,
+    pub(super) error: Option<String>,
+    /// Set after a failed fetch: offer creating from the local base instead.
+    pub(super) offer_without_sync: bool,
+    pub(super) creating: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) enum ClientRepoEditReturn {
+    Settings,
+    SpaceWorktree { space_id: String },
+}
+
+pub(super) const REPO_EDIT_FIELDS: [&str; 4] = ["root", "name", "base branch", "remote"];
+
+/// Adds or edits one of the endpoint's repos.
+#[derive(Debug)]
+pub(super) struct ClientRepoEditOverlay {
+    /// Repo being edited; `None` adds a new one.
+    pub(super) original_name: Option<String>,
+    /// root, name, base branch, remote; see `REPO_EDIT_FIELDS`.
+    pub(super) fields: [TextEditor; 4],
+    pub(super) field: usize,
+    pub(super) error: Option<String>,
+    pub(super) saving: bool,
+    pub(super) return_to: ClientRepoEditReturn,
+}
+
+/// Clickable parts of the space worktree, repo, and settings repo overlays.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ClientOverlayHit {
+    SpaceWorktreeRepo(usize),
+    SpaceWorktreeName,
+    SpaceWorktreeSync,
+    SpaceWorktreeAddRepo,
+    RepoEditField(usize),
+    SettingsAddRepo,
+    SettingsRemoveRepo,
 }
 
 #[derive(Debug)]
@@ -556,6 +617,7 @@ pub(super) enum ClientContextMenuAction {
     Zoom,
     ToggleRightClickPassthrough,
     ClosePane,
+    NewSpaceWorktree,
     RenameSpace,
     DeleteSpace,
     ToggleSpace,
@@ -576,6 +638,8 @@ pub(super) enum ClientContextMenuTarget {
         collapsed: bool,
         /// Whether the endpoint advertises the space methods.
         editable: bool,
+        /// Whether the endpoint can create worktrees from its repos.
+        worktrees: bool,
     },
     ClosedMember {
         space_id: String,
@@ -633,6 +697,8 @@ pub(super) enum ClientShellOverlay {
     WorktreeCreate(ClientWorktreeCreateOverlay),
     WorktreeOpen(ClientWorktreeOpenOverlay),
     WorktreeRemove(ClientWorktreeRemoveOverlay),
+    SpaceWorktree(ClientSpaceWorktreeOverlay),
+    RepoEdit(ClientRepoEditOverlay),
     ContextMenu(ClientContextMenuOverlay),
     GlobalMenu(ClientGlobalMenuOverlay),
     Settings(ClientSettingsOverlay),
@@ -651,6 +717,8 @@ impl ClientShellOverlay {
             Self::WorktreeCreate(_) => ClientShellOverlayKind::WorktreeCreate,
             Self::WorktreeOpen(_) => ClientShellOverlayKind::WorktreeOpen,
             Self::WorktreeRemove(_) => ClientShellOverlayKind::WorktreeRemove,
+            Self::SpaceWorktree(_) => ClientShellOverlayKind::SpaceWorktree,
+            Self::RepoEdit(_) => ClientShellOverlayKind::RepoEdit,
             Self::ContextMenu(_) => ClientShellOverlayKind::ContextMenu,
             Self::GlobalMenu(_) => ClientShellOverlayKind::GlobalMenu,
             Self::Settings(_) => ClientShellOverlayKind::Settings,
@@ -684,6 +752,11 @@ pub(super) enum PendingEndpointKind {
     WorktreeRemove {
         forced: bool,
     },
+    /// A space created from the sidebar; offer a worktree for it next.
+    SpaceCreate,
+    SpaceWorktreeCreate,
+    RepoSave,
+    RepoRemove,
     SelectionCopy,
     PaneScroll {
         pane_id: String,
@@ -731,6 +804,8 @@ pub(super) enum ClientEndpointNoticeKind {
     Rejected,
     Timeout,
     Unavailable,
+    /// The action worked but something needs the user's attention.
+    Warning,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]

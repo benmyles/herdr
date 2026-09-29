@@ -445,7 +445,7 @@ impl ClientShellState {
     }
 
     pub(super) fn insert_overlay_text(&mut self, text: &str) -> bool {
-        if self.insert_worktree_overlay_text(text) {
+        if self.insert_worktree_overlay_text(text) || self.insert_repo_overlay_text(text) {
             return true;
         }
         match self.overlay.as_mut() {
@@ -625,7 +625,9 @@ impl ClientShellState {
             return;
         }
 
-        if self.route_worktree_overlay_key(key, outcome) {
+        if self.route_worktree_overlay_key(key, outcome)
+            || self.route_repo_overlay_key(key, outcome)
+        {
             return;
         }
         if matches!(self.overlay, Some(ClientShellOverlay::Navigator(_))) {
@@ -928,6 +930,22 @@ impl ClientShellState {
             return;
         };
         let trimmed = rename.input.trim();
+        if let ClientRenameTarget::NewSpace { workspace_id: None } = &rename.target {
+            if !trimmed.is_empty() {
+                self.push_endpoint_method_with_kind(
+                    crate::api::schema::Method::SpaceCreate(
+                        crate::api::schema::SpaceCreateParams {
+                            name: trimmed.to_owned(),
+                            workspace_id: None,
+                        },
+                    ),
+                    PendingEndpointKind::SpaceCreate,
+                    outcome,
+                );
+            }
+            outcome.repaint = true;
+            return;
+        }
         let method = match rename.target {
             ClientRenameTarget::NewWorkspace {
                 source_workspace_id,

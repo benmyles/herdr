@@ -958,6 +958,23 @@ pub struct ClientShellSnapshot {
     /// none; clients then show every workspace ungrouped.
     #[serde(default)]
     pub spaces: Vec<ClientShellSpace>,
+    /// Repos registered on the endpoint for creating worktrees from a space.
+    #[serde(default)]
+    pub repos: Vec<ClientShellRepo>,
+    /// Endpoint path for space worktrees with `{space}`, `{repo}` and
+    /// `{name}` left to fill. Empty from servers without space worktrees.
+    #[serde(default)]
+    pub worktree_path_template: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClientShellRepo {
+    pub name: String,
+    /// As configured; may start with `~`.
+    pub root: String,
+    pub base_branch: String,
+    #[serde(default)]
+    pub remote: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2904,6 +2921,8 @@ mod tests {
                 description: Some("deploy".into()),
             }],
             spaces: Vec::new(),
+            repos: Vec::new(),
+            worktree_path_template: String::new(),
         }));
         let encoded = bincode::serde::encode_to_vec(&msg, bincode::config::standard()).unwrap();
         let (decoded, _): (ServerMessage, _) =

@@ -288,6 +288,18 @@ pub(super) fn snapshot_with_completions(
                     .collect(),
             })
             .collect(),
+        repos: app
+            .state
+            .repos
+            .iter()
+            .map(|repo| protocol::ClientShellRepo {
+                name: repo.name.clone(),
+                root: repo.root.clone(),
+                base_branch: repo.base_branch.clone(),
+                remote: repo.remote.clone(),
+            })
+            .collect(),
+        worktree_path_template: app.state.worktree_path_template.clone(),
     };
     (shell, completions)
 }
