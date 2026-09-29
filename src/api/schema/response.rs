@@ -17,7 +17,7 @@ use super::plugins::{
 };
 use super::server::ServerCapabilities;
 use super::session::SessionSnapshot;
-use super::spaces::PinnedSpaceInfo;
+use super::spaces::SpaceInfo;
 use super::tabs::TabInfo;
 use super::workspaces::WorkspaceInfo;
 use super::worktrees::{WorktreeInfo, WorktreeSourceInfo};
@@ -63,8 +63,11 @@ pub enum ResponseResult {
     WorkspaceList {
         workspaces: Vec<WorkspaceInfo>,
     },
-    PinnedSpaceInfo {
-        space: PinnedSpaceInfo,
+    SpaceInfo {
+        space: SpaceInfo,
+    },
+    SpaceList {
+        spaces: Vec<SpaceInfo>,
     },
     WorktreeList {
         source: WorktreeSourceInfo,

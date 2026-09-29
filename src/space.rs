@@ -3,86 +3,104 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use serde::{Deserialize, Serialize};
 
-use crate::workspace::{Workspace, WorktreeSpaceMembership};
+use crate::workspace::WorktreeSpaceMembership;
 
-static NEXT_SPACE_ID: AtomicU64 = AtomicU64::new(1);
+/// Built-in space holding every workspace the user has not organized. It is
+/// always last, cannot be renamed or deleted, and is hidden while empty.
+pub const OTHER_SPACE_ID: &str = "other";
+pub const OTHER_SPACE_NAME: &str = "other";
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[serde(tag = "kind", rename_all = "snake_case")]
-pub enum PinnedSpaceKey {
-    Workspace { workspace_id: String },
-    Worktree { key: String },
+static NEXT_SPACE_SEQUENCE: AtomicU64 = AtomicU64::new(1);
+
+fn generate_id(prefix: &str) -> String {
+    let sequence = NEXT_SPACE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let created_at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |duration| duration.as_nanos());
+    format!("{prefix}_{created_at}_{sequence}")
 }
 
-impl PinnedSpaceKey {
-    pub fn from_workspace(workspace: &Workspace) -> Self {
-        workspace
-            .worktree_space()
-            .map(|space| Self::Worktree {
-                key: space.key.clone(),
-            })
-            .unwrap_or_else(|| Self::Workspace {
-                workspace_id: workspace.id.clone(),
-            })
-    }
+/// A user-named container for workspaces, usually the worktrees of one
+/// feature across several repositories. Live members are the workspaces whose
+/// `space_id` names this space; `closed` keeps members whose terminals were
+/// closed so they can be reopened in place.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Space {
+    pub id: String,
+    pub name: String,
+    /// Color slot. It stays with the space when spaces are reordered.
+    #[serde(default)]
+    pub color: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub closed: Vec<ClosedMember>,
+}
 
-    pub fn matches_workspace(&self, workspace: &Workspace) -> bool {
-        match self {
-            Self::Workspace { workspace_id } => workspace.id == *workspace_id,
-            Self::Worktree { key } => workspace
-                .worktree_space()
-                .is_some_and(|space| space.key == *key),
+impl Space {
+    pub fn new(name: String, color: usize) -> Self {
+        Self {
+            id: generate_id("space"),
+            name,
+            color,
+            closed: Vec::new(),
         }
     }
+
+    pub fn other(color: usize) -> Self {
+        Self {
+            id: OTHER_SPACE_ID.to_owned(),
+            name: OTHER_SPACE_NAME.to_owned(),
+            color,
+            closed: Vec::new(),
+        }
+    }
+
+    pub fn is_other(&self) -> bool {
+        self.id == OTHER_SPACE_ID
+    }
 }
 
-/// Durable identity and launch metadata for a space that may have no live PTY.
+/// A space member with no live workspace. Reopening creates a workspace at
+/// `cwd` in the same space.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PinnedSpace {
+pub struct ClosedMember {
     pub id: String,
-    pub key: PinnedSpaceKey,
     pub label: String,
     pub cwd: PathBuf,
-    #[serde(default)]
-    pub order: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub custom_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    /// Herdr-managed worktree provenance, kept so a reopened checkout can
+    /// still be deleted through the worktree flow.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub worktree_space: Option<WorktreeSpaceMembership>,
 }
 
-impl PinnedSpace {
+impl ClosedMember {
     pub fn new(
-        key: PinnedSpaceKey,
         label: String,
         cwd: PathBuf,
-        order: usize,
+        custom_name: Option<String>,
+        branch: Option<String>,
         worktree_space: Option<WorktreeSpaceMembership>,
     ) -> Self {
-        let sequence = NEXT_SPACE_ID.fetch_add(1, Ordering::Relaxed);
-        let created_at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |duration| duration.as_nanos());
         Self {
-            id: format!("space_{created_at}_{sequence}"),
-            key,
+            id: generate_id("member"),
             label,
             cwd,
-            order,
+            custom_name,
+            branch,
             worktree_space,
         }
     }
-
-    pub fn matches_workspace(&self, workspace: &Workspace) -> bool {
-        self.key.matches_workspace(workspace)
-    }
 }
 
-/// Keep dormant workspace-keyed pins from colliding with newly allocated
-/// workspace ids, so reopening a pin can restore its original identity.
-pub(crate) fn reserve_pinned_workspace_ids(pins: &[PinnedSpace]) {
-    crate::workspace::reserve_workspace_id_values(pins.iter().filter_map(|pin| match &pin.key {
-        PinnedSpaceKey::Workspace { workspace_id } => Some(workspace_id.as_str()),
-        PinnedSpaceKey::Worktree { .. } => None,
-    }));
+/// The smallest color slot no space uses, so new spaces avoid their
+/// neighbors' colors until every slot is taken.
+pub fn next_color_slot(spaces: &[Space]) -> usize {
+    (0..)
+        .find(|slot| spaces.iter().all(|space| space.color != *slot))
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -90,28 +108,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn ordinary_and_worktree_keys_match_only_their_logical_space() {
-        let ordinary = Workspace::test_new("ordinary");
-        let ordinary_key = PinnedSpaceKey::from_workspace(&ordinary);
-        assert!(ordinary_key.matches_workspace(&ordinary));
-        assert!(!ordinary_key.matches_workspace(&Workspace::test_new("other")));
+    fn ids_are_unique_and_prefixed() {
+        let first = Space::new("a".into(), 0);
+        let second = Space::new("a".into(), 0);
+        assert_ne!(first.id, second.id);
+        assert!(first.id.starts_with("space_"));
+        let member = ClosedMember::new("repo".into(), "/repo".into(), None, None, None);
+        assert!(member.id.starts_with("member_"));
+    }
 
-        let mut parent = Workspace::test_new("parent");
-        parent.worktree_space = Some(WorktreeSpaceMembership {
-            key: "repo-key".into(),
-            label: "repo".into(),
-            repo_root: "/repo".into(),
-            checkout_path: "/repo".into(),
-            is_linked_worktree: false,
-        });
-        let mut child = Workspace::test_new("child");
-        child.worktree_space = Some(WorktreeSpaceMembership {
-            checkout_path: "/repo/child".into(),
-            is_linked_worktree: true,
-            ..parent.worktree_space.clone().expect("membership")
-        });
-        let group_key = PinnedSpaceKey::from_workspace(&child);
-        assert!(group_key.matches_workspace(&parent));
-        assert!(group_key.matches_workspace(&child));
+    #[test]
+    fn next_color_slot_fills_gaps_first() {
+        let spaces = vec![
+            Space::new("a".into(), 0),
+            Space::new("b".into(), 2),
+            Space::other(1),
+        ];
+        assert_eq!(next_color_slot(&spaces), 3);
+        let spaces = vec![Space::new("a".into(), 0), Space::new("b".into(), 2)];
+        assert_eq!(next_color_slot(&spaces), 1);
+        assert_eq!(next_color_slot(&[]), 0);
     }
 }

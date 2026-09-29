@@ -187,7 +187,7 @@ mod tests {
         SessionSnapshot {
             version: SNAPSHOT_VERSION,
             workspaces: vec![],
-            pinned_spaces: vec![],
+            spaces: vec![],
             active: None,
             selected: 0,
             sidebar_width: Some(26),

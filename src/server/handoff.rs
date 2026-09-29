@@ -533,7 +533,7 @@ mod tests {
         crate::persist::SessionSnapshot {
             version: 0,
             workspaces: Vec::new(),
-            pinned_spaces: Vec::new(),
+            spaces: Vec::new(),
             active: None,
             selected: 0,
             sidebar_width: None,

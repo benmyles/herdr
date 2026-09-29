@@ -11,13 +11,26 @@ fn shell_new_controls_use_the_same_client_action_routes_as_keybinds() {
     state.compose(106, 20).expect("composed frame");
 
     let new_workspace = state.hits.new_workspace;
-    let create_workspace =
+    let click_new = |state: &mut ClientShellState| {
         state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
             kind: MouseEventKind::Down(MouseButton::Left),
             column: new_workspace.x + 1,
             row: new_workspace.y,
             modifiers: KeyModifiers::empty(),
-        })]);
+        })])
+    };
+    // Endpoints with spaces: `new` names a new space.
+    assert!(click_new(&mut state).actions.is_empty());
+    assert!(matches!(
+        state.overlay.take(),
+        Some(ClientShellOverlay::Rename(ClientRenameOverlay {
+            target: ClientRenameTarget::NewSpace { workspace_id: None },
+            ..
+        }))
+    ));
+    // Endpoints without spaces keep the plain new-workspace route.
+    state.set_endpoint_methods(Some(vec!["workspace.create".into()]));
+    let create_workspace = click_new(&mut state);
     let [ClientShellAction::Endpoint { request, .. }] = &create_workspace.actions[..] else {
         panic!("new workspace click should use the endpoint API");
     };
@@ -25,6 +38,7 @@ fn shell_new_controls_use_the_same_client_action_routes_as_keybinds() {
         request.method,
         crate::api::schema::Method::WorkspaceCreate(_)
     ));
+    state.set_endpoint_methods(None);
 
     let new_tab = state.hits.new_tab;
     let open_new_tab =

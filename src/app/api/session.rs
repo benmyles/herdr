@@ -49,9 +49,7 @@ impl App {
             focused_tab_id,
             focused_pane_id,
             workspaces,
-            pinned_spaces: (0..self.state.pinned_spaces.len())
-                .map(|idx| self.pinned_space_info(idx))
-                .collect(),
+            spaces: self.space_infos(),
             tabs,
             panes: self.collect_panes_for_workspace(None).unwrap_or_default(),
             layouts,

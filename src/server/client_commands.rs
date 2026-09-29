@@ -39,9 +39,14 @@ const CLIENT_SHELL_METHODS: &[&str] = &[
     "product_announcement.dismiss",
     "release_notes.dismiss",
     "server.reload_config",
-    "space.open",
-    "space.pin",
-    "space.unpin",
+    "space.assign",
+    "space.create",
+    "space.delete",
+    "space.list",
+    "space.member.open",
+    "space.member.remove",
+    "space.move",
+    "space.rename",
     "tab.close",
     "tab.create",
     "tab.focus",
@@ -307,16 +312,36 @@ mod tests {
             Some("f8de7ab79e3a8dea9fe850d3d61f1a48a409c518b89fc4a7b47f3e5fdaa29c57")
         );
         assert_eq!(
-            actual.remove("space.open").as_deref(),
-            Some("e1727fd6ae96cc7e008406742e1c1fdafe73116c9283a59492fbbdbc592e468f")
+            actual.remove("space.assign").as_deref(),
+            Some("f48094e724bdffed6892d9033aab526a7b595dd35426611e99c05d7d51ddbc5a")
         );
         assert_eq!(
-            actual.remove("space.pin").as_deref(),
-            Some("4bc2ea7a8f5b1e4b1bdd794540e101dca07e34cfd5c9d6b23535ad6c92fdffad")
+            actual.remove("space.create").as_deref(),
+            Some("955d7af8a04cd94ee7cc858594d0d5cfb2a8d391603f2f661e9977c29472d282")
         );
         assert_eq!(
-            actual.remove("space.unpin").as_deref(),
-            Some("059bea1de8376222edd75593909f30ec286598c5d36869c62287eae7266c0ab9")
+            actual.remove("space.delete").as_deref(),
+            Some("95326799d626f2fcecefe73b531c5b7ffe8cc727ffecd9046c2ed45c7be42cb0")
+        );
+        assert_eq!(
+            actual.remove("space.list").as_deref(),
+            Some("9e7abd3e663b7cf45ad4a5313a6f8dcb47ef07139230878246d12393b9ef1e94")
+        );
+        assert_eq!(
+            actual.remove("space.member.open").as_deref(),
+            Some("bb2deaabdd03f96944f5984f04c8484d870b38083231c951156dc82a3fd04fd0")
+        );
+        assert_eq!(
+            actual.remove("space.member.remove").as_deref(),
+            Some("2c74bcdb695d5b0150d1e3fd478f46288f59e599d07c2b11afd84879711cc8b6")
+        );
+        assert_eq!(
+            actual.remove("space.move").as_deref(),
+            Some("bed538236c71e5775e478bfe3f29665548b043f891b540a54991e010cd8c3b7e")
+        );
+        assert_eq!(
+            actual.remove("space.rename").as_deref(),
+            Some("9b309afaf46ff29873df6479864724cdaf1e9164ebbc1cb501846f9a1b3400c1")
         );
 
         assert_eq!(

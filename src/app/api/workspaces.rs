@@ -114,14 +114,6 @@ impl App {
         };
         ws.set_custom_name(params.label.clone());
         crate::logging::workspace_renamed(&ws.id);
-        if let Some(pin) = self
-            .state
-            .pinned_spaces
-            .iter_mut()
-            .find(|pin| pin.matches_workspace(ws))
-        {
-            pin.label.clone_from(&params.label);
-        }
         self.schedule_session_save();
         self.emit_event(EventEnvelope {
             event: EventKind::WorkspaceRenamed,
@@ -593,114 +585,6 @@ mod tests {
         app.state.selected = 1;
         app.state.mode = crate::app::Mode::Terminal;
         app
-    }
-
-    #[test]
-    fn api_workspace_close_parent_group_requires_explicit_group_intent() {
-        for confirm_close in [true, false] {
-            let mut app = app_with_worktree_group();
-            app.state.confirm_close = confirm_close;
-            let parent_id = app.public_workspace_id(0);
-            let workspace_ids = app
-                .state
-                .workspaces
-                .iter()
-                .map(|workspace| workspace.id.clone())
-                .collect::<Vec<_>>();
-
-            let request: crate::api::schema::Request = serde_json::from_value(serde_json::json!({
-                "id": "req",
-                "method": "workspace.close",
-                "params": { "workspace_id": parent_id }
-            }))
-            .unwrap();
-            let response = app.handle_api_request(request);
-
-            let response: serde_json::Value = serde_json::from_str(&response).unwrap();
-            assert_eq!(response["error"]["code"], "workspace_group_close_required");
-            assert!(app.event_hub.events_after(0).is_empty());
-            assert_eq!(app.state.mode, crate::app::Mode::Terminal);
-            assert_eq!(app.state.active, Some(1));
-            assert_eq!(app.state.selected, 1);
-            assert_eq!(
-                app.state
-                    .workspaces
-                    .iter()
-                    .map(|workspace| workspace.id.clone())
-                    .collect::<Vec<_>>(),
-                workspace_ids
-            );
-        }
-    }
-
-    #[test]
-    fn api_workspace_close_noncontiguous_group_preserves_adversarial_identity_state() {
-        let mut app = app_with_worktree_group();
-        let parent = app.state.workspaces.remove(0);
-        let linked = app.state.workspaces.remove(0);
-        app.state = crate::app::state::AppState::test_with_adversarial_identity_state();
-        let survivor_id = app.state.workspaces[0].id.clone();
-        app.state.workspaces.insert(0, parent);
-        app.state.workspaces.push(linked);
-        app.state.active = Some(1);
-        app.state.selected = 1;
-        app.state.mode = crate::app::Mode::Terminal;
-        app.state.ensure_test_terminals();
-        let closed_pane_ids = [0, 2].map(|index| app.state.workspaces[index].tabs[0].root_pane);
-        let closed_terminal_ids = [0, 2].map(|index| {
-            app.state
-                .terminal_id_for_pane(index, app.state.workspaces[index].tabs[0].root_pane)
-                .expect("closed workspace pane has a terminal")
-        });
-        for pane_id in closed_pane_ids {
-            app.state.plugin_panes.insert(
-                pane_id,
-                crate::app::state::PluginPaneRecord {
-                    plugin_id: "example.pane".into(),
-                    entrypoint: "board".into(),
-                },
-            );
-        }
-        app.state.assert_invariants_for_test();
-
-        let parent_id = app.public_workspace_id(0);
-        let closed = [0, 2]
-            .into_iter()
-            .map(|index| (app.public_workspace_id(index), app.workspace_info(index)))
-            .collect::<Vec<_>>();
-
-        let response = app.handle_workspace_close(
-            "req".into(),
-            WorkspaceCloseParams {
-                workspace_id: parent_id,
-                close_group: true,
-            },
-        );
-
-        let success: SuccessResponse = serde_json::from_str(&response).unwrap();
-        assert_eq!(success.id, "req");
-        assert_eq!(app.state.workspaces.len(), 1);
-        assert_eq!(app.state.workspaces[0].id, survivor_id);
-        for terminal_id in closed_terminal_ids {
-            assert!(!app.state.terminals.contains_key(&terminal_id));
-        }
-        for pane_id in closed_pane_ids {
-            assert!(!app.state.plugin_panes.contains_key(&pane_id));
-        }
-        assert!(app.state.terminal_runtime_shutdowns.is_empty());
-        app.state.assert_invariants_for_test();
-        let events = app.event_hub.events_after(0);
-        assert_eq!(events.len(), closed.len());
-        for ((_, event), (workspace_id, workspace)) in events.iter().zip(closed) {
-            assert!(matches!(event.event, EventKind::WorkspaceClosed));
-            assert!(matches!(
-                &event.data,
-                EventData::WorkspaceClosed {
-                    workspace_id: closed_id,
-                    workspace: Some(closed_workspace),
-                } if closed_id == &workspace_id && closed_workspace == &workspace
-            ));
-        }
     }
 
     #[test]

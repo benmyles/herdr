@@ -106,7 +106,7 @@ impl ClientShellState {
         use crate::api::schema::Method;
 
         let navigates = match method {
-            Method::WorkspaceFocus(_) | Method::TabFocus(_) | Method::SpaceOpen(_) => true,
+            Method::WorkspaceFocus(_) | Method::TabFocus(_) | Method::SpaceMemberOpen(_) => true,
             Method::WorkspaceCreate(params) => params.focus,
             Method::TabCreate(params) => params.focus,
             _ => false,

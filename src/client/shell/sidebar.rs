@@ -30,62 +30,33 @@ fn space_workspaces(
     snapshot
         .workspaces
         .iter()
-        .map(|workspace| crate::ui::SpaceWorkspace {
-            key: workspace.worktree.as_ref().map_or(
-                crate::ui::SpaceKey::Workspace(workspace.workspace_id.as_str()),
-                |worktree| crate::ui::SpaceKey::Worktree(worktree.key.as_str()),
-            ),
-            is_parent: workspace
-                .worktree
-                .as_ref()
-                .is_none_or(|worktree| !worktree.is_linked_worktree),
-            pinned_order: workspace.pinned_space_id.as_deref().and_then(|space_id| {
+        .enumerate()
+        .map(|(index, workspace)| {
+            match workspace.space_id.as_deref().and_then(|space_id| {
                 snapshot
-                    .pinned_spaces
+                    .spaces
                     .iter()
-                    .find(|pin| pin.space_id == space_id)
-                    .map(|pin| pin.order)
-            }),
+                    .find(|space| space.space_id == space_id)
+            }) {
+                Some(space) => crate::ui::SpaceWorkspace {
+                    space_id: space.space_id.as_str(),
+                    color_slot: (!space.built_in).then_some(space.color),
+                },
+                // Servers without spaces: every workspace is its own space.
+                None => crate::ui::SpaceWorkspace {
+                    space_id: workspace.workspace_id.as_str(),
+                    color_slot: Some(index),
+                },
+            }
         })
 }
 
-/// Pins without a live workspace, in saved order. They follow the live
-/// spaces and own no terminal until opened.
-pub(in crate::client::shell) fn dormant_pinned_spaces(
-    snapshot: &ClientShellSnapshot,
-) -> Vec<&crate::protocol::ClientShellPinnedSpace> {
-    let mut pins = snapshot
-        .pinned_spaces
-        .iter()
-        .filter(|pin| !pin.live)
-        .collect::<Vec<_>>();
-    pins.sort_by_key(|pin| pin.order);
-    pins
-}
-
-fn render_dormant_pin(
-    buffer: &mut Buffer,
-    rect: Rect,
-    pin: &crate::protocol::ClientShellPinnedSpace,
+/// Color of a space header.
+pub(in crate::client::shell) fn space_header_color(
+    space: &crate::protocol::ClientShellSpace,
     palette: &Palette,
-) {
-    let color = crate::ui::space_color(palette, pin.order);
-    let x = put_segment(
-        buffer,
-        rect.x,
-        rect.y,
-        rect.right(),
-        " * ",
-        Style::default().fg(color).add_modifier(Modifier::BOLD),
-    );
-    put_text(
-        buffer,
-        x,
-        rect.y,
-        rect.right().saturating_sub(x),
-        &crate::ui::truncate_end(&pin.label, rect.right().saturating_sub(x) as usize),
-        Style::default().fg(muted_space_color(color, palette)),
-    );
+) -> ratatui::style::Color {
+    crate::ui::space_slot_color(palette, (!space.built_in).then_some(space.color))
 }
 
 /// Space colors for one endpoint's workspaces, indexed like `snapshot.workspaces`.
@@ -193,27 +164,7 @@ pub(crate) fn render_collapsed_sidebar(
             endpoint_id: ClientEndpointId::Local,
             workspace_id: workspace.workspace_id.clone(),
             indented: false,
-            group_toggle: None,
         });
-    }
-
-    for (offset, pin) in dormant_pinned_spaces(snapshot).into_iter().enumerate() {
-        let y = workspace_area
-            .y
-            .saturating_add((snapshot.workspaces.len() + offset).min(u16::MAX as usize) as u16);
-        if y >= workspace_area.bottom() {
-            break;
-        }
-        let rect = Rect::new(workspace_area.x, y, workspace_area.width, 1);
-        put_text(
-            buffer,
-            rect.x,
-            rect.y,
-            rect.width.min(2),
-            "* ",
-            Style::default().fg(crate::ui::space_color(palette, pin.order)),
-        );
-        hits.pinned_spaces.push((rect, pin.space_id.clone()));
     }
 
     if let Some(divider_y) = divider_y {
@@ -341,7 +292,7 @@ pub(crate) fn render_sidebar(
             .add_modifier(Modifier::BOLD),
     );
 
-    let entries = workspace_entries(snapshot, state.collapsed_groups);
+    let rows = sidebar_rows(snapshot, state.collapsed_groups);
     let spaces = space_presentation(snapshot, palette);
     let body = Rect::new(
         workspace_area.x,
@@ -352,16 +303,16 @@ pub(crate) fn render_sidebar(
             .saturating_sub(WORKSPACE_HEADER_ROWS + 1),
     );
     hits.workspace_body = body;
-    let row_heights = entries
+    let row_heights = rows
         .iter()
-        .map(|entry| {
-            snapshot
+        .map(|row| match row {
+            SidebarRow::Workspace(entry) => snapshot
                 .workspaces
                 .get(entry.index)
                 .map(|workspace| {
                     workspace_rows(
                         workspace,
-                        displayed_workspace_status(snapshot, workspace, state.collapsed_groups),
+                        workspace.agent_status,
                         entry.indented,
                         &config.spaces,
                     )
@@ -369,27 +320,12 @@ pub(crate) fn render_sidebar(
                     .max(1)
                     .min(u16::MAX as usize) as u16
                 })
-                .unwrap_or(1)
+                .unwrap_or(1),
+            SidebarRow::SpaceHeader { .. } | SidebarRow::ClosedMember { .. } => 1,
         })
         .collect::<Vec<_>>();
-    let dormant_pins = dormant_pinned_spaces(snapshot);
-    let mut row_heights = row_heights;
-    row_heights.extend(dormant_pins.iter().map(|_| 1));
-    let gaps = entries
-        .iter()
-        .enumerate()
-        .map(|(index, _)| match entries.get(index + 1) {
-            Some(next) => u16::from(!next.indented) * config.spaces.row_gap,
-            None if !dormant_pins.is_empty() => config.spaces.row_gap,
-            None => 0,
-        })
-        .chain(dormant_pins.iter().enumerate().map(|(index, _)| {
-            if index + 1 < dormant_pins.len() {
-                config.spaces.row_gap
-            } else {
-                0
-            }
-        }))
+    let gaps = (0..rows.len())
+        .map(|index| sidebar_row_gap(&rows, index, config.spaces.row_gap))
         .collect::<Vec<_>>();
     let mut metrics = super::scroll::list_scroll_metrics(
         &row_heights,
@@ -398,10 +334,9 @@ pub(crate) fn render_sidebar(
         *state.workspace_scroll,
     );
     if !body.is_empty() && std::mem::take(state.reveal_focused_workspace) {
-        if let Some(target) = entries
-            .iter()
-            .position(|entry| snapshot.workspaces[entry.index].focused)
-        {
+        if let Some(target) = rows.iter().position(|row| {
+            matches!(row, SidebarRow::Workspace(entry) if snapshot.workspaces[entry.index].focused)
+        }) {
             *state.workspace_scroll = super::scroll::list_scroll_start_to_reveal(
                 &row_heights,
                 &gaps,
@@ -425,72 +360,82 @@ pub(crate) fn render_sidebar(
     let show_scrollbar = metrics.max_offset_from_bottom > 0 && body.width > 1;
     let content_width = body.width.saturating_sub(u16::from(show_scrollbar));
     let mut y = body.y;
-    let mut list_full = false;
-    for (entry_position, entry) in entries.iter().enumerate().skip(*state.workspace_scroll) {
-        let Some(workspace) = snapshot.workspaces.get(entry.index) else {
-            continue;
-        };
-        let status = displayed_workspace_status(snapshot, workspace, state.collapsed_groups);
-        let rows = workspace_rows(workspace, status, entry.indented, &config.spaces);
-        let row_height = (rows.len().max(1).min(u16::MAX as usize) as u16).min(body.height);
+    for (row_index, row) in rows.iter().enumerate().skip(*state.workspace_scroll) {
+        let row_height = row_heights[row_index].min(body.height);
         if y.saturating_add(row_height) > body.bottom() {
-            list_full = true;
             break;
         }
         let rect = Rect::new(body.x, y, content_width, row_height);
-        let selected = state.selected_workspace_id.is_some_and(|target| {
-            target.matches(state.active_endpoint_id, &workspace.workspace_id)
-        });
-        let dragged = state.dragged_workspace_id == Some(workspace.workspace_id.as_str());
-        if selected {
-            buffer.set_style(rect, Style::default().bg(palette.selection_bg));
-        } else if dragged {
-            buffer.set_style(rect, Style::default().bg(palette.surface1));
-        } else if workspace.focused {
-            buffer.set_style(rect, Style::default().bg(palette.active_row_bg));
+        match row {
+            SidebarRow::SpaceHeader {
+                space_index,
+                collapsed,
+            } => {
+                let space = &snapshot.spaces[*space_index];
+                render_space_header(buffer, rect, snapshot, space, *collapsed, config);
+                hits.space_headers.push(SpaceHeaderHit {
+                    rect,
+                    endpoint_id: ClientEndpointId::Local,
+                    space_id: space.space_id.clone(),
+                });
+            }
+            SidebarRow::ClosedMember {
+                space_index,
+                member_index,
+                last_child,
+            } => {
+                let space = &snapshot.spaces[*space_index];
+                let member = &space.closed[*member_index];
+                render_closed_member(buffer, rect, space, member, *last_child, palette);
+                hits.closed_members.push(ClosedMemberHit {
+                    rect,
+                    endpoint_id: ClientEndpointId::Local,
+                    space_id: space.space_id.clone(),
+                    member_id: member.member_id.clone(),
+                });
+            }
+            SidebarRow::Workspace(entry) => {
+                let Some(workspace) = snapshot.workspaces.get(entry.index) else {
+                    continue;
+                };
+                let status = workspace.agent_status;
+                let tokens = workspace_rows(workspace, status, entry.indented, &config.spaces);
+                let selected = state.selected_workspace_id.is_some_and(|target| {
+                    target.matches(state.active_endpoint_id, &workspace.workspace_id)
+                });
+                let dragged = state.dragged_workspace_id == Some(workspace.workspace_id.as_str());
+                if selected {
+                    buffer.set_style(rect, Style::default().bg(palette.selection_bg));
+                } else if dragged {
+                    buffer.set_style(rect, Style::default().bg(palette.surface1));
+                } else if workspace.focused {
+                    buffer.set_style(rect, Style::default().bg(palette.active_row_bg));
+                }
+                render_workspace_rows(
+                    buffer,
+                    rect,
+                    status,
+                    config.status_indicators,
+                    entry,
+                    tokens,
+                    workspace.focused,
+                    selected,
+                    state.selected_workspace_id.is_some(),
+                    dragged,
+                    WorkspaceRowColors {
+                        palette,
+                        space: spaces.color(entry.index),
+                    },
+                );
+                hits.workspaces.push(WorkspaceHit {
+                    rect,
+                    endpoint_id: ClientEndpointId::Local,
+                    workspace_id: workspace.workspace_id.clone(),
+                    indented: entry.indented,
+                });
+            }
         }
-        render_workspace_rows(
-            buffer,
-            rect,
-            status,
-            config.status_indicators,
-            entry,
-            rows,
-            workspace.focused,
-            selected,
-            state.selected_workspace_id.is_some(),
-            dragged,
-            WorkspaceRowColors {
-                palette,
-                space: spaces.color(entry.index),
-            },
-        );
-        let group_toggle = render_parent_group_toggle(
-            buffer,
-            rect,
-            snapshot,
-            entry.index,
-            state.collapsed_groups,
-            spaces.color(entry.index),
-        );
-        hits.workspaces.push(WorkspaceHit {
-            rect,
-            endpoint_id: ClientEndpointId::Local,
-            workspace_id: workspace.workspace_id.clone(),
-            indented: entry.indented,
-            group_toggle,
-        });
-        y = y.saturating_add(row_height + gaps[entry_position]);
-    }
-    let pin_skip = state.workspace_scroll.saturating_sub(entries.len());
-    for (pin_position, pin) in dormant_pins.iter().enumerate().skip(pin_skip) {
-        if list_full || y.saturating_add(1) > body.bottom() {
-            break;
-        }
-        let rect = Rect::new(body.x, y, content_width, 1);
-        render_dormant_pin(buffer, rect, pin, palette);
-        hits.pinned_spaces.push((rect, pin.space_id.clone()));
-        y = y.saturating_add(1 + gaps[entries.len() + pin_position]);
+        y = y.saturating_add(row_height + gaps[row_index]);
     }
 
     if show_scrollbar {
@@ -594,172 +539,249 @@ pub(crate) fn render_sidebar(
     );
 }
 
+/// One sidebar row in space order.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(in crate::client::shell) enum SidebarRow {
+    SpaceHeader {
+        space_index: usize,
+        collapsed: bool,
+    },
+    Workspace(WorkspaceEntry),
+    ClosedMember {
+        space_index: usize,
+        member_index: usize,
+        last_child: bool,
+    },
+}
+
+/// Sidebar rows: each space's header, then its live members, then its closed
+/// members. Empty `other` is hidden. Servers without spaces list workspaces
+/// flat, as before spaces existed.
+pub(in crate::client::shell) fn sidebar_rows(
+    snapshot: &ClientShellSnapshot,
+    collapsed_groups: &HashSet<String>,
+) -> Vec<SidebarRow> {
+    let mut rows = Vec::new();
+    let mut listed = vec![false; snapshot.workspaces.len()];
+    for (space_index, space) in snapshot.spaces.iter().enumerate() {
+        let members = snapshot
+            .workspaces
+            .iter()
+            .enumerate()
+            .filter(|(_, workspace)| workspace.space_id.as_deref() == Some(&space.space_id))
+            .map(|(index, _)| index)
+            .collect::<Vec<_>>();
+        for &index in &members {
+            listed[index] = true;
+        }
+        if space.built_in && members.is_empty() && space.closed.is_empty() {
+            continue;
+        }
+        let collapsed = collapsed_groups.contains(&space.space_id);
+        rows.push(SidebarRow::SpaceHeader {
+            space_index,
+            collapsed,
+        });
+        if collapsed {
+            // Keep the focused member visible so the focus never disappears.
+            if let Some(index) = members
+                .iter()
+                .copied()
+                .find(|index| snapshot.workspaces[*index].focused)
+            {
+                rows.push(SidebarRow::Workspace(WorkspaceEntry {
+                    index,
+                    indented: true,
+                    last_child: true,
+                }));
+            }
+            continue;
+        }
+        let total = members.len() + space.closed.len();
+        for (position, index) in members.iter().copied().enumerate() {
+            rows.push(SidebarRow::Workspace(WorkspaceEntry {
+                index,
+                indented: true,
+                last_child: position + 1 == total,
+            }));
+        }
+        for member_index in 0..space.closed.len() {
+            rows.push(SidebarRow::ClosedMember {
+                space_index,
+                member_index,
+                last_child: members.len() + member_index + 1 == total,
+            });
+        }
+    }
+    for (index, listed) in listed.into_iter().enumerate() {
+        if !listed {
+            rows.push(SidebarRow::Workspace(WorkspaceEntry {
+                index,
+                indented: false,
+                last_child: false,
+            }));
+        }
+    }
+    rows
+}
+
+/// Workspace rows in sidebar order, for navigation and selection.
 pub(crate) fn workspace_entries(
     snapshot: &ClientShellSnapshot,
     collapsed_groups: &HashSet<String>,
 ) -> Vec<WorkspaceEntry> {
-    let mut members = HashMap::<&str, Vec<usize>>::new();
-    for (index, workspace) in snapshot.workspaces.iter().enumerate() {
-        if let Some(worktree) = &workspace.worktree {
-            members.entry(&worktree.key).or_default().push(index);
-        }
-    }
-    let grouped = members
-        .iter()
-        .filter(|(_, indices)| {
-            indices.len() >= 2
-                && indices.iter().any(|index| {
-                    snapshot.workspaces[*index]
-                        .worktree
-                        .as_ref()
-                        .is_some_and(|worktree| !worktree.is_linked_worktree)
-                })
+    sidebar_rows(snapshot, collapsed_groups)
+        .into_iter()
+        .filter_map(|row| match row {
+            SidebarRow::Workspace(entry) => Some(entry),
+            _ => None,
         })
-        .map(|(key, _)| *key)
-        .collect::<HashSet<_>>();
-    let mut emitted = HashSet::<&str>::new();
-    let mut entries = Vec::new();
-    for (index, workspace) in snapshot.workspaces.iter().enumerate() {
-        let Some(worktree) = workspace
-            .worktree
-            .as_ref()
-            .filter(|worktree| grouped.contains(worktree.key.as_str()))
-        else {
-            entries.push(WorkspaceEntry {
-                index,
-                indented: false,
-                last_child: false,
-            });
-            continue;
-        };
-        if !emitted.insert(&worktree.key) {
-            continue;
-        }
-        let Some(group_members) = members.get(worktree.key.as_str()) else {
-            continue;
-        };
-        let parent = group_members
-            .iter()
-            .copied()
-            .find(|member| {
-                snapshot.workspaces[*member]
-                    .worktree
-                    .as_ref()
-                    .is_some_and(|worktree| !worktree.is_linked_worktree)
-            })
-            .unwrap_or(index);
-        entries.push(WorkspaceEntry {
-            index: parent,
-            indented: false,
-            last_child: false,
-        });
-        if collapsed_groups.contains(&worktree.key) {
-            if let Some(active) = group_members
-                .iter()
-                .copied()
-                .find(|member| *member != parent && snapshot.workspaces[*member].focused)
-            {
-                entries.push(WorkspaceEntry {
-                    index: active,
-                    indented: true,
-                    last_child: true,
-                });
-            }
-            continue;
-        }
-        let children = group_members
-            .iter()
-            .copied()
-            .filter(|member| *member != parent)
-            .collect::<Vec<_>>();
-        for (child_index, child) in children.iter().enumerate() {
-            entries.push(WorkspaceEntry {
-                index: *child,
-                indented: true,
-                last_child: child_index + 1 == children.len(),
-            });
-        }
-    }
-    entries
+        .collect()
 }
 
-fn parent_group_key(snapshot: &ClientShellSnapshot, index: usize) -> Option<String> {
-    let workspace = snapshot.workspaces.get(index)?;
-    let worktree = workspace.worktree.as_ref()?;
-    if worktree.is_linked_worktree {
-        return None;
+/// Blank rows after `rows[index]`: one before each space header after the
+/// first, and the configured row gap between members.
+pub(in crate::client::shell) fn sidebar_row_gap(
+    rows: &[SidebarRow],
+    index: usize,
+    row_gap: u16,
+) -> u16 {
+    match rows.get(index + 1) {
+        Some(SidebarRow::SpaceHeader { .. }) => 1,
+        Some(_) if !matches!(rows[index], SidebarRow::SpaceHeader { .. }) => row_gap,
+        _ => 0,
     }
-    (snapshot
-        .workspaces
-        .iter()
-        .filter(|candidate| {
-            candidate
-                .worktree
-                .as_ref()
-                .is_some_and(|candidate| candidate.key == worktree.key)
-        })
-        .count()
-        >= 2)
-        .then(|| worktree.key.clone())
 }
 
-pub(in crate::client::shell) fn render_parent_group_toggle(
-    buffer: &mut Buffer,
-    workspace_rect: Rect,
+/// The most urgent status among a space's live members.
+pub(in crate::client::shell) fn space_status(
     snapshot: &ClientShellSnapshot,
-    workspace_index: usize,
-    collapsed_groups: &HashSet<String>,
-    space_color: ratatui::style::Color,
-) -> Option<(Rect, String)> {
-    let key = parent_group_key(snapshot, workspace_index)?;
-    let toggle = Rect::new(
-        workspace_rect.right().saturating_sub(1),
-        workspace_rect.y,
-        1,
-        1,
-    );
-    put_text(
-        buffer,
-        toggle.x,
-        toggle.y,
-        toggle.width,
-        if collapsed_groups.contains(&key) {
-            "▸"
-        } else {
-            "▾"
-        },
-        Style::default().fg(space_color),
-    );
-    Some((toggle, key))
-}
-
-pub(in crate::client::shell) fn displayed_workspace_status(
-    snapshot: &ClientShellSnapshot,
-    workspace: &ClientShellWorkspace,
-    collapsed_groups: &HashSet<String>,
-) -> crate::api::schema::AgentStatus {
-    let Some(worktree) = workspace
-        .worktree
-        .as_ref()
-        .filter(|worktree| !worktree.is_linked_worktree)
-    else {
-        return workspace.agent_status;
-    };
-    if !collapsed_groups.contains(&worktree.key) {
-        return workspace.agent_status;
-    }
+    space_id: &str,
+) -> Option<crate::api::schema::AgentStatus> {
     snapshot
         .workspaces
         .iter()
-        .filter(|candidate| {
-            candidate
-                .worktree
-                .as_ref()
-                .is_some_and(|candidate| candidate.key == worktree.key)
-        })
-        .map(|candidate| candidate.agent_status)
+        .filter(|workspace| workspace.space_id.as_deref() == Some(space_id))
+        .map(|workspace| workspace.agent_status)
         .max_by_key(|status| status_priority(*status))
-        .unwrap_or(workspace.agent_status)
+}
+
+pub(in crate::client::shell) fn space_member_count(
+    snapshot: &ClientShellSnapshot,
+    space: &crate::protocol::ClientShellSpace,
+) -> usize {
+    snapshot
+        .workspaces
+        .iter()
+        .filter(|workspace| workspace.space_id.as_deref() == Some(space.space_id.as_str()))
+        .count()
+        + space.closed.len()
+}
+
+/// Render a space header: name in the space color, and when collapsed its most
+/// urgent status and member count. Returns the header rect for hit testing.
+pub(in crate::client::shell) fn render_space_header(
+    buffer: &mut Buffer,
+    rect: Rect,
+    snapshot: &ClientShellSnapshot,
+    space: &crate::protocol::ClientShellSpace,
+    collapsed: bool,
+    config: &ClientShellConfig,
+) {
+    let palette = &config.palette;
+    let color = space_header_color(space, palette);
+    let mut x = rect.x.saturating_add(1);
+    if collapsed {
+        if let Some(status) = space_status(snapshot, &space.space_id) {
+            x = put_segment(
+                buffer,
+                x,
+                rect.y,
+                rect.right(),
+                status_icon(status, config.status_indicators),
+                Style::default().fg(status_color(status, palette)),
+            );
+            x = put_segment(buffer, x, rect.y, rect.right(), " ", Style::default());
+        }
+    }
+    let suffix = if collapsed {
+        format!("  {}", space_member_count(snapshot, space))
+    } else {
+        String::new()
+    };
+    let available = rect.right().saturating_sub(2).saturating_sub(x) as usize;
+    let name = crate::ui::truncate_end(
+        &space.name,
+        available.saturating_sub(display_width(&suffix) as usize),
+    );
+    x = put_segment(
+        buffer,
+        x,
+        rect.y,
+        rect.right().saturating_sub(2),
+        &name,
+        Style::default().fg(color).add_modifier(Modifier::BOLD),
+    );
+    put_segment(
+        buffer,
+        x,
+        rect.y,
+        rect.right().saturating_sub(2),
+        &suffix,
+        Style::default().fg(muted_space_color(color, palette)),
+    );
+    put_text(
+        buffer,
+        rect.right().saturating_sub(1),
+        rect.y,
+        1,
+        if collapsed { "▸" } else { "▾" },
+        Style::default().fg(color),
+    );
+}
+
+/// Render a closed member: tree prefix, dimmed label, and a `closed` tag.
+pub(in crate::client::shell) fn render_closed_member(
+    buffer: &mut Buffer,
+    rect: Rect,
+    space: &crate::protocol::ClientShellSpace,
+    member: &crate::protocol::ClientShellClosedMember,
+    last_child: bool,
+    palette: &Palette,
+) {
+    let color = space_header_color(space, palette);
+    let muted = muted_space_color(color, palette);
+    let x = put_segment(
+        buffer,
+        rect.x,
+        rect.y,
+        rect.right(),
+        if last_child {
+            " └─   "
+        } else {
+            " ├─   "
+        },
+        Style::default().fg(color),
+    );
+    let tag = "closed";
+    let tag_width = display_width(tag);
+    let available = rect.right().saturating_sub(x).saturating_sub(tag_width + 2) as usize;
+    put_text(
+        buffer,
+        x,
+        rect.y,
+        available as u16,
+        &crate::ui::truncate_end(&member.label, available),
+        Style::default().fg(muted),
+    );
+    put_text(
+        buffer,
+        rect.right().saturating_sub(tag_width + 1),
+        rect.y,
+        tag_width,
+        tag,
+        Style::default().fg(palette.overlay0),
+    );
 }
 
 pub(in crate::client::shell) fn workspace_rows(
@@ -768,25 +790,19 @@ pub(in crate::client::shell) fn workspace_rows(
     indented: bool,
     config: &SpacesSidebarConfig,
 ) -> Vec<Vec<crate::ui::ResolvedToken>> {
-    let label = if indented && !workspace.custom_label {
-        workspace
-            .branch
-            .as_deref()
-            .and_then(|branch| branch.strip_prefix("worktree/").or(Some(branch)))
-            .unwrap_or(&workspace.label)
-    } else {
-        &workspace.label
-    };
+    // Space members show their own label with branch details below; the
+    // space header above already names the feature.
+    let _ = indented;
     let token_values = workspace.tokens.iter().cloned().collect::<HashMap<_, _>>();
     crate::ui::sidebar_space_rows(
         config,
         crate::ui::SpaceTokenContext {
-            workspace: label,
+            workspace: &workspace.label,
             branch: workspace.branch.as_deref(),
             state_text: status_text(status),
             ahead_behind: workspace.git_ahead_behind,
             tokens: &token_values,
-            suppress_git_details: indented,
+            suppress_git_details: false,
         },
     )
 }
@@ -833,14 +849,14 @@ pub(in crate::client::shell) fn render_workspace_rows(
         if entry.indented {
             let prefix = if row_index == 0 {
                 if entry.last_child {
-                    "   └─ "
+                    " └─ "
                 } else {
-                    "   ├─ "
+                    " ├─ "
                 }
             } else if entry.last_child {
-                "        "
+                "      "
             } else {
-                "   │    "
+                " │    "
             };
             x = put_segment(
                 buffer,

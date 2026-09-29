@@ -980,6 +980,18 @@ impl ClientShellState {
                     label: Some(trimmed.to_owned()),
                 },
             )),
+            ClientRenameTarget::NewSpace { workspace_id } => (!trimmed.is_empty()).then(|| {
+                crate::api::schema::Method::SpaceCreate(crate::api::schema::SpaceCreateParams {
+                    name: trimmed.to_owned(),
+                    workspace_id,
+                })
+            }),
+            ClientRenameTarget::Space { space_id } => (!trimmed.is_empty()).then(|| {
+                crate::api::schema::Method::SpaceRename(crate::api::schema::SpaceRenameParams {
+                    space_id,
+                    name: trimmed.to_owned(),
+                })
+            }),
         };
         if let Some(method) = method {
             self.push_endpoint_method(method, outcome);

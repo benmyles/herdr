@@ -95,12 +95,7 @@ pub(super) fn snapshot_with_completions(
                         is_linked_worktree: worktree.is_linked_worktree,
                     }),
                 agent_status: workspace.agent_status,
-                pinned_space_id: app
-                    .state
-                    .pinned_spaces
-                    .iter()
-                    .find(|pin| pin.matches_workspace(state))
-                    .map(|pin| pin.id.clone()),
+                space_id: Some(state.space_id.clone()),
             }
         })
         .collect();
@@ -269,20 +264,28 @@ pub(super) fn snapshot_with_completions(
         panes,
         agents,
         commands: app.client_shell_command_manifest(),
-        pinned_spaces: app
+        spaces: app
             .state
-            .pinned_spaces
+            .spaces
             .iter()
-            .map(|pin| protocol::ClientShellPinnedSpace {
-                space_id: pin.id.clone(),
-                label: pin.label.clone(),
-                cwd: pin.cwd.display().to_string(),
-                live: app
-                    .state
-                    .workspaces
+            .map(|space| protocol::ClientShellSpace {
+                space_id: space.id.clone(),
+                name: space.name.clone(),
+                color: space.color,
+                built_in: space.is_other(),
+                closed: space
+                    .closed
                     .iter()
-                    .any(|workspace| pin.matches_workspace(workspace)),
-                order: pin.order,
+                    .map(|member| protocol::ClientShellClosedMember {
+                        member_id: member.id.clone(),
+                        label: member
+                            .custom_name
+                            .clone()
+                            .unwrap_or_else(|| member.label.clone()),
+                        cwd: member.cwd.display().to_string(),
+                        branch: member.branch.clone(),
+                    })
+                    .collect(),
             })
             .collect(),
     };
@@ -797,7 +800,7 @@ mod tests {
     }
 
     #[test]
-    fn snapshot_projects_live_and_dormant_pinned_spaces() {
+    fn snapshot_projects_spaces_and_workspace_membership() {
         let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
         let mut app = crate::app::App::new(
             &crate::config::Config::default(),
@@ -806,42 +809,51 @@ mod tests {
             api_rx,
             crate::api::EventHub::default(),
         );
-        app.state.workspaces = vec![crate::workspace::Workspace::test_new("live")];
+        app.state.workspaces = vec![
+            crate::workspace::Workspace::test_new("loose"),
+            crate::workspace::Workspace::test_new("filed"),
+        ];
         app.state.active = Some(0);
         app.state.ensure_test_terminals();
-        let live = crate::space::PinnedSpace::new(
-            crate::space::PinnedSpaceKey::from_workspace(&app.state.workspaces[0]),
-            "live".into(),
-            "/live".into(),
-            0,
-            None,
-        );
-        let dormant = crate::space::PinnedSpace::new(
-            crate::space::PinnedSpaceKey::Workspace {
-                workspace_id: "w_dormant".into(),
-            },
-            "dormant".into(),
-            "/dormant".into(),
-            1,
-            None,
-        );
-        app.state.pinned_spaces = vec![live.clone(), dormant.clone()];
+        app.state.normalize_spaces();
+        let space_id = app.state.create_space("knowledge").expect("create space");
+        let filed = app.state.workspaces[1].id.clone();
+        app.state
+            .assign_workspace_to_space(&filed, &space_id, None)
+            .expect("assign");
+        app.state.spaces[0]
+            .closed
+            .push(crate::space::ClosedMember::new(
+                "repo".into(),
+                "/closed".into(),
+                None,
+                Some("knowledge".into()),
+                None,
+            ));
 
         let snapshot = snapshot(&app, "boot", 1, None, None);
 
         assert_eq!(
-            snapshot.workspaces[0].pinned_space_id.as_deref(),
-            Some(live.id.as_str())
+            snapshot
+                .workspaces
+                .iter()
+                .map(|workspace| workspace.space_id.as_deref())
+                .collect::<Vec<_>>(),
+            [Some(space_id.as_str()), Some(crate::space::OTHER_SPACE_ID)]
         );
         assert_eq!(
             snapshot
-                .pinned_spaces
+                .spaces
                 .iter()
-                .map(|pin| (pin.space_id.as_str(), pin.live, pin.order))
+                .map(|space| (space.name.as_str(), space.built_in))
                 .collect::<Vec<_>>(),
-            [(live.id.as_str(), true, 0), (dormant.id.as_str(), false, 1)]
+            [("knowledge", false), ("other", true)]
         );
-        assert_eq!(snapshot.pinned_spaces[1].cwd, "/dormant");
+        assert_eq!(snapshot.spaces[0].closed[0].cwd, "/closed");
+        assert_eq!(
+            snapshot.spaces[0].closed[0].branch.as_deref(),
+            Some("knowledge")
+        );
     }
 
     #[test]

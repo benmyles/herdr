@@ -372,7 +372,7 @@ fn mobile_background_workspace_uses_its_own_active_tab_status() {
         worktree: None,
         focused: false,
         agent_status: AgentStatus::Idle,
-        pinned_space_id: None,
+        space_id: None,
     });
     for (number, tab_id, label) in [(1, "tab_2", "one"), (7, "tab_3", "two")] {
         projected.tabs.push(ClientShellTab {
@@ -572,7 +572,7 @@ fn mobile_previous_workspace_action_wraps_across_expanded_entries() {
             worktree: None,
             focused: false,
             agent_status: AgentStatus::Idle,
-            pinned_space_id: None,
+            space_id: None,
         });
     }
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
@@ -613,7 +613,7 @@ fn mobile_switcher_scroll_close_and_width_transition_clear_mobile_hits() {
             worktree: None,
             focused: false,
             agent_status: AgentStatus::Idle,
-            pinned_space_id: None,
+            space_id: None,
         });
     }
     state.set_snapshot(Box::new(projected));

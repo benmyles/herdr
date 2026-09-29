@@ -120,7 +120,7 @@ fn seed_startup_workspace_if_empty(app: &mut app::App) {
 }
 
 fn should_seed_startup_workspace(app: &app::App) -> bool {
-    app.state.workspaces.is_empty() && app.state.pinned_spaces.is_empty()
+    app.state.workspaces.is_empty() && !app.state.has_space_content()
 }
 
 fn take_startup_cwd() -> Option<PathBuf> {
@@ -239,7 +239,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn dormant_pin_suppresses_startup_cwd_workspace_seed() {
+    fn saved_spaces_suppress_startup_cwd_workspace_seed() {
         let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
         let mut app = app::App::new(
             &crate::config::Config::default(),
@@ -248,15 +248,11 @@ mod tests {
             api_rx,
             crate::api::EventHub::default(),
         );
-        app.state.pinned_spaces.push(crate::space::PinnedSpace::new(
-            crate::space::PinnedSpaceKey::Workspace {
-                workspace_id: "w_dormant".into(),
-            },
-            "dormant".into(),
-            "/tmp/dormant".into(),
-            0,
-            None,
-        ));
+        app.state.workspaces.clear();
+        app.state.active = None;
+        app.state.normalize_spaces();
+        assert!(should_seed_startup_workspace(&app));
+        app.state.create_space("dormant").expect("create space");
 
         assert!(!should_seed_startup_workspace(&app));
     }

@@ -333,7 +333,8 @@ pub(super) fn render_shell(
         hits.new_workspace = Rect::default();
         hits.machines.clear();
         hits.workspaces.clear();
-        hits.pinned_spaces.clear();
+        hits.space_headers.clear();
+        hits.closed_members.clear();
         hits.agents.clear();
         hits.endpoint_agents.clear();
         hits.tab_scroll_left = Rect::default();

@@ -38,12 +38,12 @@ impl App {
     }
 
     fn capture_session_save_job(&self) -> SessionSaveJob {
-        if self.state.workspaces.is_empty() && self.state.pinned_spaces.is_empty() {
+        if self.state.workspaces.is_empty() && !self.state.has_space_content() {
             SessionSaveJob::Clear
         } else {
             let snapshot = crate::persist::capture(
                 &self.state.workspaces,
-                &self.state.pinned_spaces,
+                &self.state.spaces,
                 &self.state.terminals,
                 &self.terminal_runtimes,
                 self.state.active,
@@ -152,7 +152,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn pinned_only_session_is_saved_instead_of_cleared() {
+    fn spaces_only_session_is_saved_instead_of_cleared() {
         let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
         let mut app = App::new(
             &crate::config::Config::default(),
@@ -164,23 +164,16 @@ mod tests {
         app.state.workspaces.clear();
         app.state.active = None;
         app.state.selected = 0;
-        app.state.pinned_spaces.push(crate::space::PinnedSpace::new(
-            crate::space::PinnedSpaceKey::Workspace {
-                workspace_id: "w_saved".into(),
-            },
-            "saved".into(),
-            "/tmp/saved".into(),
-            0,
-            None,
-        ));
+        app.state.normalize_spaces();
+        app.state.create_space("saved").expect("create space");
 
         match app.capture_session_save_job() {
             SessionSaveJob::Save { snapshot, history } => {
                 assert!(snapshot.workspaces.is_empty());
-                assert_eq!(snapshot.pinned_spaces, app.state.pinned_spaces);
+                assert_eq!(snapshot.spaces, app.state.spaces);
                 assert!(history.is_none());
             }
-            SessionSaveJob::Clear => panic!("pinned-only session must not be cleared"),
+            SessionSaveJob::Clear => panic!("a session with spaces must not be cleared"),
         }
     }
 }

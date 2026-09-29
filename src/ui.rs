@@ -42,8 +42,10 @@ pub(crate) use self::sidebar::{
     sidebar_section_divider_rect, sidebar_space_rows, AgentPanelEntry, AgentTokenContext,
     ResolvedToken, ResolvedTokenKind, SpaceTokenContext,
 };
+#[cfg(test)]
+pub(crate) use self::space_colors::space_color;
 pub(crate) use self::space_colors::{
-    mute_color, space_color, SpaceKey, SpaceLayout, SpacePresentation, SpaceWorkspace,
+    mute_color, space_slot_color, SpaceLayout, SpacePresentation, SpaceWorkspace,
 };
 use self::status::copy_feedback_rect;
 pub(crate) use self::status::{render_config_diagnostic_buffer, render_copy_feedback_buffer};

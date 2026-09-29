@@ -78,8 +78,10 @@ pub(super) enum ClientMobileTarget {
         endpoint_id: ClientEndpointId,
         pane_id: String,
     },
-    PinnedSpace {
+    ClosedMember {
+        endpoint_id: ClientEndpointId,
         space_id: String,
+        member_id: String,
     },
     Menu(usize),
 }
@@ -97,8 +99,8 @@ pub(super) struct ShellHitMap {
     pub(super) popup: Option<PaneHit>,
     pub(super) pane_splits: Vec<PaneSplitHit>,
     pub(super) agents: Vec<(Rect, String)>,
-    /// Dormant pinned space rows and their stable space ids.
-    pub(super) pinned_spaces: Vec<(Rect, String)>,
+    pub(super) space_headers: Vec<SpaceHeaderHit>,
+    pub(super) closed_members: Vec<ClosedMemberHit>,
     pub(super) endpoint_agents: Vec<(Rect, ClientEndpointId, String)>,
     pub(super) agent_body: Rect,
     pub(super) agent_scrollbar: Rect,
@@ -243,7 +245,23 @@ pub(super) struct WorkspaceHit {
     pub(super) endpoint_id: ClientEndpointId,
     pub(super) workspace_id: String,
     pub(super) indented: bool,
-    pub(super) group_toggle: Option<(Rect, String)>,
+}
+
+/// A space header row; clicking it collapses or expands the space.
+#[derive(Clone, Debug)]
+pub(super) struct SpaceHeaderHit {
+    pub(super) rect: Rect,
+    pub(super) endpoint_id: ClientEndpointId,
+    pub(super) space_id: String,
+}
+
+/// A closed space member; clicking it reopens the workspace.
+#[derive(Clone, Debug)]
+pub(super) struct ClosedMemberHit {
+    pub(super) rect: Rect,
+    pub(super) endpoint_id: ClientEndpointId,
+    pub(super) space_id: String,
+    pub(super) member_id: String,
 }
 
 #[derive(Debug)]
@@ -321,6 +339,13 @@ pub(super) enum ClientRenameTarget {
     },
     Pane {
         pane_id: String,
+    },
+    NewSpace {
+        /// Workspace to file under the new space.
+        workspace_id: Option<String>,
+    },
+    Space {
+        space_id: String,
     },
 }
 
@@ -522,7 +547,6 @@ pub(super) enum ClientContextMenuAction {
     NewWorktree,
     OpenWorktree,
     RemoveWorktree,
-    ToggleGroup,
     NewTab,
     RenamePane,
     ClearPaneName,
@@ -532,16 +556,11 @@ pub(super) enum ClientContextMenuAction {
     Zoom,
     ToggleRightClickPassthrough,
     ClosePane,
-    Pin,
-    Unpin,
-    OpenPinnedSpace,
-}
-
-/// Pin state of a workspace's space when its endpoint supports pinned spaces.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum ClientWorkspacePin {
-    Unpinned,
-    Pinned { space_id: String },
+    RenameSpace,
+    DeleteSpace,
+    ToggleSpace,
+    OpenClosedMember,
+    RemoveClosedMember,
 }
 
 #[derive(Debug)]
@@ -550,12 +569,17 @@ pub(super) enum ClientContextMenuTarget {
         workspace_id: String,
         is_git: bool,
         is_linked_worktree: bool,
-        has_worktree_children: bool,
-        collapsed: bool,
-        pin: Option<ClientWorkspacePin>,
     },
-    PinnedSpace {
+    Space {
         space_id: String,
+        built_in: bool,
+        collapsed: bool,
+        /// Whether the endpoint advertises the space methods.
+        editable: bool,
+    },
+    ClosedMember {
+        space_id: String,
+        member_id: String,
     },
     Tab {
         tab_id: String,
@@ -985,7 +1009,7 @@ pub(super) fn release_notes_state(
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) struct WorkspaceEntry {
     pub(super) index: usize,
     pub(super) indented: bool,

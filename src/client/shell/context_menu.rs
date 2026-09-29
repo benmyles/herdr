@@ -2,38 +2,38 @@ use super::*;
 
 impl ClientContextMenuOverlay {
     pub(super) fn items(&self) -> Vec<ClientContextMenuItem> {
-        let mut items = self.target_items();
-        if let ClientContextMenuTarget::Workspace { pin: Some(pin), .. } = &self.target {
-            let item = match pin {
-                ClientWorkspacePin::Unpinned => ClientContextMenuItem {
-                    label: "Pin",
-                    action: ClientContextMenuAction::Pin,
-                },
-                ClientWorkspacePin::Pinned { .. } => ClientContextMenuItem {
-                    label: "Unpin",
-                    action: ClientContextMenuAction::Unpin,
-                },
-            };
-            items.insert(1.min(items.len()), item);
-        }
-        items
-    }
-
-    fn target_items(&self) -> Vec<ClientContextMenuItem> {
         use ClientContextMenuAction as Action;
 
         let item = |label, action| ClientContextMenuItem { label, action };
         match &self.target {
-            ClientContextMenuTarget::PinnedSpace { .. } => vec![
-                item("Open", Action::OpenPinnedSpace),
-                item("Unpin", Action::Unpin),
+            ClientContextMenuTarget::Space {
+                built_in,
+                collapsed,
+                editable,
+                ..
+            } => {
+                let mut items = Vec::new();
+                if *editable && !*built_in {
+                    items.push(item("Rename", Action::RenameSpace));
+                }
+                items.push(item(
+                    if *collapsed { "Expand" } else { "Collapse" },
+                    Action::ToggleSpace,
+                ));
+                if *editable && !*built_in {
+                    items.push(item("Delete space", Action::DeleteSpace));
+                }
+                items
+            }
+            ClientContextMenuTarget::ClosedMember { .. } => vec![
+                item("Open", Action::OpenClosedMember),
+                item("Remove from space", Action::RemoveClosedMember),
             ],
             ClientContextMenuTarget::Workspace { is_git: false, .. } => {
                 vec![item("Rename", Action::Rename), item("Close", Action::Close)]
             }
             ClientContextMenuTarget::Workspace {
                 is_linked_worktree: false,
-                has_worktree_children: false,
                 ..
             } => vec![
                 item("Rename", Action::Rename),
@@ -48,20 +48,6 @@ impl ClientContextMenuOverlay {
                 item("Rename", Action::Rename),
                 item("Close", Action::Close),
                 item("Delete worktree checkout...", Action::RemoveWorktree),
-            ],
-            ClientContextMenuTarget::Workspace {
-                has_worktree_children: true,
-                collapsed,
-                ..
-            } => vec![
-                item("Rename", Action::Rename),
-                item("Close group", Action::Close),
-                item("New worktree", Action::NewWorktree),
-                item("Open worktree...", Action::OpenWorktree),
-                item(
-                    if *collapsed { "Expand" } else { "Collapse" },
-                    Action::ToggleGroup,
-                ),
             ],
             ClientContextMenuTarget::Tab { .. } => vec![
                 item("New tab", Action::NewTab),
@@ -114,39 +100,11 @@ impl ClientShellState {
             return;
         };
         let worktree = workspace.worktree.as_ref();
-        let has_worktree_children = worktree.is_some_and(|worktree| {
-            !worktree.is_linked_worktree
-                && snapshot
-                    .workspaces
-                    .iter()
-                    .filter(|candidate| {
-                        candidate
-                            .worktree
-                            .as_ref()
-                            .is_some_and(|candidate| candidate.key == worktree.key)
-                    })
-                    .count()
-                    >= 2
-        });
-        let collapsed = worktree.is_some_and(|worktree| {
-            self.group_is_collapsed(&self.active_endpoint_id, &worktree.key)
-        });
-        let pin = self.active_endpoint_supports_pinned_spaces().then(|| {
-            workspace
-                .pinned_space_id
-                .clone()
-                .map_or(ClientWorkspacePin::Unpinned, |space_id| {
-                    ClientWorkspacePin::Pinned { space_id }
-                })
-        });
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Workspace {
                 workspace_id,
                 is_git: worktree.is_some() || workspace.branch.is_some(),
                 is_linked_worktree: worktree.is_some_and(|worktree| worktree.is_linked_worktree),
-                has_worktree_children,
-                collapsed,
-                pin,
             },
             x,
             y,
@@ -154,37 +112,93 @@ impl ClientShellState {
         }));
     }
 
-    pub(super) fn open_pinned_space_context_menu(&mut self, space_id: String, x: u16, y: u16) {
+    pub(super) fn open_space_context_menu(&mut self, space_id: String, x: u16, y: u16) {
+        let Some(space) = self.snapshot.as_deref().and_then(|snapshot| {
+            snapshot
+                .spaces
+                .iter()
+                .find(|space| space.space_id == space_id)
+        }) else {
+            return;
+        };
+        let built_in = space.built_in;
+        let collapsed = self.group_is_collapsed(&self.active_endpoint_id, &space_id);
+        let editable = self.active_endpoint_supports_spaces();
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
-            target: ClientContextMenuTarget::PinnedSpace { space_id },
+            target: ClientContextMenuTarget::Space {
+                space_id,
+                built_in,
+                collapsed,
+                editable,
+            },
             x,
             y,
             highlighted: 0,
         }));
     }
 
-    /// Pinned spaces are fork-only endpoint methods; hide their actions from
-    /// endpoints that do not advertise them instead of surfacing rejections.
-    pub(super) fn active_endpoint_supports_pinned_spaces(&self) -> bool {
-        use crate::api::schema::{Method, SpacePinParams, SpaceTarget};
+    pub(super) fn open_closed_member_context_menu(
+        &mut self,
+        space_id: String,
+        member_id: String,
+        x: u16,
+        y: u16,
+    ) {
+        if !self.active_endpoint_supports_spaces() {
+            return;
+        }
+        self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
+            target: ClientContextMenuTarget::ClosedMember {
+                space_id,
+                member_id,
+            },
+            x,
+            y,
+            highlighted: 0,
+        }));
+    }
 
-        let space = || SpaceTarget {
-            space_id: String::new(),
-        };
+    /// Spaces are fork endpoint methods; hide their actions from endpoints
+    /// that do not advertise them instead of surfacing rejections.
+    pub(super) fn active_endpoint_supports_spaces(&self) -> bool {
+        use crate::api::schema::{Method, SpaceMemberTarget, SpaceRenameParams};
+
         [
-            Method::SpaceOpen(space()),
-            Method::SpacePin(SpacePinParams {
-                workspace_id: String::new(),
+            Method::SpaceRename(SpaceRenameParams {
+                space_id: String::new(),
+                name: String::new(),
             }),
-            Method::SpaceUnpin(space()),
+            Method::SpaceMemberOpen(SpaceMemberTarget {
+                space_id: String::new(),
+                member_id: String::new(),
+                focus: true,
+            }),
         ]
         .iter()
         .all(|method| self.supports_endpoint_method(method))
     }
 
-    pub(super) fn open_pinned_space(&mut self, space_id: String, outcome: &mut ClientShellInput) {
+    /// Ask for a new space's name; `workspace_id` is filed under it.
+    pub(super) fn begin_new_space(&mut self, workspace_id: Option<String>) {
+        self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
+            title: "new space",
+            input: TextEditor::new("", true),
+            target: ClientRenameTarget::NewSpace { workspace_id },
+        }));
+    }
+
+    pub(super) fn open_closed_member(
+        &mut self,
+        space_id: String,
+        member_id: String,
+        outcome: &mut ClientShellInput,
+    ) {
         self.push_endpoint_method(
-            crate::api::schema::Method::SpaceOpen(crate::api::schema::SpaceTarget { space_id }),
+            crate::api::schema::Method::SpaceMemberOpen(crate::api::schema::SpaceMemberTarget {
+                space_id,
+                member_id,
+                focus: true,
+            }),
             outcome,
         );
     }
@@ -258,33 +272,27 @@ impl ClientShellState {
             return;
         };
         match menu.target {
-            ClientContextMenuTarget::Workspace {
-                workspace_id, pin, ..
-            } => match (action, pin) {
-                (ClientContextMenuAction::Pin, _) => self.push_endpoint_method(
-                    crate::api::schema::Method::SpacePin(crate::api::schema::SpacePinParams {
-                        workspace_id,
-                    }),
-                    outcome,
-                ),
-                (ClientContextMenuAction::Unpin, Some(ClientWorkspacePin::Pinned { space_id })) => {
-                    self.push_endpoint_method(
-                        crate::api::schema::Method::SpaceUnpin(crate::api::schema::SpaceTarget {
+            ClientContextMenuTarget::Workspace { workspace_id, .. } => {
+                self.activate_workspace_context_action(workspace_id, action, outcome)
+            }
+            ClientContextMenuTarget::Space { space_id, .. } => {
+                self.activate_space_context_action(space_id, action, outcome)
+            }
+            ClientContextMenuTarget::ClosedMember {
+                space_id,
+                member_id,
+            } => match action {
+                ClientContextMenuAction::OpenClosedMember => {
+                    self.open_closed_member(space_id, member_id, outcome)
+                }
+                ClientContextMenuAction::RemoveClosedMember => self.push_endpoint_method(
+                    crate::api::schema::Method::SpaceMemberRemove(
+                        crate::api::schema::SpaceMemberTarget {
                             space_id,
-                        }),
-                        outcome,
-                    )
-                }
-                _ => self.activate_workspace_context_action(workspace_id, action, outcome),
-            },
-            ClientContextMenuTarget::PinnedSpace { space_id } => match action {
-                ClientContextMenuAction::OpenPinnedSpace => {
-                    self.open_pinned_space(space_id, outcome)
-                }
-                ClientContextMenuAction::Unpin => self.push_endpoint_method(
-                    crate::api::schema::Method::SpaceUnpin(crate::api::schema::SpaceTarget {
-                        space_id,
-                    }),
+                            member_id,
+                            focus: false,
+                        },
+                    ),
                     outcome,
                 ),
                 _ => {}
@@ -363,21 +371,44 @@ impl ClientShellState {
             ClientContextMenuAction::RemoveWorktree => {
                 self.begin_worktree_action_for(KeybindAction::RemoveWorktree, workspace_id, outcome)
             }
-            ClientContextMenuAction::ToggleGroup => {
-                let key = self.snapshot.as_deref().and_then(|snapshot| {
+            _ => {}
+        }
+    }
+
+    fn activate_space_context_action(
+        &mut self,
+        space_id: String,
+        action: ClientContextMenuAction,
+        outcome: &mut ClientShellInput,
+    ) {
+        match action {
+            ClientContextMenuAction::RenameSpace => {
+                let name = self.snapshot.as_deref().and_then(|snapshot| {
                     snapshot
-                        .workspaces
+                        .spaces
                         .iter()
-                        .find(|workspace| workspace.workspace_id == workspace_id)
-                        .and_then(|workspace| workspace.worktree.as_ref())
-                        .map(|worktree| worktree.key.clone())
+                        .find(|space| space.space_id == space_id)
+                        .map(|space| space.name.clone())
                 });
-                if let Some(key) = key {
-                    let endpoint_id = self.active_endpoint_id.clone();
-                    self.toggle_collapsed_group(&endpoint_id, key);
-                    self.persist_chrome_preferences(outcome);
+                if let Some(name) = name {
+                    self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
+                        title: "rename space",
+                        input: TextEditor::new(&name, false),
+                        target: ClientRenameTarget::Space { space_id },
+                    }));
                 }
             }
+            ClientContextMenuAction::ToggleSpace => {
+                let endpoint_id = self.active_endpoint_id.clone();
+                self.toggle_collapsed_group(&endpoint_id, space_id);
+                self.persist_chrome_preferences(outcome);
+            }
+            ClientContextMenuAction::DeleteSpace => self.push_endpoint_method(
+                crate::api::schema::Method::SpaceDelete(crate::api::schema::SpaceTarget {
+                    space_id,
+                }),
+                outcome,
+            ),
             _ => {}
         }
     }

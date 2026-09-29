@@ -16,13 +16,25 @@ fn workspaces(count: usize) -> ClientShellSnapshot {
 
 fn grouped_workspaces() -> ClientShellSnapshot {
     let mut projected = workspaces(3);
-    for (index, linked) in [(0, false), (2, true)] {
-        projected.workspaces[index].worktree = Some(ClientShellWorktree {
-            key: "repo".into(),
-            label: "repo".into(),
-            is_linked_worktree: linked,
-        });
+    for (index, space_id) in [(0, "repo"), (1, "other"), (2, "repo")] {
+        projected.workspaces[index].space_id = Some(space_id.into());
     }
+    projected.spaces = vec![
+        crate::protocol::ClientShellSpace {
+            space_id: "repo".into(),
+            name: "repo".into(),
+            color: 0,
+            built_in: false,
+            closed: Vec::new(),
+        },
+        crate::protocol::ClientShellSpace {
+            space_id: "other".into(),
+            name: "other".into(),
+            color: 0,
+            built_in: true,
+            closed: Vec::new(),
+        },
+    ];
     projected
 }
 

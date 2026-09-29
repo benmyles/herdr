@@ -20,6 +20,7 @@ mod ids;
 mod popup;
 mod runtime;
 mod session;
+mod spaces;
 pub mod state;
 mod tab_bar_status;
 mod terminal_targets;
@@ -374,7 +375,7 @@ impl App {
         let session_writer = Arc::new(std::sync::Mutex::new(crate::persist::SessionWriter::new(
             policy.restore_session && snapshot.is_none(),
         )));
-        let (workspaces, pinned_spaces, active, selected) = if let Some(snap) = snapshot {
+        let (workspaces, spaces, active, selected) = if let Some(snap) = snapshot {
             let history = config
                 .experimental
                 .pane_history
@@ -397,17 +398,16 @@ impl App {
             restored_terminal_runtimes = terminal_runtimes.into();
             if ws.is_empty() {
                 crate::logging::session_restored(0, "empty");
-                (Vec::new(), snap.pinned_spaces, None, 0)
+                (Vec::new(), snap.spaces, None, 0)
             } else {
                 crate::logging::session_restored(ws.len(), "ok");
                 let active = snap.active.filter(|&i| i < ws.len());
                 let selected = snap.selected.min(ws.len().saturating_sub(1));
-                (ws, snap.pinned_spaces, active, selected)
+                (ws, snap.spaces, active, selected)
             }
         } else {
             (Vec::new(), Vec::new(), None, 0)
         };
-        crate::space::reserve_pinned_workspace_ids(&pinned_spaces);
 
         let agent_panel_sort = agent_panel_sort_from_config(config.ui.agent_panel_sort);
 
@@ -451,7 +451,7 @@ impl App {
             pane_id_aliases: std::collections::HashMap::new(),
             public_pane_id_aliases: std::collections::HashMap::new(),
             workspaces,
-            pinned_spaces,
+            spaces,
             active,
             previous_pane_focus: None,
             selected,
@@ -559,6 +559,7 @@ impl App {
             });
         }
 
+        state.normalize_spaces();
         let last_focus = state.active.and_then(|idx| {
             state
                 .workspaces
@@ -667,8 +668,8 @@ impl App {
 
         app.state.pane_id_aliases = pane_id_aliases;
         app.state.workspaces = workspaces;
-        app.state.pinned_spaces = snapshot.pinned_spaces.clone();
-        crate::space::reserve_pinned_workspace_ids(&app.state.pinned_spaces);
+        app.state.spaces = snapshot.spaces.clone();
+        app.state.normalize_spaces();
         app.state.terminals = terminals;
         app.terminal_runtimes = runtimes.into();
         app.state.active = snapshot
@@ -702,7 +703,7 @@ impl App {
     }
 
     pub(crate) fn ensure_default_workspace(&mut self) -> bool {
-        if !self.state.workspaces.is_empty() || !self.state.pinned_spaces.is_empty() {
+        if !self.state.workspaces.is_empty() || self.state.has_space_content() {
             return false;
         }
 
@@ -1051,17 +1052,10 @@ mod tests {
     }
 
     #[test]
-    fn dormant_pin_suppresses_unrelated_default_workspace_creation() {
+    fn saved_space_suppresses_unrelated_default_workspace_creation() {
         let mut app = test_app();
-        app.state.pinned_spaces.push(crate::space::PinnedSpace::new(
-            crate::space::PinnedSpaceKey::Workspace {
-                workspace_id: "w_dormant".into(),
-            },
-            "dormant".into(),
-            "/tmp/dormant".into(),
-            0,
-            None,
-        ));
+        app.state.normalize_spaces();
+        app.state.create_space("dormant").expect("create space");
 
         assert!(!app.ensure_default_workspace());
         assert!(app.state.workspaces.is_empty());
@@ -2997,46 +2991,6 @@ mod tests {
 
         assert_eq!(response["result"]["type"], "ok");
         assert!(app.state.workspaces.is_empty());
-    }
-
-    #[test]
-    fn pane_close_request_requires_confirmation_before_closing_parent_worktree_group() {
-        let mut app = test_app();
-        let mut parent = Workspace::test_new("api-pane-close-parent");
-        parent.worktree_space = Some(crate::workspace::WorktreeSpaceMembership {
-            key: "repo-key".into(),
-            label: "herdr".into(),
-            repo_root: "/repo/herdr".into(),
-            checkout_path: "/repo/herdr".into(),
-            is_linked_worktree: false,
-        });
-        let mut child = Workspace::test_new("api-pane-close-child");
-        child.worktree_space = Some(crate::workspace::WorktreeSpaceMembership {
-            key: "repo-key".into(),
-            label: "herdr".into(),
-            repo_root: "/repo/herdr".into(),
-            checkout_path: "/repo/herdr-child".into(),
-            is_linked_worktree: true,
-        });
-        app.state.workspaces = vec![parent, child];
-        app.state.ensure_test_terminals();
-        app.state.active = Some(0);
-        app.state.selected = 1;
-
-        let target_pane = app.state.workspaces[0].tabs[0].root_pane;
-        let target_pane_id = app.pane_info(0, target_pane).unwrap().pane_id;
-
-        let response = app.handle_api_request(crate::api::schema::Request {
-            id: "req_pane_close_parent_group".into(),
-            method: crate::api::schema::Method::PaneClose(crate::api::schema::PaneTarget {
-                pane_id: target_pane_id,
-            }),
-        });
-        let response: serde_json::Value = serde_json::from_str(&response).unwrap();
-
-        assert_eq!(response["error"]["code"], "confirmation_required");
-        assert_eq!(app.state.selected, 1);
-        assert_eq!(app.state.workspaces.len(), 2);
     }
 
     #[test]

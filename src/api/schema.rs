@@ -79,12 +79,22 @@ pub enum Method {
     ClientShellAgentGridSet(ClientShellAgentGridSetParams),
     #[serde(rename = "session.snapshot")]
     SessionSnapshot(EmptyParams),
-    #[serde(rename = "space.pin")]
-    SpacePin(SpacePinParams),
-    #[serde(rename = "space.unpin")]
-    SpaceUnpin(SpaceTarget),
-    #[serde(rename = "space.open")]
-    SpaceOpen(SpaceTarget),
+    #[serde(rename = "space.list")]
+    SpaceList(EmptyParams),
+    #[serde(rename = "space.create")]
+    SpaceCreate(SpaceCreateParams),
+    #[serde(rename = "space.rename")]
+    SpaceRename(SpaceRenameParams),
+    #[serde(rename = "space.delete")]
+    SpaceDelete(SpaceTarget),
+    #[serde(rename = "space.move")]
+    SpaceMove(SpaceMoveParams),
+    #[serde(rename = "space.assign")]
+    SpaceAssign(SpaceAssignParams),
+    #[serde(rename = "space.member.open")]
+    SpaceMemberOpen(SpaceMemberTarget),
+    #[serde(rename = "space.member.remove")]
+    SpaceMemberRemove(SpaceMemberTarget),
     #[serde(rename = "workspace.create")]
     WorkspaceCreate(WorkspaceCreateParams),
     #[serde(rename = "workspace.list")]

@@ -40,7 +40,7 @@ pub(super) fn snapshot() -> ClientShellSnapshot {
             worktree: None,
             focused: true,
             agent_status: AgentStatus::Idle,
-            pinned_space_id: None,
+            space_id: None,
         }],
         tabs: vec![ClientShellTab {
             tab_id: "tab_1".into(),
@@ -64,7 +64,7 @@ pub(super) fn snapshot() -> ClientShellSnapshot {
         }],
         agents: Vec::new(),
         commands: Vec::new(),
-        pinned_spaces: Vec::new(),
+        spaces: Vec::new(),
     }
 }
 

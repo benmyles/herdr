@@ -19,7 +19,7 @@ pub struct SessionSnapshot {
     pub version: u32,
     pub workspaces: Vec<WorkspaceSnapshot>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub pinned_spaces: Vec<crate::space::PinnedSpace>,
+    pub spaces: Vec<crate::space::Space>,
     pub active: Option<usize>,
     pub selected: usize,
     #[serde(default)]
@@ -59,6 +59,8 @@ pub struct WorkspaceSnapshot {
     pub identity_cwd: PathBuf,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub worktree_space: Option<crate::workspace::WorktreeSpaceMembership>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub space_id: Option<String>,
     #[serde(default)]
     pub public_pane_numbers: HashMap<u32, usize>,
     #[serde(default)]
@@ -162,6 +164,7 @@ impl From<LegacyWorkspaceSnapshot> for WorkspaceSnapshot {
             custom_name: snap.custom_name,
             identity_cwd,
             worktree_space: None,
+            space_id: None,
             public_pane_numbers: HashMap::new(),
             next_public_pane_number: 0,
             public_tab_numbers: Vec::new(),
@@ -179,7 +182,10 @@ struct RawSessionSnapshot {
     #[serde(default)]
     workspaces: Vec<serde_json::Value>,
     #[serde(default)]
-    pinned_spaces: Vec<crate::space::PinnedSpace>,
+    spaces: Vec<crate::space::Space>,
+    /// Pins from fork builds before spaces; migrated into `other`.
+    #[serde(default)]
+    pinned_spaces: Vec<LegacyPinnedSpace>,
     #[serde(default)]
     active: Option<usize>,
     #[serde(default)]
@@ -192,15 +198,70 @@ struct RawSessionSnapshot {
     collapsed_space_keys: std::collections::HashSet<String>,
 }
 
+#[derive(Deserialize)]
+struct LegacyPinnedSpace {
+    #[serde(default)]
+    key: Option<LegacyPinnedSpaceKey>,
+    label: String,
+    cwd: PathBuf,
+    #[serde(default)]
+    worktree_space: Option<crate::workspace::WorktreeSpaceMembership>,
+}
+
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+enum LegacyPinnedSpaceKey {
+    Workspace { workspace_id: String },
+    Worktree { key: String },
+}
+
+/// Pins without a live workspace become closed members of `other`, so an
+/// upgraded session keeps every bookmarked checkout reachable.
+fn migrate_pinned_spaces(
+    pins: Vec<LegacyPinnedSpace>,
+    workspaces: &[WorkspaceSnapshot],
+) -> Vec<crate::space::Space> {
+    let closed = pins
+        .into_iter()
+        .filter(|pin| {
+            !workspaces.iter().any(|workspace| match &pin.key {
+                Some(LegacyPinnedSpaceKey::Workspace { workspace_id }) => {
+                    workspace.id.as_deref() == Some(workspace_id.as_str())
+                }
+                Some(LegacyPinnedSpaceKey::Worktree { key }) => workspace
+                    .worktree_space
+                    .as_ref()
+                    .is_some_and(|space| space.key == *key),
+                None => false,
+            })
+        })
+        .map(|pin| {
+            crate::space::ClosedMember::new(pin.label, pin.cwd, None, None, pin.worktree_space)
+        })
+        .collect::<Vec<_>>();
+    if closed.is_empty() {
+        return Vec::new();
+    }
+    let mut other = crate::space::Space::other(0);
+    other.closed = closed;
+    vec![other]
+}
+
 fn migrate_snapshot(raw: RawSessionSnapshot) -> Result<SessionSnapshot, String> {
+    let workspaces = raw
+        .workspaces
+        .into_iter()
+        .map(migrate_workspace)
+        .collect::<Result<Vec<_>, _>>()?;
+    let spaces = if raw.spaces.is_empty() {
+        migrate_pinned_spaces(raw.pinned_spaces, &workspaces)
+    } else {
+        raw.spaces
+    };
     Ok(SessionSnapshot {
         version: raw.version,
-        workspaces: raw
-            .workspaces
-            .into_iter()
-            .map(migrate_workspace)
-            .collect::<Result<Vec<_>, _>>()?,
-        pinned_spaces: raw.pinned_spaces,
+        workspaces,
+        spaces,
         active: raw.active,
         selected: raw.selected,
         sidebar_width: raw.sidebar_width,
@@ -258,7 +319,7 @@ fn first_pane_id_in_layout(layout: &LayoutSnapshot) -> Option<u32> {
 /// Capture the current app state into a serializable snapshot.
 pub fn capture(
     workspaces: &[Workspace],
-    pinned_spaces: &[crate::space::PinnedSpace],
+    spaces: &[crate::space::Space],
     terminals: &std::collections::HashMap<
         crate::terminal::TerminalId,
         crate::terminal::TerminalState,
@@ -273,7 +334,7 @@ pub fn capture(
             .iter()
             .map(|workspace| capture_workspace(workspace, terminals, terminal_runtimes))
             .collect(),
-        pinned_spaces: pinned_spaces.to_vec(),
+        spaces: spaces.to_vec(),
         active,
         selected,
         sidebar_width: None,
@@ -305,6 +366,7 @@ fn capture_workspace(
         custom_name: ws.custom_name.clone(),
         identity_cwd,
         worktree_space: ws.worktree_space.clone(),
+        space_id: Some(ws.space_id.clone()),
         public_pane_numbers: ws
             .public_pane_numbers
             .iter()
@@ -562,7 +624,7 @@ mod tests {
     ) -> SessionSnapshot {
         capture(
             &state.workspaces,
-            &state.pinned_spaces,
+            &state.spaces,
             &state.terminals,
             terminal_runtimes,
             state.active,
@@ -649,7 +711,7 @@ mod tests {
         let snap = SessionSnapshot {
             version: SNAPSHOT_VERSION,
             workspaces: vec![],
-            pinned_spaces: vec![],
+            spaces: vec![],
             active: None,
             selected: 0,
             sidebar_width: Some(26),
@@ -659,36 +721,35 @@ mod tests {
         let json = serde_json::to_string(&snap).unwrap();
         let restored = parse_snapshot(&json).unwrap();
         assert!(restored.workspaces.is_empty());
-        assert!(restored.pinned_spaces.is_empty());
+        assert!(restored.spaces.is_empty());
         assert_eq!(restored.active, None);
         assert_eq!(restored.sidebar_width, Some(26));
         assert_eq!(restored.sidebar_section_split, Some(0.5));
     }
 
     #[test]
-    fn older_snapshot_defaults_to_no_pinned_spaces() {
+    fn older_snapshot_defaults_to_no_spaces() {
         let restored =
             parse_snapshot(r#"{"version":3,"workspaces":[],"active":null,"selected":0}"#)
-                .expect("v3 snapshot without pins should remain compatible");
+                .expect("v3 snapshot without spaces should remain compatible");
 
-        assert!(restored.pinned_spaces.is_empty());
+        assert!(restored.spaces.is_empty());
     }
 
     #[test]
-    fn pinned_only_space_round_trips_without_a_runtime_workspace() {
-        let pin = crate::space::PinnedSpace::new(
-            crate::space::PinnedSpaceKey::Workspace {
-                workspace_id: "w_dormant".into(),
-            },
-            "dormant project".into(),
-            PathBuf::from("/tmp/dormant-project"),
-            3,
+    fn spaces_round_trip_with_closed_members() {
+        let mut space = crate::space::Space::new("knowledge".into(), 3);
+        space.closed.push(crate::space::ClosedMember::new(
+            "pyshiftup".into(),
+            PathBuf::from("/worktrees/knowledge/pyshiftup/knowledge"),
             None,
-        );
+            Some("knowledge".into()),
+            None,
+        ));
         let snap = SessionSnapshot {
             version: SNAPSHOT_VERSION,
             workspaces: Vec::new(),
-            pinned_spaces: vec![pin.clone()],
+            spaces: vec![space.clone()],
             active: None,
             selected: 0,
             sidebar_width: Some(26),
@@ -696,11 +757,37 @@ mod tests {
             collapsed_space_keys: std::collections::HashSet::new(),
         };
 
-        let json = serde_json::to_string(&snap).expect("serialize pin");
-        let restored = parse_snapshot(&json).expect("restore pin");
+        let json = serde_json::to_string(&snap).expect("serialize spaces");
+        let restored = parse_snapshot(&json).expect("restore spaces");
 
         assert!(restored.workspaces.is_empty());
-        assert_eq!(restored.pinned_spaces, vec![pin]);
+        assert_eq!(restored.spaces, vec![space]);
+    }
+
+    #[test]
+    fn legacy_dormant_pins_become_closed_members_of_other() {
+        let restored = parse_snapshot(
+            r#"{"version":3,"workspaces":[],"active":null,"selected":0,"pinned_spaces":[
+                {"id":"space_1","key":{"kind":"workspace","workspace_id":"w9"},"label":"dormant","cwd":"/tmp/dormant","order":0},
+                {"id":"space_2","key":{"kind":"worktree","key":"repo"},"label":"repo","cwd":"/tmp/repo","order":1}
+            ]}"#,
+        )
+        .expect("legacy pins parse");
+
+        assert_eq!(restored.spaces.len(), 1);
+        let other = &restored.spaces[0];
+        assert!(other.is_other());
+        assert_eq!(
+            other
+                .closed
+                .iter()
+                .map(|member| (member.label.as_str(), member.cwd.as_path()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("dormant", std::path::Path::new("/tmp/dormant")),
+                ("repo", std::path::Path::new("/tmp/repo"))
+            ]
+        );
     }
 
     #[test]
@@ -757,6 +844,7 @@ mod tests {
                 custom_name: Some("pi-mono".to_string()),
                 identity_cwd: PathBuf::from("/home/can/Projects/herdr"),
                 worktree_space: None,
+                space_id: None,
                 public_pane_numbers: HashMap::from([(0, 1), (1, 2)]),
                 next_public_pane_number: 3,
                 public_tab_numbers: vec![1],
@@ -776,7 +864,7 @@ mod tests {
                 }],
                 active_tab: 0,
             }],
-            pinned_spaces: vec![],
+            spaces: vec![],
             active: Some(0),
             selected: 0,
             sidebar_width: Some(26),
@@ -1423,6 +1511,7 @@ mod tests {
                 custom_name: Some("fallback test".to_string()),
                 identity_cwd: PathBuf::from("/tmp"),
                 worktree_space: None,
+                space_id: None,
                 public_pane_numbers: HashMap::new(),
                 next_public_pane_number: 0,
                 public_tab_numbers: Vec::new(),
@@ -1442,7 +1531,7 @@ mod tests {
                 }],
                 active_tab: 0,
             }],
-            pinned_spaces: vec![],
+            spaces: vec![],
             active: Some(0),
             selected: 0,
             sidebar_width: Some(26),

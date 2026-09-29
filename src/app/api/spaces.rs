@@ -1,211 +1,276 @@
 use crate::api::schema::{
-    EventData, EventEnvelope, EventKind, PinnedSpaceInfo, ResponseResult, SpacePinParams,
-    SpaceTarget,
+    ClosedSpaceMemberInfo, EmptyParams, EventData, EventEnvelope, EventKind, ResponseResult,
+    SpaceAssignParams, SpaceCreateParams, SpaceInfo, SpaceMemberTarget, SpaceMoveParams,
+    SpaceRenameParams, SpaceTarget,
 };
+use crate::app::spaces::SpaceError;
 use crate::app::App;
-use crate::space::{PinnedSpace, PinnedSpaceKey};
 
 use super::responses::{encode_error, encode_success};
 
-impl App {
-    pub(super) fn handle_space_pin(&mut self, id: String, params: SpacePinParams) -> String {
-        let Some(ws_idx) = self.parse_workspace_id(&params.workspace_id) else {
-            return encode_error(
-                id,
-                "workspace_not_found",
-                format!("workspace {} not found", params.workspace_id),
-            );
-        };
-        let Some(workspace) = self.state.workspaces.get(ws_idx) else {
-            return encode_error(
-                id,
-                "workspace_not_found",
-                format!("workspace {} not found", params.workspace_id),
-            );
-        };
-        let key = PinnedSpaceKey::from_workspace(workspace);
-        if let Some(pin_idx) = self
-            .state
-            .pinned_spaces
-            .iter()
-            .position(|pin| pin.key == key)
-        {
-            return encode_success(
-                id,
-                ResponseResult::PinnedSpaceInfo {
-                    space: self.pinned_space_info(pin_idx),
-                },
-            );
-        }
+fn space_error(id: String, error: SpaceError) -> String {
+    encode_error(id, error.code(), error.to_string())
+}
 
-        let descriptor_idx = match &key {
-            PinnedSpaceKey::Workspace { .. } => ws_idx,
-            PinnedSpaceKey::Worktree { key } => self
+impl App {
+    pub(crate) fn space_infos(&self) -> Vec<SpaceInfo> {
+        (0..self.state.spaces.len())
+            .map(|idx| self.space_info(idx))
+            .collect()
+    }
+
+    pub(crate) fn space_info(&self, space_idx: usize) -> SpaceInfo {
+        let space = &self.state.spaces[space_idx];
+        SpaceInfo {
+            space_id: space.id.clone(),
+            name: space.name.clone(),
+            color: space.color,
+            built_in: space.is_other(),
+            workspace_ids: self
                 .state
                 .workspaces
                 .iter()
                 .enumerate()
-                .find(|(_, candidate)| {
-                    candidate
-                        .worktree_space()
-                        .is_some_and(|space| space.key == *key && !space.is_linked_worktree)
+                .filter(|(_, workspace)| workspace.space_id == space.id)
+                .map(|(idx, _)| self.public_workspace_id(idx))
+                .collect(),
+            closed: space
+                .closed
+                .iter()
+                .map(|member| ClosedSpaceMemberInfo {
+                    member_id: member.id.clone(),
+                    label: member
+                        .custom_name
+                        .clone()
+                        .unwrap_or_else(|| member.label.clone()),
+                    cwd: member.cwd.display().to_string(),
+                    branch: member.branch.clone(),
                 })
-                .map(|(idx, _)| idx)
-                .unwrap_or(ws_idx),
-        };
-        let descriptor = &self.state.workspaces[descriptor_idx];
-        let label = descriptor.display_name_from(&self.state.terminals, &self.terminal_runtimes);
-        let cwd = descriptor
-            .resolved_identity_cwd_from(&self.state.terminals, &self.terminal_runtimes)
-            .unwrap_or_else(|| descriptor.identity_cwd.clone());
-        self.state.pinned_spaces.push(PinnedSpace::new(
-            key,
-            label,
-            cwd,
-            descriptor_idx,
-            descriptor.worktree_space().cloned(),
-        ));
-        let pin_idx = self.state.pinned_spaces.len() - 1;
-        let affected = self
+                .collect(),
+        }
+    }
+
+    fn space_info_response(&self, id: String, space_id: &str) -> String {
+        match self.state.space_index(space_id) {
+            Some(idx) => encode_success(
+                id,
+                ResponseResult::SpaceInfo {
+                    space: self.space_info(idx),
+                },
+            ),
+            None => space_error(id, SpaceError::NotFound(space_id.to_owned())),
+        }
+    }
+
+    /// Workspace order changed under a space operation; tell subscribers the
+    /// same way a workspace reorder does.
+    fn emit_space_workspace_reorder(&mut self, before: &[String]) {
+        let after = self
             .state
             .workspaces
             .iter()
-            .enumerate()
-            .filter_map(|(idx, workspace)| {
-                self.state.pinned_spaces[pin_idx]
-                    .matches_workspace(workspace)
-                    .then_some(idx)
-            })
+            .map(|workspace| workspace.id.clone())
             .collect::<Vec<_>>();
-        self.schedule_session_save();
-        for idx in affected {
-            self.emit_event(EventEnvelope {
-                event: EventKind::WorkspaceUpdated,
-                data: EventData::WorkspaceUpdated {
-                    workspace: self.workspace_info(idx),
-                },
-            });
+        if after == before {
+            return;
         }
+        let workspaces = (0..self.state.workspaces.len())
+            .map(|idx| self.workspace_info(idx))
+            .collect();
+        self.emit_event(EventEnvelope {
+            event: EventKind::WorkspaceReordered,
+            data: EventData::WorkspaceReordered {
+                workspace_ids: after,
+                before_workspace_id: None,
+                workspaces,
+            },
+        });
+    }
+
+    fn workspace_order_ids(&self) -> Vec<String> {
+        self.state
+            .workspaces
+            .iter()
+            .map(|workspace| workspace.id.clone())
+            .collect()
+    }
+
+    pub(super) fn handle_space_list(&self, id: String, _params: EmptyParams) -> String {
         encode_success(
             id,
-            ResponseResult::PinnedSpaceInfo {
-                space: self.pinned_space_info(pin_idx),
+            ResponseResult::SpaceList {
+                spaces: self.space_infos(),
             },
         )
     }
 
-    pub(super) fn handle_space_unpin(&mut self, id: String, target: SpaceTarget) -> String {
-        let Some(pin_idx) = self
-            .state
-            .pinned_spaces
-            .iter()
-            .position(|pin| pin.id == target.space_id)
-        else {
-            return encode_error(
-                id,
-                "space_not_found",
-                format!("space {} not found", target.space_id),
-            );
+    pub(super) fn handle_space_create(&mut self, id: String, params: SpaceCreateParams) -> String {
+        let workspace_id = match params.workspace_id.as_deref() {
+            Some(workspace_id) => match self.parse_workspace_id(workspace_id) {
+                Some(idx) => Some(self.state.workspaces[idx].id.clone()),
+                None => {
+                    return space_error(id, SpaceError::WorkspaceNotFound(workspace_id.to_owned()))
+                }
+            },
+            None => None,
         };
-        let pin = self.state.pinned_spaces.remove(pin_idx);
-        let affected = self
-            .state
-            .workspaces
-            .iter()
-            .enumerate()
-            .filter_map(|(idx, workspace)| pin.matches_workspace(workspace).then_some(idx))
-            .collect::<Vec<_>>();
-        self.schedule_session_save();
-        for idx in affected {
-            self.emit_event(EventEnvelope {
-                event: EventKind::WorkspaceUpdated,
-                data: EventData::WorkspaceUpdated {
-                    workspace: self.workspace_info(idx),
-                },
-            });
+        let before = self.workspace_order_ids();
+        let space_id = match self.state.create_space(&params.name) {
+            Ok(space_id) => space_id,
+            Err(error) => return space_error(id, error),
+        };
+        if let Some(workspace_id) = workspace_id {
+            if let Err(error) = self
+                .state
+                .assign_workspace_to_space(&workspace_id, &space_id, None)
+            {
+                return space_error(id, error);
+            }
+            self.emit_space_workspace_reorder(&before);
         }
+        self.schedule_session_save();
+        self.space_info_response(id, &space_id)
+    }
+
+    pub(super) fn handle_space_rename(&mut self, id: String, params: SpaceRenameParams) -> String {
+        if let Err(error) = self.state.rename_space(&params.space_id, &params.name) {
+            return space_error(id, error);
+        }
+        self.schedule_session_save();
+        self.space_info_response(id, &params.space_id)
+    }
+
+    pub(super) fn handle_space_delete(&mut self, id: String, target: SpaceTarget) -> String {
+        let before = self.workspace_order_ids();
+        if let Err(error) = self.state.delete_space(&target.space_id) {
+            return space_error(id, error);
+        }
+        self.emit_space_workspace_reorder(&before);
+        self.schedule_session_save();
         encode_success(id, ResponseResult::Ok {})
     }
 
-    pub(super) fn handle_space_open(&mut self, id: String, target: SpaceTarget) -> String {
-        let Some(pin_idx) = self
+    pub(super) fn handle_space_move(&mut self, id: String, params: SpaceMoveParams) -> String {
+        let before = self.workspace_order_ids();
+        if let Err(error) = self
             .state
-            .pinned_spaces
-            .iter()
-            .position(|pin| pin.id == target.space_id)
-        else {
-            return encode_error(
-                id,
-                "space_not_found",
-                format!("space {} not found", target.space_id),
-            );
-        };
-        if let Some(ws_idx) =
-            self.state.workspaces.iter().position(|workspace| {
-                self.state.pinned_spaces[pin_idx].matches_workspace(workspace)
-            })
+            .move_space(&params.space_id, params.before_space_id.as_deref())
         {
-            self.state.switch_workspace(ws_idx);
-            return encode_success(
-                id,
-                ResponseResult::PinnedSpaceInfo {
-                    space: self.pinned_space_info(pin_idx),
-                },
-            );
+            return space_error(id, error);
         }
+        self.emit_space_workspace_reorder(&before);
+        self.schedule_session_save();
+        encode_success(
+            id,
+            ResponseResult::SpaceList {
+                spaces: self.space_infos(),
+            },
+        )
+    }
 
-        let pin = self.state.pinned_spaces[pin_idx].clone();
-        let ws_idx = match self.create_workspace_with_launch_env(pin.cwd.clone(), true, Vec::new())
-        {
-            Ok(ws_idx) => ws_idx,
-            Err(err) => return encode_error(id, "space_open_failed", err.to_string()),
+    pub(super) fn handle_space_assign(&mut self, id: String, params: SpaceAssignParams) -> String {
+        let Some(ws_idx) = self.parse_workspace_id(&params.workspace_id) else {
+            return space_error(id, SpaceError::WorkspaceNotFound(params.workspace_id));
         };
-        if let Some(workspace) = self.state.workspaces.get_mut(ws_idx) {
-            match &pin.key {
-                PinnedSpaceKey::Workspace { workspace_id } => {
-                    workspace.id.clone_from(workspace_id);
+        let workspace_id = self.state.workspaces[ws_idx].id.clone();
+        let before_workspace_id = match params.before_workspace_id.as_deref() {
+            Some(before) => match self.parse_workspace_id(before) {
+                Some(idx) => Some(self.state.workspaces[idx].id.clone()),
+                None => return space_error(id, SpaceError::WorkspaceNotFound(before.to_owned())),
+            },
+            None => None,
+        };
+        let before = self.workspace_order_ids();
+        match self.state.assign_workspace_to_space(
+            &workspace_id,
+            &params.space_id,
+            before_workspace_id.as_deref(),
+        ) {
+            Ok(false) => {}
+            Ok(true) => {
+                self.emit_space_workspace_reorder(&before);
+                if let Some(ws_idx) = self.parse_workspace_id(&workspace_id) {
+                    self.emit_event(EventEnvelope {
+                        event: EventKind::WorkspaceUpdated,
+                        data: EventData::WorkspaceUpdated {
+                            workspace: self.workspace_info(ws_idx),
+                        },
+                    });
                 }
-                PinnedSpaceKey::Worktree { .. } => {
-                    workspace.worktree_space.clone_from(&pin.worktree_space);
-                }
+                self.schedule_session_save();
             }
-            workspace.set_custom_name(pin.label.clone());
+            Err(error) => return space_error(id, error),
         }
+        self.space_info_response(id, &params.space_id)
+    }
+
+    pub(super) fn handle_space_member_open(
+        &mut self,
+        id: String,
+        target: SpaceMemberTarget,
+    ) -> String {
+        let member = match self
+            .state
+            .take_closed_member(&target.space_id, &target.member_id)
+        {
+            Ok(member) => member,
+            Err(error) => return space_error(id, error),
+        };
+        let ws_idx = match self.create_workspace_with_launch_env(
+            member.cwd.clone(),
+            target.focus,
+            Vec::new(),
+        ) {
+            Ok(ws_idx) => ws_idx,
+            Err(err) => {
+                self.state.restore_closed_member(&target.space_id, member);
+                return encode_error(id, "space_member_open_failed", err.to_string());
+            }
+        };
+        let workspace_id = {
+            let workspace = &mut self.state.workspaces[ws_idx];
+            workspace.space_id.clone_from(&target.space_id);
+            workspace.worktree_space.clone_from(&member.worktree_space);
+            if let Some(name) = member.custom_name.clone() {
+                workspace.set_custom_name(name);
+            }
+            workspace.id.clone()
+        };
+        self.state.normalize_spaces();
+        let Some(ws_idx) = self.parse_workspace_id(&workspace_id) else {
+            return space_error(id, SpaceError::WorkspaceNotFound(workspace_id));
+        };
         self.emit_workspace_open_events(ws_idx);
         self.schedule_session_save();
         encode_success(
             id,
-            ResponseResult::PinnedSpaceInfo {
-                space: self.pinned_space_info(pin_idx),
+            ResponseResult::WorkspaceInfo {
+                workspace: self.workspace_info(ws_idx),
             },
         )
     }
 
-    pub(super) fn pinned_space_info(&self, pin_idx: usize) -> PinnedSpaceInfo {
-        let pin = &self.state.pinned_spaces[pin_idx];
-        let workspace_ids = self
+    pub(super) fn handle_space_member_remove(
+        &mut self,
+        id: String,
+        target: SpaceMemberTarget,
+    ) -> String {
+        if let Err(error) = self
             .state
-            .workspaces
-            .iter()
-            .enumerate()
-            .filter(|(_, workspace)| pin.matches_workspace(workspace))
-            .map(|(idx, _)| self.public_workspace_id(idx))
-            .collect::<Vec<_>>();
-        PinnedSpaceInfo {
-            space_id: pin.id.clone(),
-            label: pin.label.clone(),
-            cwd: pin.cwd.display().to_string(),
-            live: !workspace_ids.is_empty(),
-            workspace_ids,
+            .take_closed_member(&target.space_id, &target.member_id)
+        {
+            return space_error(id, error);
         }
+        self.schedule_session_save();
+        self.space_info_response(id, &target.space_id)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::api::schema::{ResponseResult, SuccessResponse};
-    use crate::workspace::{Workspace, WorktreeSpaceMembership};
+    use crate::api::schema::{ErrorResponse, SuccessResponse};
+    use crate::workspace::Workspace;
 
     fn app_with_workspaces(workspaces: Vec<Workspace>) -> App {
         let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -220,96 +285,109 @@ mod tests {
         app.state.active = Some(0);
         app.state.selected = 0;
         app.state.ensure_test_terminals();
+        app.state.normalize_spaces();
         app
     }
 
-    fn pin(app: &mut App, ws_idx: usize) -> String {
-        let response = app.handle_space_pin(
-            "pin".into(),
-            SpacePinParams {
-                workspace_id: app.public_workspace_id(ws_idx),
+    fn success(response: &str) -> ResponseResult {
+        serde_json::from_str::<SuccessResponse>(response)
+            .unwrap_or_else(|err| panic!("expected success, got {response}: {err}"))
+            .result
+    }
+
+    fn create(app: &mut App, name: &str, workspace_id: Option<String>) -> SpaceInfo {
+        let ResponseResult::SpaceInfo { space } = success(&app.handle_space_create(
+            "create".into(),
+            SpaceCreateParams {
+                name: name.into(),
+                workspace_id,
+            },
+        )) else {
+            panic!("expected space info");
+        };
+        space
+    }
+
+    #[test]
+    fn create_files_the_workspace_and_lists_other_last() {
+        let mut app = app_with_workspaces(vec![Workspace::test_new("a"), Workspace::test_new("b")]);
+        let b = app.public_workspace_id(1);
+        let space = create(&mut app, "knowledge", Some(b.clone()));
+        assert_eq!(space.workspace_ids, vec![b.clone()]);
+        assert!(!space.built_in);
+        assert_eq!(
+            app.workspace_info(0).space_id.as_deref(),
+            Some(space.space_id.as_str())
+        );
+
+        let ResponseResult::SpaceList { spaces } =
+            success(&app.handle_space_list("list".into(), EmptyParams::default()))
+        else {
+            panic!("expected space list");
+        };
+        assert_eq!(spaces.len(), 2);
+        assert!(spaces[1].built_in);
+        assert_eq!(spaces[1].workspace_ids.len(), 1);
+        app.state.assert_invariants_for_test();
+    }
+
+    #[test]
+    fn errors_use_stable_codes() {
+        let mut app = app_with_workspaces(vec![Workspace::test_new("a")]);
+        let response = app.handle_space_rename(
+            "rename".into(),
+            SpaceRenameParams {
+                space_id: crate::space::OTHER_SPACE_ID.into(),
+                name: "x".into(),
             },
         );
-        let success: SuccessResponse = serde_json::from_str(&response).expect("pin response");
-        let ResponseResult::PinnedSpaceInfo { space } = success.result else {
-            panic!("expected pinned space response");
-        };
-        space.space_id
-    }
-
-    #[test]
-    fn pin_is_idempotent_and_survives_last_workspace_close() {
-        let mut app = app_with_workspaces(vec![Workspace::test_new("project")]);
-        let space_id = pin(&mut app, 0);
-        assert_eq!(pin(&mut app, 0), space_id);
-        assert_eq!(app.state.pinned_spaces.len(), 1);
-        assert!(app.workspace_info(0).pinned);
-
-        app.state.close_selected_workspace();
-        assert!(app.state.workspaces.is_empty());
-        assert_eq!(app.state.pinned_spaces.len(), 1);
-        assert!(!app.pinned_space_info(0).live);
-        app.state.assert_invariants_for_test();
-
-        let response = app.handle_space_unpin("unpin".into(), SpaceTarget { space_id });
-        let success: SuccessResponse = serde_json::from_str(&response).expect("unpin response");
-        assert!(matches!(success.result, ResponseResult::Ok {}));
-        assert!(app.state.pinned_spaces.is_empty());
-    }
-
-    #[test]
-    fn pinning_any_worktree_member_pins_the_group_once() {
-        let membership = WorktreeSpaceMembership {
-            key: "repo-key".into(),
-            label: "repo".into(),
-            repo_root: "/repo".into(),
-            checkout_path: "/repo".into(),
-            is_linked_worktree: false,
-        };
-        let mut parent = Workspace::test_new("parent");
-        parent.worktree_space = Some(membership.clone());
-        let mut child = Workspace::test_new("child");
-        child.worktree_space = Some(WorktreeSpaceMembership {
-            checkout_path: "/repo/child".into(),
-            is_linked_worktree: true,
-            ..membership
-        });
-        let mut app = app_with_workspaces(vec![parent, child]);
-
-        let child_pin = pin(&mut app, 1);
-        let parent_pin = pin(&mut app, 0);
-
-        assert_eq!(child_pin, parent_pin);
-        assert_eq!(app.state.pinned_spaces.len(), 1);
-        assert_eq!(app.pinned_space_info(0).workspace_ids.len(), 2);
-        assert!(app.workspace_info(0).pinned);
-        assert!(app.workspace_info(1).pinned);
+        let error: ErrorResponse = serde_json::from_str(&response).expect("error response");
+        assert_eq!(error.error.code, "space_is_built_in");
+        let response = app.handle_space_assign(
+            "assign".into(),
+            SpaceAssignParams {
+                workspace_id: "missing".into(),
+                space_id: crate::space::OTHER_SPACE_ID.into(),
+                before_workspace_id: None,
+            },
+        );
+        let error: ErrorResponse = serde_json::from_str(&response).expect("error response");
+        assert_eq!(error.error.code, "workspace_not_found");
     }
 
     #[tokio::test]
-    async fn opening_dormant_pin_materializes_the_original_workspace_identity() {
+    async fn closed_members_reopen_in_their_space() {
         use super::super::test_support::{exiting_test_command, shutdown_test_runtimes};
 
-        let mut app = app_with_workspaces(vec![Workspace::test_new("project")]);
-        let original_workspace_id = app.state.workspaces[0].id.clone();
-        let space_id = pin(&mut app, 0);
+        let mut app = app_with_workspaces(vec![Workspace::test_new("a"), Workspace::test_new("b")]);
+        let a = app.public_workspace_id(0);
+        let space = create(&mut app, "feature", Some(a));
+        app.state.selected = 0;
         app.state.close_selected_workspace();
-        app.state.pinned_spaces[0].cwd =
+        let closed = app.space_info(0).closed;
+        assert_eq!(closed.len(), 1);
+        app.state.spaces[0].closed[0].cwd =
             std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("/"));
         app.state.default_shell = exiting_test_command().into();
         app.state.shell_mode = crate::config::ShellModeConfig::NonLogin;
 
-        let response = app.handle_space_open("open".into(), SpaceTarget { space_id });
-        let success: SuccessResponse = serde_json::from_str(&response).expect("open response");
-        let ResponseResult::PinnedSpaceInfo { space } = success.result else {
-            panic!("expected opened pinned space response");
+        let ResponseResult::WorkspaceInfo { workspace } = success(&app.handle_space_member_open(
+            "open".into(),
+            SpaceMemberTarget {
+                space_id: space.space_id.clone(),
+                member_id: closed[0].member_id.clone(),
+                focus: true,
+            },
+        )) else {
+            panic!("expected workspace info");
         };
-
-        assert!(space.live);
-        assert_eq!(app.state.workspaces.len(), 1);
-        assert_eq!(app.state.workspaces[0].id, original_workspace_id);
-        assert_eq!(app.state.active, Some(0));
-        assert!(app.workspace_info(0).pinned);
+        assert_eq!(workspace.space_id.as_deref(), Some(space.space_id.as_str()));
+        assert!(app.space_info(0).closed.is_empty());
+        assert_eq!(
+            app.space_info(0).workspace_ids,
+            vec![workspace.workspace_id]
+        );
+        app.state.assert_invariants_for_test();
         shutdown_test_runtimes(&mut app);
     }
 }

@@ -196,7 +196,6 @@ pub(super) fn render_collapsed(
                 endpoint_id: endpoint.endpoint_id.clone(),
                 workspace_id: workspace.workspace_id.clone(),
                 indented: false,
-                group_toggle: None,
             });
             y = y.saturating_add(1);
         }
@@ -273,12 +272,13 @@ pub(super) fn render_expanded(
 
     enum Row {
         Endpoint(usize),
-        Workspace {
+        Space {
             endpoint: usize,
-            entry: WorkspaceEntry,
+            row: super::sidebar::SidebarRow,
         },
     }
     let mut rows = Vec::new();
+    let mut endpoint_rows = Vec::new();
     for (endpoint_index, endpoint) in state.endpoints.iter().enumerate() {
         rows.push(Row::Endpoint(endpoint_index));
         if state.collapsed_endpoints.contains(&endpoint.endpoint_id) {
@@ -287,14 +287,12 @@ pub(super) fn render_expanded(
         if let Some(snapshot) = endpoint.snapshot.as_deref() {
             let collapsed_groups = collapsed_groups_for_endpoint(state, &endpoint.endpoint_id)
                 .unwrap_or(&empty_collapsed_groups);
-            rows.extend(
-                super::sidebar::workspace_entries(snapshot, collapsed_groups)
-                    .into_iter()
-                    .map(|entry| Row::Workspace {
-                        endpoint: endpoint_index,
-                        entry,
-                    }),
-            );
+            let space_rows = super::sidebar::sidebar_rows(snapshot, collapsed_groups);
+            endpoint_rows.push((endpoint_index, rows.len(), space_rows.clone()));
+            rows.extend(space_rows.into_iter().map(|row| Row::Space {
+                endpoint: endpoint_index,
+                row,
+            }));
         }
     }
     let body = Rect::new(
@@ -309,55 +307,51 @@ pub(super) fn render_expanded(
     let row_heights = rows
         .iter()
         .map(|row| match row {
-            Row::Endpoint(_) => 1,
-            Row::Workspace { endpoint, entry } => {
-                let endpoint = &state.endpoints[*endpoint];
-                let collapsed_groups = collapsed_groups_for_endpoint(state, &endpoint.endpoint_id)
-                    .unwrap_or(&empty_collapsed_groups);
-                endpoint
-                    .snapshot
-                    .as_deref()
-                    .and_then(|snapshot| {
-                        let workspace = snapshot.workspaces.get(entry.index)?;
-                        Some(
-                            super::sidebar::workspace_rows(
-                                workspace,
-                                super::sidebar::displayed_workspace_status(
-                                    snapshot,
-                                    workspace,
-                                    collapsed_groups,
-                                ),
-                                entry.indented,
-                                &config.spaces,
-                            )
-                            .len()
-                            .max(1)
-                            .min(u16::MAX as usize) as u16,
+            Row::Endpoint(_)
+            | Row::Space {
+                row:
+                    super::sidebar::SidebarRow::SpaceHeader { .. }
+                    | super::sidebar::SidebarRow::ClosedMember { .. },
+                ..
+            } => 1,
+            Row::Space {
+                endpoint,
+                row: super::sidebar::SidebarRow::Workspace(entry),
+            } => state.endpoints[*endpoint]
+                .snapshot
+                .as_deref()
+                .and_then(|snapshot| {
+                    let workspace = snapshot.workspaces.get(entry.index)?;
+                    Some(
+                        super::sidebar::workspace_rows(
+                            workspace,
+                            workspace.agent_status,
+                            entry.indented,
+                            &config.spaces,
                         )
-                    })
-                    .unwrap_or(1)
-            }
+                        .len()
+                        .max(1)
+                        .min(u16::MAX as usize) as u16,
+                    )
+                })
+                .unwrap_or(1),
         })
         .collect::<Vec<_>>();
-    let gaps = rows
-        .iter()
-        .enumerate()
-        .map(|(index, row)| match (row, rows.get(index + 1)) {
-            (
-                Row::Workspace { endpoint, .. },
-                Some(Row::Workspace {
-                    endpoint: next_endpoint,
-                    entry,
-                }),
-            ) if endpoint == next_endpoint => u16::from(!entry.indented) * config.spaces.row_gap,
-            _ => 0,
-        })
-        .collect::<Vec<_>>();
+    let mut gaps = vec![0; rows.len()];
+    for (_, first_row, space_rows) in &endpoint_rows {
+        for index in 0..space_rows.len() {
+            gaps[first_row + index] =
+                super::sidebar::sidebar_row_gap(space_rows, index, config.spaces.row_gap);
+        }
+    }
     let reveal_navigation = !body.is_empty() && std::mem::take(state.reveal_navigation_workspace);
     let reveal_focus = !body.is_empty() && std::mem::take(state.reveal_focused_workspace);
     if reveal_navigation || reveal_focus {
         let selected_row = rows.iter().position(|row| match row {
-            Row::Workspace { endpoint, entry } => {
+            Row::Space {
+                endpoint,
+                row: super::sidebar::SidebarRow::Workspace(entry),
+            } => {
                 let endpoint = &state.endpoints[*endpoint];
                 endpoint
                     .snapshot
@@ -377,7 +371,7 @@ pub(super) fn render_expanded(
                         }
                     })
             }
-            Row::Endpoint(_) => false,
+            _ => false,
         });
         if let Some(selected_row) = selected_row {
             *state.workspace_scroll = super::scroll::list_scroll_start_to_reveal(
@@ -447,31 +441,18 @@ pub(super) fn render_expanded(
                     .saturating_add(1)
                     .saturating_add(gaps.get(row_index).copied().unwrap_or(0));
             }
-            Row::Workspace { endpoint, entry } => {
-                let Some(spaces) = endpoint_spaces[*endpoint].as_ref() else {
+            Row::Space {
+                endpoint: endpoint_index,
+                row,
+            } => {
+                let Some(spaces) = endpoint_spaces[*endpoint_index].as_ref() else {
                     continue;
                 };
-                let endpoint = &state.endpoints[*endpoint];
+                let endpoint = &state.endpoints[*endpoint_index];
                 let Some(snapshot) = endpoint.snapshot.as_deref() else {
                     continue;
                 };
-                let Some(workspace) = snapshot.workspaces.get(entry.index) else {
-                    continue;
-                };
-                let collapsed_groups = collapsed_groups_for_endpoint(state, &endpoint.endpoint_id)
-                    .unwrap_or(&empty_collapsed_groups);
-                let status = super::sidebar::displayed_workspace_status(
-                    snapshot,
-                    workspace,
-                    collapsed_groups,
-                );
-                let tokens = super::sidebar::workspace_rows(
-                    workspace,
-                    status,
-                    entry.indented,
-                    &config.spaces,
-                );
-                let height = (tokens.len().max(1).min(u16::MAX as usize) as u16).min(body.height);
+                let height = row_heights[row_index].min(body.height);
                 if y.saturating_add(height) > body.bottom() {
                     break;
                 }
@@ -482,26 +463,82 @@ pub(super) fn render_expanded(
                     rect.width.saturating_sub(2),
                     rect.height,
                 );
-                let endpoint_active = &endpoint.endpoint_id == state.active_endpoint_id;
-                let selected = state.selected_workspace_id.is_some_and(|target| {
-                    target.matches(&endpoint.endpoint_id, &workspace.workspace_id)
-                });
-                super::sidebar::render_workspace_rows(
-                    buffer,
-                    nested,
-                    status,
-                    config.status_indicators,
-                    entry,
-                    tokens,
-                    endpoint_active && workspace.focused,
-                    selected,
-                    state.selected_workspace_id.is_some(),
-                    false,
-                    super::sidebar::WorkspaceRowColors {
-                        palette,
-                        space: spaces.color(entry.index),
-                    },
-                );
+                match row {
+                    super::sidebar::SidebarRow::SpaceHeader {
+                        space_index,
+                        collapsed,
+                    } => {
+                        let space = &snapshot.spaces[*space_index];
+                        super::sidebar::render_space_header(
+                            buffer, nested, snapshot, space, *collapsed, config,
+                        );
+                        hits.space_headers.push(SpaceHeaderHit {
+                            rect,
+                            endpoint_id: endpoint.endpoint_id.clone(),
+                            space_id: space.space_id.clone(),
+                        });
+                    }
+                    super::sidebar::SidebarRow::ClosedMember {
+                        space_index,
+                        member_index,
+                        last_child,
+                    } => {
+                        let space = &snapshot.spaces[*space_index];
+                        let member = &space.closed[*member_index];
+                        super::sidebar::render_closed_member(
+                            buffer,
+                            nested,
+                            space,
+                            member,
+                            *last_child,
+                            palette,
+                        );
+                        hits.closed_members.push(ClosedMemberHit {
+                            rect,
+                            endpoint_id: endpoint.endpoint_id.clone(),
+                            space_id: space.space_id.clone(),
+                            member_id: member.member_id.clone(),
+                        });
+                    }
+                    super::sidebar::SidebarRow::Workspace(entry) => {
+                        let Some(workspace) = snapshot.workspaces.get(entry.index) else {
+                            continue;
+                        };
+                        let status = workspace.agent_status;
+                        let tokens = super::sidebar::workspace_rows(
+                            workspace,
+                            status,
+                            entry.indented,
+                            &config.spaces,
+                        );
+                        let endpoint_active = &endpoint.endpoint_id == state.active_endpoint_id;
+                        let selected = state.selected_workspace_id.is_some_and(|target| {
+                            target.matches(&endpoint.endpoint_id, &workspace.workspace_id)
+                        });
+                        super::sidebar::render_workspace_rows(
+                            buffer,
+                            nested,
+                            status,
+                            config.status_indicators,
+                            entry,
+                            tokens,
+                            endpoint_active && workspace.focused,
+                            selected,
+                            state.selected_workspace_id.is_some(),
+                            false,
+                            super::sidebar::WorkspaceRowColors {
+                                palette,
+                                space: spaces.color(entry.index),
+                            },
+                        );
+                        hits.workspaces.push(WorkspaceHit {
+                            rect,
+                            endpoint_id: endpoint.endpoint_id.clone(),
+                            workspace_id: workspace.workspace_id.clone(),
+                            indented: entry.indented,
+                        });
+                    }
+                }
                 if endpoint.status != ClientEndpointStatus::Online {
                     buffer.set_style(
                         rect,
@@ -510,21 +547,6 @@ pub(super) fn render_expanded(
                             .add_modifier(Modifier::DIM),
                     );
                 }
-                let group_toggle = super::sidebar::render_parent_group_toggle(
-                    buffer,
-                    rect,
-                    snapshot,
-                    entry.index,
-                    collapsed_groups,
-                    spaces.color(entry.index),
-                );
-                hits.workspaces.push(WorkspaceHit {
-                    rect,
-                    endpoint_id: endpoint.endpoint_id.clone(),
-                    workspace_id: workspace.workspace_id.clone(),
-                    indented: entry.indented,
-                    group_toggle,
-                });
                 y = y
                     .saturating_add(height)
                     .saturating_add(gaps.get(row_index).copied().unwrap_or(0));

@@ -90,15 +90,11 @@ fn collapsed_workspace_jitter_remains_a_click() {
 }
 
 #[test]
-fn grouped_worktrees_render_parent_branch_and_indented_child() {
+fn space_members_render_labels_branches_and_collapsed_status() {
     let config = ClientShellConfig::from_config(&Config::default());
     let mut state = ClientShellState::new(config);
     let mut snapshot = snapshot();
-    snapshot.workspaces[0].worktree = Some(ClientShellWorktree {
-        key: "repo".into(),
-        label: "repo".into(),
-        is_linked_worktree: false,
-    });
+    snapshot.workspaces[0].space_id = Some("space_repo".into());
     snapshot.workspaces.push(ClientShellWorkspace {
         workspace_id: "ws_2".into(),
         active_tab_id: "tab_ws2".into(),
@@ -106,18 +102,21 @@ fn grouped_worktrees_render_parent_branch_and_indented_child() {
         number: 2,
         label: "repo-feature".into(),
         custom_label: false,
-        branch: Some("worktree/feature".into()),
+        branch: Some("feature".into()),
         git_ahead_behind: None,
         tokens: Vec::new(),
-        worktree: Some(ClientShellWorktree {
-            key: "repo".into(),
-            label: "repo".into(),
-            is_linked_worktree: true,
-        }),
+        worktree: None,
         focused: false,
         agent_status: AgentStatus::Idle,
-        pinned_space_id: None,
+        space_id: Some("space_repo".into()),
     });
+    snapshot.spaces = vec![crate::protocol::ClientShellSpace {
+        space_id: "space_repo".into(),
+        name: "repo".into(),
+        color: 0,
+        built_in: false,
+        closed: Vec::new(),
+    }];
     state.set_snapshot(Box::new(snapshot));
     state.set_pane_surface(surface());
     let frame = state.compose(106, 20).expect("composed frame");
@@ -131,9 +130,10 @@ fn grouped_worktrees_render_parent_branch_and_indented_child() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(text.contains("main"));
+    assert!(text.contains("├─"));
     assert!(text.contains("└─"));
-    assert!(text.contains("feature"));
+    assert!(text.contains("repo-feature"));
+    assert!(text.contains("feature"), "members show their branch");
 
     let mut replacement = (**state.snapshot.as_ref().expect("snapshot")).clone();
     replacement.revision = 2;
@@ -143,32 +143,28 @@ fn grouped_worktrees_render_parent_branch_and_indented_child() {
     replacement.workspaces[1].agent_status = AgentStatus::Blocked;
     let mut replacement_surface = surface();
     replacement_surface.projection_revision = 2;
-    state.collapsed_groups.insert("repo".into());
+    state.collapsed_groups.insert("space_repo".into());
     state.set_snapshot(Box::new(replacement));
     state.set_pane_surface(replacement_surface);
-    let collapsed = state.compose(106, 20).expect("collapsed worktree group");
-    let parent = state.hits.workspaces[0].rect;
-    let status_cell = usize::from(parent.y) * usize::from(collapsed.width)
-        + usize::from(parent.x.saturating_add(1));
+    let collapsed = state.compose(106, 20).expect("collapsed space");
+    let header = state.hits.space_headers[0].rect;
+    let status_cell = usize::from(header.y) * usize::from(collapsed.width)
+        + usize::from(header.x.saturating_add(1));
     assert_eq!(
         collapsed.cells[status_cell].fg,
-        crate::protocol::color_to_u32(state.config.palette.red)
+        crate::protocol::color_to_u32(state.config.palette.red),
+        "a collapsed space shows its most urgent member status"
     );
-
-    let mut next = ClientShellInput::default();
-    state.record_binding(
-        crate::input::KeybindMatch::Action(crate::input::KeybindAction::NextWorkspace),
-        &mut next,
+    assert_eq!(
+        state
+            .hits
+            .workspaces
+            .iter()
+            .map(|hit| hit.workspace_id.as_str())
+            .collect::<Vec<_>>(),
+        ["ws_2"],
+        "a collapsed space keeps its focused member visible"
     );
-    assert!(matches!(
-        &next.actions[..],
-        [ClientShellAction::Endpoint { request, .. }]
-            if matches!(
-                &request.method,
-                crate::api::schema::Method::WorkspaceFocus(target)
-                    if target.workspace_id == "ws_1"
-            )
-    ));
 }
 
 #[test]
@@ -256,88 +252,6 @@ fn workspace_click_waits_for_release_and_drag_reorders_by_stable_id() {
                     if target.workspace_id == "ws_2"
             )
     ));
-}
-
-#[test]
-fn workspace_drag_moves_parent_worktree_as_one_block_and_rejects_child() {
-    let mut projected = snapshot();
-    projected.workspaces[0].worktree = Some(ClientShellWorktree {
-        key: "repo".into(),
-        label: "repo".into(),
-        is_linked_worktree: false,
-    });
-    let mut child = projected.workspaces[0].clone();
-    child.workspace_id = "ws_child".into();
-    child.number = 2;
-    child.label = "feature".into();
-    child.focused = false;
-    child.worktree = Some(ClientShellWorktree {
-        key: "repo".into(),
-        label: "repo".into(),
-        is_linked_worktree: true,
-    });
-    let mut other = projected.workspaces[0].clone();
-    other.workspace_id = "ws_other".into();
-    other.number = 3;
-    other.label = "other".into();
-    other.focused = false;
-    other.worktree = None;
-    projected.workspaces.extend([child, other]);
-
-    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
-    state.set_snapshot(Box::new(projected));
-    state.set_pane_surface(surface());
-    state.compose(106, 24).expect("worktree workspaces");
-    assert!(state.hits.workspaces[1].indented);
-    let parent = state.hits.workspaces[0].rect;
-    let child = state.hits.workspaces[1].rect;
-    let other = state.hits.workspaces[2].rect;
-
-    state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-        kind: MouseEventKind::Down(MouseButton::Left),
-        column: parent.x + 2,
-        row: parent.y,
-        modifiers: KeyModifiers::empty(),
-    })]);
-    state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-        kind: MouseEventKind::Drag(MouseButton::Left),
-        column: other.x + 2,
-        row: other.bottom(),
-        modifiers: KeyModifiers::empty(),
-    })]);
-    let moved = state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-        kind: MouseEventKind::Up(MouseButton::Left),
-        column: other.x + 2,
-        row: other.bottom(),
-        modifiers: KeyModifiers::empty(),
-    })]);
-    assert!(matches!(
-        &moved.actions[..],
-        [ClientShellAction::Endpoint { request, .. }]
-            if matches!(
-                &request.method,
-                crate::api::schema::Method::WorkspaceMoveBlock(params)
-                    if params.workspace_ids == ["ws_1", "ws_child"]
-                        && params.before_workspace_id.is_none()
-            )
-    ));
-
-    state.compose(106, 24).expect("worktree child");
-    state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-        kind: MouseEventKind::Down(MouseButton::Left),
-        column: child.x + 2,
-        row: child.y,
-        modifiers: KeyModifiers::empty(),
-    })]);
-    let dragging_child =
-        state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-            kind: MouseEventKind::Drag(MouseButton::Left),
-            column: other.x + 2,
-            row: other.bottom(),
-            modifiers: KeyModifiers::empty(),
-        })]);
-    assert!(dragging_child.actions.is_empty());
-    assert!(state.chrome_drag.is_none());
 }
 
 #[test]
@@ -1465,18 +1379,14 @@ fn semantic_notifications_use_client_policy_and_stable_navigation_targets() {
 }
 
 fn space_color_snapshot() -> ClientShellSnapshot {
-    fn workspace(id: &str, label: &str, worktree: Option<(&str, bool)>) -> ClientShellWorkspace {
+    fn workspace(id: &str, label: &str, space_id: &str) -> ClientShellWorkspace {
         let mut workspace = snapshot().workspaces.remove(0);
         workspace.workspace_id = id.into();
         workspace.active_tab_id = format!("{id}_tab");
         workspace.label = label.into();
         workspace.branch = None;
         workspace.focused = false;
-        workspace.worktree = worktree.map(|(key, linked)| ClientShellWorktree {
-            key: key.into(),
-            label: key.into(),
-            is_linked_worktree: linked,
-        });
+        workspace.space_id = Some(space_id.into());
         workspace
     }
     fn agent(workspace_id: &str, agent: &str) -> ClientShellAgent {
@@ -1500,13 +1410,29 @@ fn space_color_snapshot() -> ClientShellSnapshot {
 
     let mut projected = snapshot();
     projected.workspaces = vec![
-        workspace("ws_issue", "issue", Some(("repo-key", true))),
-        workspace("ws_notes", "notes", None),
-        workspace("ws_main", "main", Some(("repo-key", false))),
+        workspace("ws_issue", "issue", "space_feature"),
+        workspace("ws_main", "main", "space_feature"),
+        workspace("ws_notes", "notes", "other"),
+    ];
+    projected.spaces = vec![
+        crate::protocol::ClientShellSpace {
+            space_id: "space_feature".into(),
+            name: "feature".into(),
+            color: 0,
+            built_in: false,
+            closed: Vec::new(),
+        },
+        crate::protocol::ClientShellSpace {
+            space_id: "other".into(),
+            name: "other".into(),
+            color: 0,
+            built_in: true,
+            closed: Vec::new(),
+        },
     ];
     projected.agents = vec![
-        agent("ws_issue", "pi"),
         agent("ws_notes", "claude"),
+        agent("ws_issue", "pi"),
         agent("ws_main", "codex"),
     ];
     projected
@@ -1532,13 +1458,13 @@ fn expanded_sidebar_uses_matching_space_colors_and_grouped_agent_order() {
         .collect::<Vec<_>>();
     assert_eq!(
         workspaces.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
-        ["ws_main", "ws_issue", "ws_notes"]
+        ["ws_issue", "ws_main", "ws_notes"]
     );
-    let main = fg_at(workspaces[0].1, "main");
-    let issue = fg_at(workspaces[1].1, "issue");
+    let issue = fg_at(workspaces[0].1, "issue");
+    let main = fg_at(workspaces[1].1, "main");
     let notes = fg_at(workspaces[2].1, "notes");
-    assert_eq!(main, issue, "worktree members share one space color");
-    assert_ne!(main, notes, "unrelated spaces use distinct colors");
+    assert_eq!(main, issue, "space members share one space color");
+    assert_ne!(main, notes, "other is neutral, not the feature color");
     assert_ne!(main, state.config.palette.subtext0);
 
     let agents = state
@@ -1549,11 +1475,11 @@ fn expanded_sidebar_uses_matching_space_colors_and_grouped_agent_order() {
         .collect::<Vec<_>>();
     assert_eq!(
         agents.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
-        ["ws_main_pane", "ws_issue_pane", "ws_notes_pane"],
-        "grouped agents keep each space's members adjacent, primary first"
+        ["ws_issue_pane", "ws_main_pane", "ws_notes_pane"],
+        "grouped agents follow space order"
     );
-    assert_eq!(fg_at(agents[0].1, "main"), main);
-    assert_eq!(fg_at(agents[1].1, "issue"), issue);
+    assert_eq!(fg_at(agents[0].1, "issue"), issue);
+    assert_eq!(fg_at(agents[1].1, "main"), main);
     assert_eq!(fg_at(agents[2].1, "notes"), notes);
 }
 
@@ -1579,23 +1505,28 @@ fn collapsed_sidebar_numbers_use_space_colors() {
     assert_ne!(number_fg("ws_notes"), number_fg("ws_main"));
 }
 
-fn pinned_snapshot() -> ClientShellSnapshot {
+fn spaced_snapshot() -> ClientShellSnapshot {
     let mut projected = snapshot();
-    projected.workspaces[0].pinned_space_id = Some("space_live".into());
-    projected.pinned_spaces = vec![
-        crate::protocol::ClientShellPinnedSpace {
-            space_id: "space_dormant".into(),
-            label: "old-project".into(),
-            cwd: "/old-project".into(),
-            live: false,
-            order: 3,
+    projected.workspaces[0].space_id = Some("space_knowledge".into());
+    projected.spaces = vec![
+        crate::protocol::ClientShellSpace {
+            space_id: "space_knowledge".into(),
+            name: "knowledge".into(),
+            color: 2,
+            built_in: false,
+            closed: vec![crate::protocol::ClientShellClosedMember {
+                member_id: "member_old".into(),
+                label: "old-project".into(),
+                cwd: "/old-project".into(),
+                branch: Some("knowledge".into()),
+            }],
         },
-        crate::protocol::ClientShellPinnedSpace {
-            space_id: "space_live".into(),
-            label: "client-shell".into(),
-            cwd: "/repo".into(),
-            live: true,
-            order: 2,
+        crate::protocol::ClientShellSpace {
+            space_id: "other".into(),
+            name: "other".into(),
+            color: 0,
+            built_in: true,
+            closed: Vec::new(),
         },
     ];
     projected
@@ -1618,123 +1549,129 @@ fn single_endpoint_method(outcome: &ClientShellInput) -> crate::api::schema::Met
 }
 
 #[test]
-fn dormant_pins_follow_live_spaces_and_open_on_click() {
+fn spaces_render_headers_members_and_closed_rows() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
-    state.set_snapshot(Box::new(pinned_snapshot()));
+    state.set_snapshot(Box::new(spaced_snapshot()));
     state.set_pane_surface(surface());
     let frame = state.compose(106, 30).expect("sidebar frame");
     let buffer = frame.to_ratatui_buffer().expect("sidebar buffer");
 
-    let [(pin_rect, space_id)] = &state.hits.pinned_spaces[..] else {
-        panic!(
-            "only the dormant pin gets a row: {:?}",
-            state.hits.pinned_spaces
-        );
+    // Empty `other` is hidden, so only the knowledge header renders.
+    let [header] = &state.hits.space_headers[..] else {
+        panic!("one space header: {:?}", state.hits.space_headers);
     };
-    assert_eq!(space_id, "space_dormant");
-    let workspace = state.hits.workspaces[0].rect;
-    assert!(pin_rect.y > workspace.y, "dormant pins follow live spaces");
-    let star = cell_symbol_position(&frame, *pin_rect, "*");
+    assert_eq!(header.space_id, "space_knowledge");
+    let header_name = cell_symbol_position(&frame, header.rect, "knowledge");
     assert_eq!(
-        buffer[star].fg,
-        crate::ui::space_color(&state.config.palette, 3)
+        buffer[header_name].fg,
+        crate::ui::space_color(&state.config.palette, 2),
+        "headers use their space's color slot"
     );
-    let label = cell_symbol_position(&frame, *pin_rect, "old-project");
-    assert!(!buffer[label].modifier.contains(Modifier::DIM));
 
+    let workspace = state.hits.workspaces[0].rect;
+    assert!(workspace.y > header.rect.y, "members follow their header");
     let live = cell_symbol_position(&frame, workspace, "client-shell");
     assert_eq!(
         buffer[live].fg,
         crate::ui::space_color(&state.config.palette, 2),
-        "a live pinned space keeps its saved color slot"
+        "members share the space color"
     );
 
-    let pin_rect = *pin_rect;
-    let outcome = click(&mut state, MouseButton::Left, pin_rect);
+    let [closed] = &state.hits.closed_members[..] else {
+        panic!("one closed member: {:?}", state.hits.closed_members);
+    };
+    assert!(
+        closed.rect.y > workspace.y,
+        "closed members follow live ones"
+    );
+    let closed_rect = closed.rect;
+    cell_symbol_position(&frame, closed_rect, "old-project");
+    cell_symbol_position(&frame, closed_rect, "closed");
+
+    let outcome = click(&mut state, MouseButton::Left, closed_rect);
     assert!(matches!(
         single_endpoint_method(&outcome),
-        crate::api::schema::Method::SpaceOpen(target) if target.space_id == "space_dormant"
+        crate::api::schema::Method::SpaceMemberOpen(target)
+            if target.space_id == "space_knowledge" && target.member_id == "member_old"
     ));
 }
 
 #[test]
-fn dormant_pin_context_menu_opens_or_unpins() {
+fn clicking_a_space_header_collapses_it_to_the_focused_member() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
-    state.set_snapshot(Box::new(pinned_snapshot()));
+    state.set_snapshot(Box::new(spaced_snapshot()));
     state.set_pane_surface(surface());
     state.compose(106, 30).expect("sidebar frame");
-    let pin_rect = state.hits.pinned_spaces[0].0;
+    let header = state.hits.space_headers[0].rect;
 
-    assert!(click(&mut state, MouseButton::Right, pin_rect)
+    click(&mut state, MouseButton::Left, header);
+    let frame = state.compose(106, 30).expect("collapsed frame");
+    assert!(state.group_is_collapsed(&ClientEndpointId::Local, "space_knowledge"));
+    assert!(state.hits.closed_members.is_empty());
+    assert_eq!(
+        state.hits.workspaces.len(),
+        1,
+        "the focused member stays visible"
+    );
+    cell_symbol_position(&frame, state.hits.space_headers[0].rect, "▸");
+}
+
+#[test]
+fn closed_member_context_menu_opens_or_removes() {
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(spaced_snapshot()));
+    state.set_pane_surface(surface());
+    state.compose(106, 30).expect("sidebar frame");
+    let closed = state.hits.closed_members[0].rect;
+
+    assert!(click(&mut state, MouseButton::Right, closed)
         .actions
         .is_empty());
     let labels = match state.overlay.as_ref() {
-        Some(ClientShellOverlay::ContextMenu(menu)) => {
-            assert!(matches!(
-                &menu.target,
-                ClientContextMenuTarget::PinnedSpace { space_id } if space_id == "space_dormant"
-            ));
-            menu.items()
-                .iter()
-                .map(|item| item.label)
-                .collect::<Vec<_>>()
-        }
-        _ => panic!("pinned space context menu"),
+        Some(ClientShellOverlay::ContextMenu(menu)) => menu
+            .items()
+            .iter()
+            .map(|item| item.label)
+            .collect::<Vec<_>>(),
+        _ => panic!("closed member context menu"),
     };
-    assert_eq!(labels, ["Open", "Unpin"]);
+    assert_eq!(labels, ["Open", "Remove from space"]);
 
     let mut outcome = ClientShellInput::default();
     state.activate_context_menu_item(1, &mut outcome);
     assert!(matches!(
         single_endpoint_method(&outcome),
-        crate::api::schema::Method::SpaceUnpin(target) if target.space_id == "space_dormant"
+        crate::api::schema::Method::SpaceMemberRemove(target)
+            if target.member_id == "member_old"
     ));
 }
 
 #[test]
-fn workspace_context_menu_pins_and_unpins_supported_endpoints() {
+fn space_header_menu_edits_supported_endpoints_only() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
-    state.set_snapshot(Box::new(snapshot()));
+    state.set_snapshot(Box::new(spaced_snapshot()));
     state.set_pane_surface(surface());
     state.compose(106, 30).expect("sidebar frame");
-    let workspace = state.hits.workspaces[0].rect;
+    let header = state.hits.space_headers[0].rect;
 
-    click(&mut state, MouseButton::Right, workspace);
-    let pin_index = match state.overlay.as_ref() {
+    click(&mut state, MouseButton::Right, header);
+    let labels = |state: &ClientShellState| match state.overlay.as_ref() {
         Some(ClientShellOverlay::ContextMenu(menu)) => menu
             .items()
             .iter()
-            .position(|item| item.action == ClientContextMenuAction::Pin),
-        _ => panic!("workspace context menu"),
+            .map(|item| item.label)
+            .collect::<Vec<_>>(),
+        _ => panic!("space context menu"),
     };
-    assert_eq!(pin_index, Some(1), "pin follows rename");
+    assert_eq!(labels(&state), ["Rename", "Collapse", "Delete space"]);
     let mut outcome = ClientShellInput::default();
-    state.activate_context_menu_item(1, &mut outcome);
+    state.activate_context_menu_item(2, &mut outcome);
     assert!(matches!(
         single_endpoint_method(&outcome),
-        crate::api::schema::Method::SpacePin(params) if params.workspace_id == "ws_1"
-    ));
-
-    state.set_snapshot(Box::new(pinned_snapshot()));
-    state.compose(106, 30).expect("pinned sidebar frame");
-    click(&mut state, MouseButton::Right, workspace);
-    let mut outcome = ClientShellInput::default();
-    state.activate_context_menu_item(1, &mut outcome);
-    assert!(matches!(
-        single_endpoint_method(&outcome),
-        crate::api::schema::Method::SpaceUnpin(target) if target.space_id == "space_live"
+        crate::api::schema::Method::SpaceDelete(target) if target.space_id == "space_knowledge"
     ));
 
     state.set_endpoint_methods(Some(vec!["workspace.rename".into()]));
-    click(&mut state, MouseButton::Right, workspace);
-    let actions = match state.overlay.as_ref() {
-        Some(ClientShellOverlay::ContextMenu(menu)) => menu
-            .items()
-            .iter()
-            .map(|item| item.action)
-            .collect::<Vec<_>>(),
-        _ => panic!("workspace context menu"),
-    };
-    assert!(!actions.contains(&ClientContextMenuAction::Pin));
-    assert!(!actions.contains(&ClientContextMenuAction::Unpin));
+    click(&mut state, MouseButton::Right, header);
+    assert_eq!(labels(&state), ["Collapse"]);
 }

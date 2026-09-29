@@ -797,9 +797,9 @@ pub struct AppState {
     pub(crate) pane_id_aliases: std::collections::HashMap<u32, PaneId>,
     pub(crate) public_pane_id_aliases: std::collections::HashMap<String, PaneId>,
     pub workspaces: Vec<Workspace>,
-    /// Server-owned bookmarks for logical spaces. A pin can outlive every PTY
-    /// and therefore deliberately does not masquerade as an empty Workspace.
-    pub pinned_spaces: Vec<crate::space::PinnedSpace>,
+    /// User-named spaces in sidebar order, `other` last. Workspaces reference
+    /// them by id and stay grouped in this order (see `app::spaces`).
+    pub spaces: Vec<crate::space::Space>,
     pub active: Option<usize>,
     pub(crate) previous_pane_focus: Option<PaneFocusTarget>,
     pub selected: usize,
@@ -1039,7 +1039,7 @@ impl AppState {
             pane_id_aliases: std::collections::HashMap::new(),
             public_pane_id_aliases: std::collections::HashMap::new(),
             workspaces: Vec::new(),
-            pinned_spaces: Vec::new(),
+            spaces: Vec::new(),
             active: None,
             previous_pane_focus: None,
             selected: 0,
@@ -1153,19 +1153,26 @@ impl AppState {
     }
 
     pub fn assert_invariants_for_test(&self) {
-        let mut pinned_ids = std::collections::HashSet::new();
-        let mut pinned_keys = std::collections::HashSet::new();
-        for pin in &self.pinned_spaces {
+        let mut space_ids = std::collections::HashSet::new();
+        for space in &self.spaces {
             assert!(
-                pinned_ids.insert(pin.id.clone()),
-                "duplicate pinned space id {}",
-                pin.id
+                space_ids.insert(space.id.clone()),
+                "duplicate space id {}",
+                space.id
             );
-            assert!(
-                pinned_keys.insert(pin.key.clone()),
-                "duplicate pinned logical space {:?}",
-                pin.key
-            );
+        }
+        if let Some(last) = self.spaces.last() {
+            assert!(last.is_other(), "the other space must be last");
+            let rank = |space_id: &str| {
+                self.space_index(space_id)
+                    .unwrap_or_else(|| panic!("workspace names unknown space {space_id}"))
+            };
+            for pair in self.workspaces.windows(2) {
+                assert!(
+                    rank(&pair[0].space_id) <= rank(&pair[1].space_id),
+                    "workspaces must stay grouped in space order"
+                );
+            }
         }
         if self.workspaces.is_empty() {
             assert!(

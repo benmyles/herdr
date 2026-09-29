@@ -1813,13 +1813,26 @@ impl ClientShellState {
                     outcome.repaint = true;
                     return;
                 }
-                let pinned_space_id = (!self.sidebar_collapsed)
-                    .then(|| self.pinned_space_at(point))
-                    .flatten();
-                if let Some(space_id) = pinned_space_id {
-                    self.open_pinned_space_context_menu(space_id, mouse.column, mouse.row);
-                    outcome.repaint = true;
-                    return;
+                if !self.sidebar_collapsed {
+                    if let Some(hit) = self.space_header_at(point) {
+                        if hit.endpoint_id == self.active_endpoint_id {
+                            self.open_space_context_menu(hit.space_id, mouse.column, mouse.row);
+                            outcome.repaint = true;
+                        }
+                        return;
+                    }
+                    if let Some(hit) = self.closed_member_at(point) {
+                        if hit.endpoint_id == self.active_endpoint_id {
+                            self.open_closed_member_context_menu(
+                                hit.space_id,
+                                hit.member_id,
+                                mouse.column,
+                                mouse.row,
+                            );
+                            outcome.repaint = true;
+                        }
+                        return;
+                    }
                 }
                 let tab_id = self
                     .hits
@@ -2021,12 +2034,17 @@ impl ClientShellState {
                     return;
                 }
                 if super::contains(self.hits.new_workspace, point) {
-                    self.record_binding(
-                        crate::input::KeybindMatch::Action(
-                            crate::input::KeybindAction::NewWorkspace,
-                        ),
-                        outcome,
-                    );
+                    if self.active_endpoint_supports_spaces() {
+                        self.begin_new_space(None);
+                        outcome.repaint = true;
+                    } else {
+                        self.record_binding(
+                            crate::input::KeybindMatch::Action(
+                                crate::input::KeybindAction::NewWorkspace,
+                            ),
+                            outcome,
+                        );
+                    }
                     return;
                 }
                 if super::contains(self.hits.new_tab, point) {
@@ -2074,12 +2092,8 @@ impl ClientShellState {
                     self.persist_chrome_preferences(outcome);
                     return;
                 }
-                let group_toggle = self.hits.workspaces.iter().find_map(|hit| {
-                    let (rect, key) = hit.group_toggle.as_ref()?;
-                    super::contains(*rect, point).then(|| (hit.endpoint_id.clone(), key.clone()))
-                });
-                if let Some((endpoint_id, key)) = group_toggle {
-                    self.toggle_collapsed_group(&endpoint_id, key);
+                if let Some(hit) = self.space_header_at(point) {
+                    self.toggle_collapsed_group(&hit.endpoint_id, hit.space_id);
                     outcome.repaint = true;
                     self.persist_chrome_preferences(outcome);
                     return;
@@ -2099,8 +2113,15 @@ impl ClientShellState {
                     self.workspace_press = Some(workspace_press);
                     return;
                 }
-                if let Some(space_id) = self.pinned_space_at(point) {
-                    self.open_pinned_space(space_id, outcome);
+                if let Some(hit) = self.closed_member_at(point) {
+                    if hit.endpoint_id == self.active_endpoint_id {
+                        self.open_closed_member(hit.space_id, hit.member_id, outcome);
+                    } else {
+                        outcome.actions.push(ClientShellAction::ActivateEndpoint {
+                            endpoint_id: hit.endpoint_id,
+                            target: None,
+                        });
+                    }
                     outcome.repaint = true;
                     return;
                 }
@@ -2326,12 +2347,20 @@ impl ClientShellState {
         }
     }
 
-    fn pinned_space_at(&self, point: (u16, u16)) -> Option<String> {
+    fn space_header_at(&self, point: (u16, u16)) -> Option<SpaceHeaderHit> {
         self.hits
-            .pinned_spaces
+            .space_headers
             .iter()
-            .find(|(rect, _)| super::contains(*rect, point))
-            .map(|(_, space_id)| space_id.clone())
+            .find(|hit| super::contains(hit.rect, point))
+            .cloned()
+    }
+
+    fn closed_member_at(&self, point: (u16, u16)) -> Option<ClosedMemberHit> {
+        self.hits
+            .closed_members
+            .iter()
+            .find(|hit| super::contains(hit.rect, point))
+            .cloned()
     }
 
     fn pane_mouse_position(&self, hit: &PaneHit, mouse: MouseEvent) -> ClientMousePosition {

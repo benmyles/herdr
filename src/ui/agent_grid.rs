@@ -78,20 +78,15 @@ fn space_presentation(app: &AppState) -> super::SpacePresentation {
 }
 
 fn space_workspaces(app: &AppState) -> impl Iterator<Item = super::SpaceWorkspace<'_>> {
-    app.workspaces.iter().map(|workspace| {
-        let space = workspace.worktree_space();
-        super::SpaceWorkspace {
-            key: space.map_or(super::SpaceKey::Workspace(workspace.id.as_str()), |space| {
-                super::SpaceKey::Worktree(space.key.as_str())
-            }),
-            is_parent: space.is_none_or(|space| !space.is_linked_worktree),
-            pinned_order: app
-                .pinned_spaces
-                .iter()
-                .find(|pin| pin.matches_workspace(workspace))
-                .map(|pin| pin.order),
-        }
-    })
+    app.workspaces
+        .iter()
+        .map(|workspace| super::SpaceWorkspace {
+            space_id: workspace.space_id.as_str(),
+            color_slot: app
+                .space(&workspace.space_id)
+                .filter(|space| !space.is_other())
+                .map(|space| space.color),
+        })
 }
 
 /// Every live agent in space, workspace, tab, and pane order. The order does
@@ -629,17 +624,9 @@ mod tests {
 
     #[tokio::test]
     async fn grid_keeps_same_space_agents_adjacent_with_matching_colors() {
-        fn agent_workspace(name: &str, space: Option<(&str, bool)>) -> (Workspace, PaneId) {
+        fn agent_workspace(name: &str) -> (Workspace, PaneId) {
             let mut workspace = Workspace::test_new(name);
-            if let Some((key, linked)) = space {
-                workspace.worktree_space = Some(crate::workspace::WorktreeSpaceMembership {
-                    key: key.into(),
-                    label: key.into(),
-                    repo_root: format!("/repo/{key}").into(),
-                    checkout_path: format!("/repo/{name}").into(),
-                    is_linked_worktree: linked,
-                });
-            }
+            workspace.id = name.into();
             let pane_id = workspace.tabs[0].root_pane;
             workspace.insert_test_runtime(
                 pane_id,
@@ -648,13 +635,28 @@ mod tests {
             (workspace, pane_id)
         }
 
-        let (issue, issue_pane) = agent_workspace("issue", Some(("repo", true)));
-        let (notes, notes_pane) = agent_workspace("notes", None);
-        let (main, main_pane) = agent_workspace("main", Some(("repo", false)));
+        let (issue, issue_pane) = agent_workspace("issue");
+        let (notes, notes_pane) = agent_workspace("notes");
+        let (main, main_pane) = agent_workspace("main");
         let mut app = AppState::test_new();
         app.workspaces = vec![issue, notes, main];
         app.ensure_test_terminals();
-        for (ws_idx, pane_id) in [(0, issue_pane), (1, notes_pane), (2, main_pane)] {
+        app.normalize_spaces();
+        let space = app.create_space("feature").expect("create space");
+        app.assign_workspace_to_space("main", &space, None)
+            .expect("assign main");
+        app.assign_workspace_to_space("issue", &space, None)
+            .expect("assign issue");
+        for (workspace_id, pane_id) in [
+            ("issue", issue_pane),
+            ("notes", notes_pane),
+            ("main", main_pane),
+        ] {
+            let ws_idx = app
+                .workspaces
+                .iter()
+                .position(|workspace| workspace.id == workspace_id)
+                .expect("workspace");
             let terminal_id = app.workspaces[ws_idx]
                 .terminal_id(pane_id)
                 .cloned()

@@ -1,7 +1,7 @@
 use super::*;
 
 #[tokio::test]
-async fn client_shell_reopens_dormant_pin_and_follows_it() {
+async fn client_shell_reopens_closed_space_member_and_follows_it() {
     let mut server = test_headless_server();
     server.app.state.shell_mode = crate::config::ShellModeConfig::NonLogin;
     server.app.state.workspaces = vec![crate::workspace::Workspace::test_new("live")];
@@ -9,34 +9,39 @@ async fn client_shell_reopens_dormant_pin_and_follows_it() {
     server.app.state.active = Some(0);
     server.app.state.selected = 0;
     server.app.state.mode = crate::app::Mode::Terminal;
-    let dormant_workspace_id = crate::workspace::Workspace::test_new("dormant").id;
-    let pin = crate::space::PinnedSpace::new(
-        crate::space::PinnedSpaceKey::Workspace {
-            workspace_id: dormant_workspace_id.clone(),
-        },
-        "dormant".into(),
+    server.app.state.normalize_spaces();
+    let space_id = server
+        .app
+        .state
+        .create_space("knowledge")
+        .expect("create space");
+    let member = crate::space::ClosedMember::new(
+        "repo".into(),
         std::env::current_dir().expect("current dir"),
-        1,
+        None,
+        Some("knowledge".into()),
         None,
     );
-    let space_id = pin.id.clone();
-    server.app.state.pinned_spaces.push(pin);
+    let member_id = member.id.clone();
+    server.app.state.spaces[0].closed.push(member);
 
     let (control, _render) = connect_matching_test_shell(&mut server, 61);
     let initial = client_shell_snapshot(&control);
     assert!(initial
-        .pinned_spaces
+        .spaces
         .iter()
-        .any(|pin| pin.space_id == space_id && !pin.live));
+        .any(|space| space.space_id == space_id && space.closed.len() == 1));
 
     assert!(
         server.handle_server_event(ServerEvent::ClientShellEndpointRequest {
             client_id: 61,
             boot_id: server.client_shell_boot_id.clone(),
             request: Box::new(api::schema::Request {
-                id: "open-pin".into(),
-                method: api::schema::Method::SpaceOpen(api::schema::SpaceTarget {
+                id: "open-member".into(),
+                method: api::schema::Method::SpaceMemberOpen(api::schema::SpaceMemberTarget {
                     space_id: space_id.clone(),
+                    member_id,
+                    focus: true,
                 }),
             }),
         })
@@ -54,11 +59,16 @@ async fn client_shell_reopens_dormant_pin_and_follows_it() {
     let reopened = replacement
         .workspaces
         .iter()
-        .find(|workspace| workspace.workspace_id == dormant_workspace_id)
-        .expect("reopened workspace keeps the pinned identity");
-    assert!(reopened.focused, "the requesting shell follows the pin");
-    assert_eq!(reopened.pinned_space_id.as_deref(), Some(space_id.as_str()));
-    assert!(replacement.pinned_spaces.iter().all(|pin| pin.live));
+        .find(|workspace| workspace.space_id.as_deref() == Some(space_id.as_str()))
+        .expect("reopened workspace is filed under its space");
+    assert!(
+        reopened.focused,
+        "the requesting shell follows the reopened member"
+    );
+    assert!(replacement
+        .spaces
+        .iter()
+        .all(|space| space.closed.is_empty()));
     server.app.state.assert_invariants_for_test();
     shutdown_test_runtimes(&mut server);
 }

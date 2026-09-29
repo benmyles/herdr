@@ -1098,8 +1098,12 @@
               "minimum": 0,
               "type": "integer"
             },
-            "pinned": {
-              "type": "boolean"
+            "space_id": {
+              "description": "Space this workspace is filed under.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "tab_count": {
               "format": "uint",
@@ -3888,14 +3892,95 @@
           ],
           "type": "object"
         },
-        "SpacePinParams": {
+        "SpaceAssignParams": {
           "properties": {
+            "before_workspace_id": {
+              "description": "Place before this workspace of the target space; omitted means last.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "space_id": {
+              "type": "string"
+            },
             "workspace_id": {
               "type": "string"
             }
           },
           "required": [
-            "workspace_id"
+            "workspace_id",
+            "space_id"
+          ],
+          "type": "object"
+        },
+        "SpaceCreateParams": {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "workspace_id": {
+              "description": "Workspace to file under the new space right away.",
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "type": "object"
+        },
+        "SpaceMemberTarget": {
+          "properties": {
+            "focus": {
+              "default": false,
+              "type": "boolean"
+            },
+            "member_id": {
+              "type": "string"
+            },
+            "space_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "space_id",
+            "member_id"
+          ],
+          "type": "object"
+        },
+        "SpaceMoveParams": {
+          "properties": {
+            "before_space_id": {
+              "description": "Place before this space; omitted means last among user spaces.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "space_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "space_id"
+          ],
+          "type": "object"
+        },
+        "SpaceRenameParams": {
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "space_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "space_id",
+            "name"
           ],
           "type": "object"
         },
@@ -4957,11 +5042,11 @@
         {
           "properties": {
             "method": {
-              "const": "space.pin",
+              "const": "space.list",
               "type": "string"
             },
             "params": {
-              "$ref": "#/schemas/request/$defs/SpacePinParams"
+              "$ref": "#/schemas/request/$defs/EmptyParams"
             }
           },
           "required": [
@@ -4973,7 +5058,39 @@
         {
           "properties": {
             "method": {
-              "const": "space.unpin",
+              "const": "space.create",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/SpaceCreateParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "space.rename",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/SpaceRenameParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "space.delete",
               "type": "string"
             },
             "params": {
@@ -4989,11 +5106,59 @@
         {
           "properties": {
             "method": {
-              "const": "space.open",
+              "const": "space.move",
               "type": "string"
             },
             "params": {
-              "$ref": "#/schemas/request/$defs/SpaceTarget"
+              "$ref": "#/schemas/request/$defs/SpaceMoveParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "space.assign",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/SpaceAssignParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "space.member.open",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/SpaceMemberTarget"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "space.member.remove",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/SpaceMemberTarget"
             }
           },
           "required": [
@@ -6865,6 +7030,31 @@
           ],
           "type": "string"
         },
+        "ClosedSpaceMemberInfo": {
+          "properties": {
+            "branch": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cwd": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "member_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "member_id",
+            "label",
+            "cwd"
+          ],
+          "type": "object"
+        },
         "ConfigReloadStatus": {
           "enum": [
             "applied",
@@ -8664,36 +8854,6 @@
           ],
           "type": "object"
         },
-        "PinnedSpaceInfo": {
-          "properties": {
-            "cwd": {
-              "type": "string"
-            },
-            "label": {
-              "type": "string"
-            },
-            "live": {
-              "type": "boolean"
-            },
-            "space_id": {
-              "type": "string"
-            },
-            "workspace_ids": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            }
-          },
-          "required": [
-            "space_id",
-            "label",
-            "cwd",
-            "live",
-            "workspace_ids"
-          ],
-          "type": "object"
-        },
         "PluginActionContext": {
           "enum": [
             "global",
@@ -9389,16 +9549,35 @@
             {
               "properties": {
                 "space": {
-                  "$ref": "#/schemas/success_response/$defs/PinnedSpaceInfo"
+                  "$ref": "#/schemas/success_response/$defs/SpaceInfo"
                 },
                 "type": {
-                  "const": "pinned_space_info",
+                  "const": "space_info",
                   "type": "string"
                 }
               },
               "required": [
                 "type",
                 "space"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "spaces": {
+                  "items": {
+                    "$ref": "#/schemas/success_response/$defs/SpaceInfo"
+                  },
+                  "type": "array"
+                },
+                "type": {
+                  "const": "space_list",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "spaces"
               ],
               "type": "object"
             },
@@ -10622,16 +10801,16 @@
               },
               "type": "array"
             },
-            "pinned_spaces": {
-              "items": {
-                "$ref": "#/schemas/success_response/$defs/PinnedSpaceInfo"
-              },
-              "type": "array"
-            },
             "protocol": {
               "format": "uint32",
               "minimum": 0,
               "type": "integer"
+            },
+            "spaces": {
+              "items": {
+                "$ref": "#/schemas/success_response/$defs/SpaceInfo"
+              },
+              "type": "array"
             },
             "tabs": {
               "items": {
@@ -10657,6 +10836,46 @@
             "panes",
             "layouts",
             "agents"
+          ],
+          "type": "object"
+        },
+        "SpaceInfo": {
+          "properties": {
+            "built_in": {
+              "description": "The built-in `other` space, which cannot be renamed, moved, or deleted.",
+              "type": "boolean"
+            },
+            "closed": {
+              "items": {
+                "$ref": "#/schemas/success_response/$defs/ClosedSpaceMemberInfo"
+              },
+              "type": "array"
+            },
+            "color": {
+              "description": "Color slot, stable across reorders.",
+              "format": "uint",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "name": {
+              "type": "string"
+            },
+            "space_id": {
+              "type": "string"
+            },
+            "workspace_ids": {
+              "description": "Live workspaces in sidebar order.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "space_id",
+            "name",
+            "color",
+            "workspace_ids"
           ],
           "type": "object"
         },
@@ -10730,8 +10949,12 @@
               "minimum": 0,
               "type": "integer"
             },
-            "pinned": {
-              "type": "boolean"
+            "space_id": {
+              "description": "Space this workspace is filed under.",
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "tab_count": {
               "format": "uint",

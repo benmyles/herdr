@@ -1025,9 +1025,18 @@ impl App {
                 );
             }
             Method::SessionSnapshot(_) => return self.handle_session_snapshot(request.id),
-            Method::SpacePin(params) => return self.handle_space_pin(request.id, params),
-            Method::SpaceUnpin(target) => return self.handle_space_unpin(request.id, target),
-            Method::SpaceOpen(target) => return self.handle_space_open(request.id, target),
+            Method::SpaceList(params) => return self.handle_space_list(request.id, params),
+            Method::SpaceCreate(params) => return self.handle_space_create(request.id, params),
+            Method::SpaceRename(params) => return self.handle_space_rename(request.id, params),
+            Method::SpaceDelete(target) => return self.handle_space_delete(request.id, target),
+            Method::SpaceMove(params) => return self.handle_space_move(request.id, params),
+            Method::SpaceAssign(params) => return self.handle_space_assign(request.id, params),
+            Method::SpaceMemberOpen(target) => {
+                return self.handle_space_member_open(request.id, target);
+            }
+            Method::SpaceMemberRemove(target) => {
+                return self.handle_space_member_remove(request.id, target);
+            }
             Method::WorkspaceList(_) => return self.handle_workspace_list(request.id),
             Method::WorkspaceGet(target) => return self.handle_workspace_get(request.id, target),
             Method::WorkspaceCreate(params) => {

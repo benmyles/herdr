@@ -604,53 +604,58 @@ fn sidebar_renders_local_and_saved_ssh_endpoints_with_status() {
 }
 
 #[test]
-fn saved_machine_preserves_endpoint_scoped_worktree_collapses() {
-    fn add_worktree_group(snapshot: &mut ClientShellSnapshot, parent_id: &str, child_id: &str) {
-        snapshot.workspaces[0].workspace_id = parent_id.into();
-        snapshot.workspaces[0].worktree = Some(ClientShellWorktree {
-            key: "repo".into(),
-            label: "repo".into(),
-            is_linked_worktree: false,
-        });
-        let mut child = snapshot.workspaces[0].clone();
-        child.workspace_id = child_id.into();
-        child.active_tab_id = format!("tab_{child_id}");
-        child.number = 2;
-        child.label = "feature".into();
-        child.focused = false;
-        child.agent_status = AgentStatus::Blocked;
-        child.worktree = Some(ClientShellWorktree {
-            key: "repo".into(),
-            label: "repo".into(),
-            is_linked_worktree: true,
-        });
-        snapshot.workspaces.push(child);
+fn saved_machine_preserves_endpoint_scoped_space_collapses() {
+    fn add_space_group(snapshot: &mut ClientShellSnapshot, first_id: &str, second_id: &str) {
+        snapshot.workspaces[0].workspace_id = first_id.into();
+        snapshot.workspaces[0].space_id = Some("space_repo".into());
+        let mut second = snapshot.workspaces[0].clone();
+        second.workspace_id = second_id.into();
+        second.active_tab_id = format!("tab_{second_id}");
+        second.number = 2;
+        second.label = "feature".into();
+        second.focused = false;
+        second.agent_status = AgentStatus::Blocked;
+        snapshot.workspaces.push(second);
+        snapshot.spaces = vec![
+            crate::protocol::ClientShellSpace {
+                space_id: "space_repo".into(),
+                name: "repo".into(),
+                color: 1,
+                built_in: false,
+                closed: Vec::new(),
+            },
+            crate::protocol::ClientShellSpace {
+                space_id: "other".into(),
+                name: "other".into(),
+                color: 0,
+                built_in: true,
+                closed: Vec::new(),
+            },
+        ];
     }
 
     let (mut state, remote_id) = state_with_remote();
     let mut local = snapshot();
-    add_worktree_group(&mut local, "ws_1", "ws_2");
+    add_space_group(&mut local, "ws_1", "ws_2");
     state.set_snapshot(Box::new(local));
     let mut remote = snapshot();
     remote.boot_id = "remote-boot".into();
     remote.focused_workspace_id = Some("remote_ws_1".into());
-    add_worktree_group(&mut remote, "remote_ws_1", "remote_ws_2");
+    add_space_group(&mut remote, "remote_ws_1", "remote_ws_2");
     state.set_endpoint_snapshot(&remote_id, Box::new(remote));
 
-    state.open_workspace_context_menu("ws_1".into(), 0, 0);
+    state.open_space_context_menu("space_repo".into(), 0, 0);
     let toggle_index = match state.overlay.as_ref() {
         Some(ClientShellOverlay::ContextMenu(menu)) => menu
             .items()
             .iter()
-            .position(|item| item.action == ClientContextMenuAction::ToggleGroup)
+            .position(|item| item.action == ClientContextMenuAction::ToggleSpace)
             .expect("collapse menu item"),
-        _ => panic!("workspace context menu"),
+        _ => panic!("space context menu"),
     };
     state.activate_context_menu_item(toggle_index, &mut ClientShellInput::default());
 
-    let frame = state
-        .compose(100, 28)
-        .expect("collapsed local worktree group");
+    let frame = state.compose(100, 28).expect("collapsed local space");
     assert!(!state
         .hits
         .workspaces
@@ -661,115 +666,57 @@ fn saved_machine_preserves_endpoint_scoped_worktree_collapses() {
         .workspaces
         .iter()
         .any(|hit| hit.endpoint_id == remote_id && hit.workspace_id == "remote_ws_2"));
-    let local_parent = state
+    let local_header = state
         .hits
-        .workspaces
+        .space_headers
         .iter()
-        .find(|hit| hit.endpoint_id == ClientEndpointId::Local && hit.workspace_id == "ws_1")
-        .expect("local parent workspace");
-    let (local_toggle, key) = local_parent
-        .group_toggle
-        .as_ref()
-        .expect("local worktree group marker");
-    assert_eq!(key, "repo");
+        .find(|hit| hit.endpoint_id == ClientEndpointId::Local)
+        .expect("local space header")
+        .rect;
     let buffer = frame.to_ratatui_buffer().expect("frame should reconstruct");
-    assert_eq!(buffer[(local_toggle.x, local_toggle.y)].symbol(), "▸");
-    assert!((local_parent.rect.x..local_parent.rect.right())
-        .any(|x| buffer[(x, local_parent.rect.y)].fg == state.config.palette.red));
-
-    assert!(state.activate_endpoint_projection(&remote_id));
-    let mut remote_surface = surface();
-    remote_surface.boot_id = "remote-boot".into();
-    state.set_pane_surface(remote_surface);
-    state
-        .compose(100, 28)
-        .expect("active remote worktree group");
-    let mut switch = ClientShellInput::default();
-    state.record_binding(
-        crate::input::KeybindMatch::Action(crate::input::KeybindAction::SwitchWorkspace(1)),
-        &mut switch,
+    assert!(
+        (local_header.x..local_header.right()).any(|x| buffer[(x, local_header.y)].symbol() == "▸")
     );
-    assert!(matches!(
-        &switch.actions[..],
-        [ClientShellAction::Endpoint { request, .. }]
-            if matches!(
-                &request.method,
-                crate::api::schema::Method::WorkspaceFocus(target)
-                    if target.workspace_id == "remote_ws_2"
-            )
-    ));
-    let remote_parent = state
-        .hits
-        .workspaces
-        .iter()
-        .find(|hit| hit.endpoint_id == remote_id && hit.workspace_id == "remote_ws_1")
-        .expect("visible remote worktree parent")
-        .rect;
-    let remote_child = state
-        .hits
-        .workspaces
-        .iter()
-        .find(|hit| hit.endpoint_id == remote_id && hit.workspace_id == "remote_ws_2")
-        .expect("visible remote worktree child")
-        .rect;
-    state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-        kind: MouseEventKind::Down(MouseButton::Left),
-        column: remote_parent.x + 3,
-        row: remote_parent.y,
-        modifiers: KeyModifiers::empty(),
-    })]);
-    state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
-        kind: MouseEventKind::Drag(MouseButton::Left),
-        column: remote_child.x + 3,
-        row: remote_child.bottom(),
-        modifiers: KeyModifiers::empty(),
-    })]);
-    assert!(matches!(
-        state.chrome_drag,
-        Some(ClientChromeDrag::Workspace {
-            target: Some(_),
-            ..
-        })
-    ));
-    state.chrome_drag = None;
-    state.workspace_press = None;
+    assert!(
+        (local_header.x..local_header.right())
+            .any(|x| buffer[(x, local_header.y)].fg == state.config.palette.red),
+        "a collapsed space shows its most urgent member status"
+    );
 
-    let remote_toggle = state
+    let remote_header = state
         .hits
-        .workspaces
+        .space_headers
         .iter()
-        .find(|hit| hit.endpoint_id == remote_id && hit.workspace_id == "remote_ws_1")
-        .and_then(|hit| hit.group_toggle.as_ref())
-        .expect("remote worktree group marker")
-        .0;
+        .find(|hit| hit.endpoint_id == remote_id)
+        .expect("remote space header")
+        .rect;
     state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
-        column: remote_toggle.x,
-        row: remote_toggle.y,
+        column: remote_header.x + 3,
+        row: remote_header.y,
         modifiers: KeyModifiers::empty(),
     })]);
-    state.compose(100, 28).expect("both groups collapsed");
+    state.compose(100, 28).expect("both spaces collapsed");
     assert!(!state
         .hits
         .workspaces
         .iter()
         .any(|hit| { hit.endpoint_id == remote_id && hit.workspace_id == "remote_ws_2" }));
 
-    let local_toggle = state
+    let local_header = state
         .hits
-        .workspaces
+        .space_headers
         .iter()
-        .find(|hit| hit.endpoint_id == ClientEndpointId::Local && hit.workspace_id == "ws_1")
-        .and_then(|hit| hit.group_toggle.as_ref())
-        .expect("collapsed local group marker")
-        .0;
+        .find(|hit| hit.endpoint_id == ClientEndpointId::Local)
+        .expect("collapsed local header")
+        .rect;
     state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
-        column: local_toggle.x,
-        row: local_toggle.y,
+        column: local_header.x + 3,
+        row: local_header.y,
         modifiers: KeyModifiers::empty(),
     })]);
-    state.compose(100, 28).expect("only remote group collapsed");
+    state.compose(100, 28).expect("only remote space collapsed");
     assert!(state
         .hits
         .workspaces
@@ -870,23 +817,31 @@ fn expanded_machine_sidebar_applies_space_row_gap_within_each_machine() {
     state.set_snapshot(Box::new(local));
     let mut remote = snapshot();
     remote.boot_id = "remote-boot".into();
-    remote.workspaces[0].worktree = Some(ClientShellWorktree {
-        key: "repo".into(),
-        label: "repo".into(),
-        is_linked_worktree: false,
-    });
     add_second_workspace(&mut remote);
-    remote.workspaces[1].worktree = Some(ClientShellWorktree {
-        key: "repo".into(),
-        label: "repo".into(),
-        is_linked_worktree: true,
-    });
     let mut third = remote.workspaces[1].clone();
     third.workspace_id = "ws_3".into();
     third.number = 3;
     third.label = "third-workspace".into();
-    third.worktree = None;
     remote.workspaces.push(third);
+    remote.workspaces[0].space_id = Some("space_repo".into());
+    remote.workspaces[1].space_id = Some("space_repo".into());
+    remote.workspaces[2].space_id = Some("other".into());
+    remote.spaces = vec![
+        crate::protocol::ClientShellSpace {
+            space_id: "space_repo".into(),
+            name: "repo".into(),
+            color: 0,
+            built_in: false,
+            closed: Vec::new(),
+        },
+        crate::protocol::ClientShellSpace {
+            space_id: "other".into(),
+            name: "other".into(),
+            color: 0,
+            built_in: true,
+            closed: Vec::new(),
+        },
+    ];
     state.set_endpoint_snapshot(&remote_id, Box::new(remote));
 
     state.compose(100, 40).expect("combined endpoint frame");
@@ -899,7 +854,8 @@ fn expanded_machine_sidebar_applies_space_row_gap_within_each_machine() {
     assert_eq!(local_workspaces.len(), 2);
     assert_eq!(
         local_workspaces[1].rect.y,
-        local_workspaces[0].rect.bottom() + 1
+        local_workspaces[0].rect.bottom() + 1,
+        "servers without spaces keep the row gap between workspaces"
     );
 
     let local_machine = state
@@ -917,22 +873,35 @@ fn expanded_machine_sidebar_applies_space_row_gap_within_each_machine() {
     assert_eq!(local_workspaces[0].rect.y, local_machine.rect.bottom());
     assert_eq!(remote_machine.rect.y, local_workspaces[1].rect.bottom());
 
+    let remote_headers = state
+        .hits
+        .space_headers
+        .iter()
+        .filter(|hit| hit.endpoint_id == remote_id)
+        .map(|hit| hit.rect)
+        .collect::<Vec<_>>();
     let remote_workspaces = state
         .hits
         .workspaces
         .iter()
         .filter(|hit| hit.endpoint_id == remote_id)
+        .map(|hit| hit.rect)
         .collect::<Vec<_>>();
+    assert_eq!(remote_headers.len(), 2);
     assert_eq!(remote_workspaces.len(), 3);
-    assert_eq!(remote_workspaces[0].rect.y, remote_machine.rect.bottom());
+    assert_eq!(remote_headers[0].y, remote_machine.rect.bottom());
+    assert_eq!(remote_workspaces[0].y, remote_headers[0].bottom());
     assert_eq!(
-        remote_workspaces[1].rect.y,
-        remote_workspaces[0].rect.bottom()
+        remote_workspaces[1].y,
+        remote_workspaces[0].bottom() + 1,
+        "members of a space keep the row gap"
     );
     assert_eq!(
-        remote_workspaces[2].rect.y,
-        remote_workspaces[1].rect.bottom() + 1
+        remote_headers[1].y,
+        remote_workspaces[1].bottom() + 1,
+        "a blank row separates spaces"
     );
+    assert_eq!(remote_workspaces[2].y, remote_headers[1].bottom());
 
     state.workspace_scroll = usize::MAX;
     state.compose(100, 18).expect("scrolled endpoint frame");
@@ -943,21 +912,14 @@ fn expanded_machine_sidebar_applies_space_row_gap_within_each_machine() {
     assert!(metrics.max_offset_from_bottom > 0);
     assert_eq!(metrics.offset_from_bottom, 0);
     assert_eq!(state.workspace_scroll, metrics.max_offset_from_bottom);
-    let visible_remote = state
-        .hits
-        .workspaces
-        .iter()
-        .filter(|hit| hit.endpoint_id == remote_id)
-        .collect::<Vec<_>>();
-    assert_eq!(visible_remote.len(), 3);
-    let gap_y = visible_remote[1].rect.bottom();
-    assert_eq!(visible_remote[2].rect.y, gap_y + 1);
-    assert!(visible_remote[2].rect.bottom() <= state.hits.workspace_body.bottom());
-    assert!(state
-        .hits
-        .workspaces
-        .iter()
-        .all(|hit| gap_y < hit.rect.top() || gap_y >= hit.rect.bottom()));
+    assert!(
+        state
+            .hits
+            .workspaces
+            .iter()
+            .any(|hit| hit.endpoint_id == remote_id && hit.workspace_id == "ws_3"),
+        "scrolling to the bottom reveals the last row"
+    );
 }
 
 #[test]
