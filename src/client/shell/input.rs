@@ -476,7 +476,6 @@ impl ClientShellState {
                 | Some(ClientShellOverlay::SpaceWorktree(
                     ClientSpaceWorktreeOverlay {
                         creating: false,
-                        field: SpaceWorktreeField::Name,
                         ..
                     }
                 ))

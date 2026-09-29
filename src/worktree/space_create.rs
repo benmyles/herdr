@@ -83,7 +83,7 @@ pub(crate) fn create_space_worktree(
         return Err(SpaceWorktreeFailure::new(
             "checkout_path_exists",
             format!(
-                "{} already exists and is not a worktree of this repo",
+                "the checkout folder already exists and isn't a worktree of this repo: {}",
                 plan.checkout_path.display()
             ),
         ));
@@ -95,9 +95,9 @@ pub(crate) fn create_space_worktree(
         return Err(SpaceWorktreeFailure::new(
             "branch_checked_out",
             format!(
-                "branch {} is already checked out at {}",
+                "{} is already checked out in {}",
                 plan.branch,
-                entry.path.display()
+                short_path(&entry.path)
             ),
         ));
     }
@@ -234,8 +234,8 @@ fn fast_forward_base(
         Some(path) if path == root_key => {
             if !git.is_clean() {
                 report.warnings.push(format!(
-                    "{} has uncommitted changes; didn't update its {base}",
-                    plan.repo_root.display()
+                    "The main checkout has uncommitted changes, so its {base} wasn't updated. \
+                     The worktree starts from {upstream}."
                 ));
                 return;
             }
@@ -248,8 +248,9 @@ fn fast_forward_base(
         }
         Some(path) => {
             report.warnings.push(format!(
-                "{base} is checked out at {}; didn't update it",
-                path.display()
+                "{base} is checked out in {}, so it wasn't updated. The worktree starts from \
+                 {upstream}.",
+                short_path(&path)
             ));
             return;
         }
@@ -263,6 +264,18 @@ fn fast_forward_base(
         }
     }
     report.root_updated = true;
+}
+
+/// The last few components of a path, enough to recognize it in one line.
+fn short_path(path: &Path) -> String {
+    let components = path
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
+    if components.len() <= 4 {
+        return path.display().to_string();
+    }
+    format!("…/{}", components[components.len() - 3..].join("/"))
 }
 
 fn directory_has_entries(path: &Path) -> bool {

@@ -45,7 +45,7 @@ impl App {
     }
 
     fn add_repo(&mut self, params: RepoAddParams) -> Result<RepoInfo, RepoError> {
-        let path = crate::worktree::expand_tilde_absolute_path(params.root.trim());
+        let path = crate::repos::typed_root(&params.root);
         let inspected = crate::repos::inspect_root(&path, params.remote.as_deref())?;
         let root_key = crate::worktree::canonical_or_original(&inspected.root);
         if let Some(existing) = self
@@ -56,7 +56,7 @@ impl App {
         {
             return Err(RepoError {
                 code: "duplicate_repo_root",
-                message: format!("{} is already added as {}", existing.root, existing.name),
+                message: format!("this checkout is already added as {}", existing.name),
             });
         }
         let name = crate::repos::validated_name(
@@ -96,7 +96,7 @@ impl App {
             repo.name = crate::repos::validated_name(&self.state.repos, name, Some(index))?;
         }
         if let Some(root) = params.root.as_deref().map(str::trim) {
-            let path = crate::worktree::expand_tilde_absolute_path(root);
+            let path = crate::repos::typed_root(root);
             let inspected = crate::repos::inspect_root(&path, repo.remote.as_deref())?;
             repo.root = crate::repos::display_root(&inspected.root);
         }
@@ -243,6 +243,14 @@ mod tests {
             }),
         );
         assert_eq!(response["error"]["code"], "repo_root_not_found");
+        let relative = call(
+            &mut app,
+            Method::RepoAdd(RepoAddParams {
+                root: "code/project".into(),
+                ..RepoAddParams::default()
+            }),
+        );
+        assert_eq!(relative["error"]["code"], "invalid_repo_root");
         assert!(app.state.repos.is_empty());
     }
 }

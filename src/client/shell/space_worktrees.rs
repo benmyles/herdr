@@ -406,9 +406,8 @@ impl ClientShellState {
 
     pub(super) fn insert_repo_overlay_text(&mut self, text: &str) -> bool {
         match self.overlay.as_mut() {
-            Some(ClientShellOverlay::SpaceWorktree(dialog))
-                if !dialog.creating && dialog.field == SpaceWorktreeField::Name =>
-            {
+            Some(ClientShellOverlay::SpaceWorktree(dialog)) if !dialog.creating => {
+                dialog.field = SpaceWorktreeField::Name;
                 if dialog.name.insert(text) {
                     dialog.error = None;
                     dialog.offer_without_sync = false;
@@ -461,9 +460,9 @@ impl ClientShellState {
                                 dialog.offer_without_sync = false;
                                 dialog.error = None;
                             }
-                            _ if field == SpaceWorktreeField::Name
-                                && dialog.name.handle_key(key) == Some(true) =>
-                            {
+                            // Typing on the checkbox goes to the name.
+                            _ if dialog.name.handle_key(key) == Some(true) => {
+                                dialog.field = SpaceWorktreeField::Name;
                                 dialog.error = None;
                                 dialog.offer_without_sync = false;
                             }

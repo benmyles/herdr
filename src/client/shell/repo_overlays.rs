@@ -46,7 +46,7 @@ pub(super) fn tail_fit(text: &str, width: u16) -> String {
     format!("…{tail}")
 }
 
-fn wrap_words(text: &str, width: u16) -> Vec<String> {
+pub(super) fn wrap_words(text: &str, width: u16) -> Vec<String> {
     let width = usize::from(width.max(1));
     let mut lines = Vec::new();
     let mut line = String::new();
@@ -443,32 +443,31 @@ pub(super) fn render_repo_edit_overlay(
             .bg(if focused { p.surface0 } else { p.panel_bg });
         b.set_style(field, style);
         let editor = &edit.fields[index];
-        if editor.is_empty() && !focused {
+        let field_cursor = text_editor::render(
+            b,
+            Rect::new(field.x + 1, field.y, field.width.saturating_sub(1), 1),
+            editor,
+            style,
+        );
+        if editor.is_empty() {
             put_text(
                 b,
                 field.x + 1,
                 field.y,
                 field.width.saturating_sub(1),
                 placeholders[index],
-                Style::default().fg(p.overlay0).bg(p.panel_bg),
+                style.fg(p.overlay0),
             );
-        } else {
-            let field_cursor = text_editor::render(
-                b,
-                Rect::new(field.x + 1, field.y, field.width.saturating_sub(1), 1),
-                editor,
-                style,
-            );
-            if focused {
-                cursor = field_cursor;
-            }
+        }
+        if focused {
+            cursor = field_cursor;
         }
         hits.push((field, ClientOverlayHit::RepoEditField(index)));
     }
     let hint = if adding {
-        " worktrees for this repo branch from its base branch; blank fields are detected"
+        " blank fields are detected from the repo"
     } else {
-        " changing the root only affects new worktrees"
+        " changes apply to new worktrees"
     };
     put_text(
         b,
@@ -488,14 +487,20 @@ pub(super) fn render_repo_edit_overlay(
             Style::default().fg(p.accent).bg(p.panel_bg),
         );
     } else if let Some(error) = edit.error.as_deref() {
-        put_text(
-            b,
-            inner.x,
-            inner.y + 9,
-            inner.width,
-            &format!(" {error}"),
-            Style::default().fg(p.red).bg(p.panel_bg),
-        );
+        for (offset, line) in wrap_words(error, inner.width.saturating_sub(2))
+            .iter()
+            .take(2)
+            .enumerate()
+        {
+            put_text(
+                b,
+                inner.x + 1,
+                inner.y + 9 + offset as u16,
+                inner.width.saturating_sub(1),
+                line,
+                Style::default().fg(p.red).bg(p.panel_bg),
+            );
+        }
     }
     let buttons = row(inner, &[10, 12], 2, inner.height.saturating_sub(1));
     let [save, cancel] = buttons.as_slice() else {

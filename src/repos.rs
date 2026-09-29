@@ -188,16 +188,23 @@ pub(crate) struct InspectedRoot {
 }
 
 pub(crate) fn inspect_root(path: &Path, remote: Option<&str>) -> Result<InspectedRoot, RepoError> {
+    // Reasons come first: the dialog shows one or two lines, and paths are long.
+    if !path.is_absolute() {
+        return Err(RepoError::new(
+            "invalid_repo_root",
+            format!("use an absolute path or ~/…, not {}", path.display()),
+        ));
+    }
     if !path.is_dir() {
         return Err(RepoError::new(
             "repo_root_not_found",
-            format!("{} is not a directory", path.display()),
+            format!("no such directory: {}", path.display()),
         ));
     }
     let space = crate::workspace::git_space_metadata(path).ok_or_else(|| {
         RepoError::new(
             "not_git_worktree",
-            format!("{} is not inside a Git repo", path.display()),
+            format!("not inside a Git repo: {}", path.display()),
         )
     })?;
     if space.is_linked_worktree {
@@ -244,6 +251,13 @@ pub(crate) fn inspect_root(path: &Path, remote: Option<&str>) -> Result<Inspecte
         remote,
         base_branch,
     })
+}
+
+/// A root as typed: `~` expands, relative paths stay relative so
+/// `inspect_root` can reject them instead of resolving them against the
+/// server's working directory.
+pub(crate) fn typed_root(root: &str) -> PathBuf {
+    crate::worktree::expand_tilde_path(root.trim())
 }
 
 /// `~/…` when the path is under the home directory, so the file stays

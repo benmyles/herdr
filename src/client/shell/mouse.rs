@@ -1206,13 +1206,16 @@ impl ClientShellState {
                     .column
                     .abs_diff(press.start_column)
                     .max(mouse.row.abs_diff(press.start_row));
-                if delta >= 1 && self.endpoint_space_is_draggable(press) {
-                    let space_id = press.space_id.clone();
-                    if let Some(target) = self.space_drop_target_at(point) {
-                        self.space_press = None;
+                if delta >= 1 {
+                    // A moved press is never a click, draggable or not.
+                    let press = self.space_press.take();
+                    if let Some(press) =
+                        press.filter(|press| self.endpoint_space_is_draggable(press))
+                    {
+                        let target = self.space_drop_target_at(point);
                         self.chrome_drag = Some(ClientChromeDrag::Space {
-                            space_id,
-                            target: Some(target),
+                            space_id: press.space_id,
+                            target,
                         });
                         outcome.repaint = true;
                     }
