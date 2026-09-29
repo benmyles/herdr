@@ -20,8 +20,8 @@ if [ "$FAKE_STRICT_HOST_KEY_FAILURE" = yes ] && [ "$strict_host_key_check" = yes
     echo 'Host key verification failed.' >&2
     exit 255
 fi
-if [ "$last" = 'command -v herdr' ]; then
-    echo /home/remote/.local/bin/herdr
+if [ "$last" = 'command -v herdr-benmyles' ]; then
+    echo /home/remote/.local/bin/herdr-benmyles
     exit 0
 fi
 case "$last" in
@@ -34,7 +34,7 @@ esac
 printf '\n%s\n' 'herdr-remote-output-ready:1'
 case "$script" in
     *'uname -s'*) uname -s; uname -m ;;
-    *'version='*) echo /home/remote/.local/bin/herdr ;;
+    *'name='*) echo /home/remote/.local/bin/herdr-benmyles ;;
     *'status client --json'*)
         if [ "$FAKE_INSTALLED" = new ] || [ -f "$FAKE_ROOT/installed" ]; then
             printf '%s\n' "$FAKE_CLIENT_STATUS"
@@ -54,7 +54,7 @@ case "$script" in
     *'remote-client-bridge'*) echo start >>"$FAKE_ROOT/actions"; echo 'test startup failure' >&2; exit 1 ;;
     *'mkdir -p'*) printf '/fake/tmp\000/fake/herdr\000' ;;
     *'chmod 755'*) echo install >>"$FAKE_ROOT/actions"; touch "$FAKE_ROOT/installed" ;;
-    *'command -v herdr'*) echo /home/remote/.local/bin/herdr ;;
+    *'command -v herdr-benmyles'*) echo /home/remote/.local/bin/herdr-benmyles ;;
     *) echo "unexpected fake SSH script: $script" >&2; exit 1 ;;
 esac
 "#;
@@ -134,7 +134,7 @@ fn setup_with_strict_host_key_failure(
         "HERDR_BENMYLES_SESSION",
         "HERDR_BENMYLES_SOCKET_PATH",
         "HERDR_BENMYLES_CLIENT_SOCKET_PATH",
-        "HERDR_REMOTE_BINARY",
+        "HERDR_BENMYLES_REMOTE_BINARY",
         "HERDR_BENMYLES_CONFIG_PATH",
     ] {
         command.env_remove(name);
@@ -240,7 +240,7 @@ fn machine_add_accepts_help_argument_order() {
         "HERDR_BENMYLES_SESSION",
         "HERDR_BENMYLES_SOCKET_PATH",
         "HERDR_BENMYLES_CLIENT_SOCKET_PATH",
-        "HERDR_REMOTE_BINARY",
+        "HERDR_BENMYLES_REMOTE_BINARY",
         "HERDR_BENMYLES_CONFIG_PATH",
     ] {
         command.env_remove(name);

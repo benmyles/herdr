@@ -118,7 +118,7 @@ exit 255
         .env_remove("HERDR_BENMYLES_SESSION")
         .env_remove("HERDR_BENMYLES_SOCKET_PATH")
         .env_remove("HERDR_BENMYLES_CLIENT_SOCKET_PATH")
-        .env_remove("HERDR_REMOTE_BINARY")
+        .env_remove("HERDR_BENMYLES_REMOTE_BINARY")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())

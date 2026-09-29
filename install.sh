@@ -15,9 +15,26 @@
 #
 # Set HERDR_BENMYLES_INSTALL_TARGET to install to an explicit path, or
 # HERDR_BENMYLES_BIN_DIR to install to HERDR_BENMYLES_BIN_DIR/herdr-benmyles.
+#
+# --remote also cross-builds static Linux binaries (x86_64 and aarch64) of the
+# same commit into ${XDG_CACHE_HOME:-~/.cache}/herdr-benmyles/remote, where
+# `herdr-benmyles --remote` finds them to install on SSH hosts. It needs
+# cargo-zigbuild and the *-unknown-linux-musl rustup targets. Override the
+# platform list with HERDR_BENMYLES_REMOTE_TARGETS="linux-x86_64 linux-aarch64".
 set -euo pipefail
 
 ROOT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+
+BUILD_REMOTE=0
+for arg in "$@"; do
+    case "$arg" in
+    --remote) BUILD_REMOTE=1 ;;
+    *)
+        echo "usage: ./install.sh [--remote]" >&2
+        exit 2
+        ;;
+    esac
+done
 ZIG_VERSION="0.16.0"
 BIN_NAME="herdr-benmyles"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/herdr"
@@ -157,8 +174,54 @@ if [[ "$(uname -s)" == "Darwin" ]] && [[ -d "/Library/Developer/CommandLineTools
     export DEVELOPER_DIR="/Library/Developer/CommandLineTools"
 fi
 
-echo "building $BIN_NAME release with $("$ZIG" version)"
+# Stamp the commit so remote attach keeps SSH hosts on this exact build. A
+# dirty tree gets a per-run suffix: its local and remote builds match each
+# other but no other dirty build.
+HERDR_BUILD_COMMIT="$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD)"
+if [[ -n "$(git -C "$ROOT_DIR" status --porcelain --untracked-files=no)" ]]; then
+    HERDR_BUILD_COMMIT="$HERDR_BUILD_COMMIT-dirty-$(date +%s)"
+fi
+export HERDR_BUILD_COMMIT
+
+remote_rust_target() {
+    case "$1" in
+    linux-x86_64) printf 'x86_64-unknown-linux-musl\n' ;;
+    linux-aarch64) printf 'aarch64-unknown-linux-musl\n' ;;
+    *)
+        echo "error: unsupported remote platform: $1" >&2
+        exit 1
+        ;;
+    esac
+}
+
+build_remote_binaries() {
+    if ! command -v cargo-zigbuild >/dev/null 2>&1; then
+        echo "error: --remote needs cargo-zigbuild: cargo install cargo-zigbuild --locked" >&2
+        exit 1
+    fi
+    local cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/$BIN_NAME/remote"
+    local platform rust_target cache_dir
+    for platform in ${HERDR_BENMYLES_REMOTE_TARGETS:-linux-x86_64 linux-aarch64}; do
+        rust_target="$(remote_rust_target "$platform")"
+        if ! rustup target list --installed | grep -qx "$rust_target"; then
+            rustup target add "$rust_target"
+        fi
+        echo "building $BIN_NAME for $platform ($rust_target)"
+        cargo zigbuild --release --locked --target "$rust_target"
+        cache_dir="$cache_root/$platform"
+        mkdir -p "$cache_dir"
+        install -m 0755 "$ROOT_DIR/target/$rust_target/release/$BIN_NAME" "$cache_dir/.$BIN_NAME.tmp"
+        mv -f -- "$cache_dir/.$BIN_NAME.tmp" "$cache_dir/$BIN_NAME"
+        printf '%s\n' "$HERDR_BUILD_COMMIT" >"$cache_dir/build"
+        echo "cached $platform build at $cache_dir/$BIN_NAME"
+    done
+}
+
+echo "building $BIN_NAME release $HERDR_BUILD_COMMIT with $("$ZIG" version)"
 cargo build --release --locked
+if [[ "$BUILD_REMOTE" == 1 ]]; then
+    build_remote_binaries
+fi
 
 BUILD_BINARY="$ROOT_DIR/target/release/$BIN_NAME"
 INSTALL_DIR="$(dirname -- "$INSTALL_TARGET")"

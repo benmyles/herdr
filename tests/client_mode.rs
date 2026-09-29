@@ -965,7 +965,11 @@ fn federated_client_starts_without_local_and_survives_its_restart() {
     let bin = base.join("bin");
     fs::create_dir_all(&bin).unwrap();
     fs::create_dir_all(base.join("home")).unwrap();
-    std::os::unix::fs::symlink(env!("CARGO_BIN_EXE_herdr-benmyles"), bin.join("herdr")).unwrap();
+    std::os::unix::fs::symlink(
+        env!("CARGO_BIN_EXE_herdr-benmyles"),
+        bin.join("herdr-benmyles"),
+    )
+    .unwrap();
     let quote =
         |path: &std::path::Path| format!("'{}'", path.display().to_string().replace('\'', "'\\''"));
     let ssh_commands = base.join("ssh-commands");

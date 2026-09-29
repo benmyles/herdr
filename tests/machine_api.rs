@@ -129,7 +129,7 @@ exec "$TEST_REMOTE_HERDR" "$@"
             .env("HERDR_BENMYLES_SESSION", "wrong-inherited-session")
             .env("HERDR_BENMYLES_PANE_ID", "wrong-local-pane")
             .env_remove("HERDR_BENMYLES_CONFIG_PATH")
-            .env_remove("HERDR_REMOTE_BINARY");
+            .env_remove("HERDR_BENMYLES_REMOTE_BINARY");
         command
     }
 

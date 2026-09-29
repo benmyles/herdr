@@ -23,6 +23,12 @@ pub fn build_id() -> Option<&'static str> {
     non_empty(option_env!("HERDR_BUILD_ID"))
 }
 
+/// Commit the fork was built from, stamped by install.sh. Remote attach uses it
+/// to keep remote hosts on this exact build; development builds leave it unset.
+pub fn build_commit() -> Option<&'static str> {
+    non_empty(option_env!("HERDR_BUILD_COMMIT"))
+}
+
 pub fn version() -> String {
     match channel() {
         "stable" => BASE_VERSION.to_string(),

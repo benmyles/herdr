@@ -260,6 +260,8 @@ struct ClientStatusJson {
     remote_bridge_idle_timeout: bool,
     binary: String,
     session: Option<String>,
+    app: &'static str,
+    build: Option<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -308,6 +310,8 @@ fn client_status_json() -> ClientStatusJson {
         remote_bridge_idle_timeout: crate::platform::REMOTE_BRIDGE_IDLE_TIMEOUT_SUPPORTED,
         binary: current_exe_label(),
         session: crate::session::active_name(),
+        app: crate::build_info::BIN_NAME,
+        build: crate::build_info::build_commit(),
     }
 }
 

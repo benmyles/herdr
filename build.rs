@@ -71,6 +71,10 @@ fn main() {
         .arg(format!("-Dtarget={zig_target}"))
         .arg(format!("-Dversion-string={version_string}"))
         .arg("-Demit-xcframework=false");
+    // Install per cargo target so native and cross builds (install.sh --remote)
+    // do not overwrite each other's archive in the shared vendored tree.
+    let install_prefix = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR")).join("zig-out");
+    command.arg("--prefix").arg(&install_prefix);
     if target.ends_with("windows-msvc") {
         if let Some(libc_file) = env::var_os("LIBGHOSTTY_VT_WINDOWS_LIBC") {
             println!(
@@ -105,7 +109,7 @@ fn main() {
          or set ZIG to the path of a Zig 0.16.0 binary, then retry"
     );
 
-    let lib_dir = vendored_dir.join("zig-out/lib");
+    let lib_dir = install_prefix.join("lib");
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
     if target.contains("apple-darwin") {
         let static_lib = lib_dir.join("libghostty-vt.a");
