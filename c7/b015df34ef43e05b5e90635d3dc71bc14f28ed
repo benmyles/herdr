@@ -1,0 +1,251 @@
+src/cli/worktree.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 64,157,247,253,316-317,319,322,324
+  s_2b88b77aedc95c::t_8dc1222486b3b1 302-304
+tests/cli/sessions.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 213,231,322,342
+  s_2b88b77aedc95c::t_f4ed56e0234b74 235,268,276,288,299,331,357
+  s_2b88b77aedc95c::t_160fcb96fc6d01 239-242,270,278,290,301,333,359
+src/integration/mod.rs
+  s_2b88b77aedc95c::t_006df371e67ad6 21-22
+src/server/headless/tests/mod.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 295,6901,6938,6955
+src/update.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 28,964,973,981,999,1040,1121,1136,1479,1485,1906,2779,2934-2935,3078,3157-3158,3193-3194
+  s_2b88b77aedc95c::t_39edbd7e2887f7 1070
+  s_2b88b77aedc95c::t_8dc1222486b3b1 1072-1076,2163-2165,2225-2227
+  s_2b88b77aedc95c::t_0eb72f64dd9a4b 2116-2119,2121-2126,2263-2265
+src/cli/notification.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 28,135,137
+src/cli/api.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 58,92,100-102,106,115
+src/client/shell/tests/mod.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 17
+src/plugin_command.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 162
+src/cli/plugin.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 19,52,92,96,144,148,286,290,352,359,454,664,668,678,682,1677-1688,1692-1694,1698-1701
+src/cli/server_not_running.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 35
+install.sh
+  s_2b88b77aedc95c::t_d04b1a467aaf65 2-6,16-17,22,94-95,98-99,104-108,110-112,114,160,163,178,191
+src/cli/tab.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 128,132,141,145,154,166,170,178-179,181,183-186
+tests/host_shutdown.rs
+  s_2b88b77aedc95c::t_1388e60962e146 124,206
+  s_2b88b77aedc95c::t_f4ed56e0234b74 128
+  s_2b88b77aedc95c::t_160fcb96fc6d01 133-134,136-140
+src/app/actions.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 4022,4034
+src/cli/machine.rs
+  s_2b88b77aedc95c::t_8dc1222486b3b1 350-351
+  s_2b88b77aedc95c::t_423eb6ad383d35 6-13,58,113,177,189,249,318,322,385
+src/integration/registry.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 373
+tests/auto_detect.rs
+  s_2b88b77aedc95c::t_1388e60962e146 90,134,252,254,576,578,655,657
+  s_2b88b77aedc95c::t_160fcb96fc6d01 112-113,115,156-157,159,205,263-270,408,573,607,609-610,714-716
+  s_2b88b77aedc95c::t_f4ed56e0234b74 108,152,203,258,602,711
+  s_2b88b77aedc95c::t_ddf8fc304dfd6c 94,138
+src/app/mod.rs
+  s_2b88b77aedc95c::t_8dc1222486b3b1 2159-2160
+  s_2b88b77aedc95c::t_423eb6ad383d35 1321,1343,1560,1964,2029,3294
+tests/multi_client.rs
+  s_2b88b77aedc95c::t_ddf8fc304dfd6c 82-83,85-86
+  s_2b88b77aedc95c::t_1388e60962e146 79
+  s_2b88b77aedc95c::t_160fcb96fc6d01 99-100,102,127-128,130
+  s_2b88b77aedc95c::t_f4ed56e0234b74 95,122
+  s_2b88b77aedc95c::t_578e7fcaf01654 84
+src/cli/spec.rs
+  s_2b88b77aedc95c::t_07b0b8174547c8 9
+  s_2b88b77aedc95c::t_423eb6ad383d35 325,342,368,382,398,406,431,587,1214,1224,1349,1356
+  s_2b88b77aedc95c::t_2b74de6910b8f5 1094
+src/server/socket_paths.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 66
+  s_2b88b77aedc95c::t_5adc89a52ddb7b 6,8-9
+src/cli/workspace.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 34,107,111,120,124,133,145,233,245-252
+tests/detach_reattach.rs
+  s_2b88b77aedc95c::t_ddf8fc304dfd6c 112,131
+  s_2b88b77aedc95c::t_8dc1222486b3b1 129-130,132
+  s_2b88b77aedc95c::t_f4ed56e0234b74 123
+  s_2b88b77aedc95c::t_1388e60962e146 109
+  s_2b88b77aedc95c::t_160fcb96fc6d01 127-128,134
+src/integration/env.rs
+  s_2b88b77aedc95c::t_5adc89a52ddb7b 8-11,36-38,40-41
+src/client/shell/machine_diagnostics.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 104,106
+src/cli/integration.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 29,159,165,205-244
+src/protocol/endpoint.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 227
+tests/cli/surface.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 292,363,371-372,479,495
+  s_2b88b77aedc95c::t_160fcb96fc6d01 281-283,329-331,408,426-428,596,598,616
+  s_2b88b77aedc95c::t_f4ed56e0234b74 261,279,327,353,359,365,406,424,456,471,486,506,567,594,614
+src/remote/attach.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 1292,2385
+tests/client_mode.rs
+  s_2b88b77aedc95c::t_ddf8fc304dfd6c 493
+  s_2b88b77aedc95c::t_1388e60962e146 249,251,415,417,489
+  s_2b88b77aedc95c::t_423eb6ad383d35 520
+  s_2b88b77aedc95c::t_f4ed56e0234b74 127,187,437,498,968,2003
+  s_2b88b77aedc95c::t_160fcb96fc6d01 133-134,136,191-192,194,441-442,444,504-506,974,2007-2008,2010
+  s_2b88b77aedc95c::t_5cf17441b4f569 469
+tests/remote_attach.rs
+  s_2b88b77aedc95c::t_160fcb96fc6d01 116-120
+  s_2b88b77aedc95c::t_f4ed56e0234b74 108
+src/server/client_shell.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 748,759
+src/remote/host.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 57
+src/config/io.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 242,791,804,817,830,839,846,859
+  s_2b88b77aedc95c::t_5adc89a52ddb7b 24,26
+src/config.rs
+  s_2b88b77aedc95c::t_5adc89a52ddb7b 56
+src/cli/agent.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 91,93,103,114,118,142-143,291,440,452,456,470,474,510,763,784,859,874,937-941,945-948,950,952,954
+  s_2b88b77aedc95c::t_8dc1222486b3b1 487-493,545-547,942-944
+tests/cli/harness.rs
+  s_2b88b77aedc95c::t_160fcb96fc6d01 185-187,235-236,241,243,309-310,312,328,340
+  s_2b88b77aedc95c::t_f4ed56e0234b74 180,230,305,326,337
+  s_2b88b77aedc95c::t_1388e60962e146 27-30,152,154
+justfile
+  s_2b88b77aedc95c::t_13da2c572f74e2 88,93
+src/build_info.rs
+  s_2b88b77aedc95c::t_5adc89a52ddb7b 3-15
+tests/cli/agents.rs
+  s_2b88b77aedc95c::t_f4ed56e0234b74 53,228
+  s_2b88b77aedc95c::t_160fcb96fc6d01 51,226
+tests/support/mod.rs
+  s_2b88b77aedc95c::t_160fcb96fc6d01 735
+  s_2b88b77aedc95c::t_f4ed56e0234b74 761,902,913
+src/client/errors.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 29
+src/main.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 123,164,401,512,523,531,546,581,602-606,608-613,615-624,633,645,649,653,657,661,669,673,677,685,689,693,697,701,709,767,789
+  s_2b88b77aedc95c::t_82068796dfb086 607,614
+  s_2b88b77aedc95c::t_2b74de6910b8f5 600
+  s_2b88b77aedc95c::t_5adc89a52ddb7b 3
+  s_2b88b77aedc95c::t_8dc1222486b3b1 629-632,637-644,665-668,681-684
+tests/cli/plugins.rs
+  s_2b88b77aedc95c::t_8dc1222486b3b1 410-413
+  s_2b88b77aedc95c::t_1388e60962e146 415-416,881,1007,1135
+  s_2b88b77aedc95c::t_160fcb96fc6d01 442,486,524
+src/cli.rs
+  s_2b88b77aedc95c::t_2b74de6910b8f5 45,47,542,694,706,715-716,720-721,1038-1039,1043-1045
+  s_2b88b77aedc95c::t_423eb6ad383d35 55,160,221,264-266,293,297,317,383,452,455,460,1030-1031,1050-1054
+  s_2b88b77aedc95c::t_8dc1222486b3b1 477-483,512-518,1032-1034,1040-1042
+src/server/headless/bootstrap.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 42,75,85
+  s_2b88b77aedc95c::t_8dc1222486b3b1 216-218,227-229
+src/ui/release_notes.rs
+  s_2b88b77aedc95c::t_8dc1222486b3b1 276-283
+  s_2b88b77aedc95c::t_423eb6ad383d35 273,307,316,320,335,340
+src/cli/pane.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 84,88,286,350,433,437,470,557,726,912,977,1007,1011,1020,1031,1042,1071,1160,1290,1408,1473,1663-1668,1672-1673,1675,1677-1679,1684-1699,1886,1923
+  s_2b88b77aedc95c::t_8dc1222486b3b1 296-297,1670,1680-1683
+src/client/shell/tests/startup_overlays.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 744,961
+src/client/shell/tests/endpoints.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 102
+tests/machine_setup.rs
+  s_2b88b77aedc95c::t_160fcb96fc6d01 133-136,138,239-242,244
+  s_2b88b77aedc95c::t_f4ed56e0234b74 101,108,230
+  s_2b88b77aedc95c::t_1388e60962e146 88,90,220,222
+tests/broken_pipe.rs
+  s_2b88b77aedc95c::t_f4ed56e0234b74 19
+src/session.rs
+  s_2b88b77aedc95c::t_5adc89a52ddb7b 10
+  s_2b88b77aedc95c::t_5cf17441b4f569 866,919
+  s_2b88b77aedc95c::t_423eb6ad383d35 45,48,136,339,874,884,894,903-904,906
+  s_2b88b77aedc95c::t_07b0b8174547c8 105-106,116-117
+src/app/custom_commands.rs
+  s_2b88b77aedc95c::t_006df371e67ad6 255
+  s_2b88b77aedc95c::t_a155b7327e26cb 251-254
+tests/cli/panes.rs
+  s_2b88b77aedc95c::t_160fcb96fc6d01 542
+tests/session_delete.rs
+  s_2b88b77aedc95c::t_160fcb96fc6d01 52-54
+  s_2b88b77aedc95c::t_f4ed56e0234b74 49
+  s_2b88b77aedc95c::t_1388e60962e146 34,36
+tests/cross_area.rs
+  s_2b88b77aedc95c::t_1388e60962e146 102
+  s_2b88b77aedc95c::t_160fcb96fc6d01 125-126,128,164-165,167
+  s_2b88b77aedc95c::t_ddf8fc304dfd6c 106
+  s_2b88b77aedc95c::t_f4ed56e0234b74 120,158
+tests/server_headless.rs
+  s_2b88b77aedc95c::t_1388e60962e146 107
+  s_2b88b77aedc95c::t_ddf8fc304dfd6c 111
+  s_2b88b77aedc95c::t_f4ed56e0234b74 125,358
+  s_2b88b77aedc95c::t_160fcb96fc6d01 129-130,132,362-363,365
+src/api/schema/tests.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 356,361
+src/cli/target.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 253
+  s_2b88b77aedc95c::t_a155b7327e26cb 207
+  s_2b88b77aedc95c::t_8dc1222486b3b1 271-273
+src/app/state.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 1057
+Cargo.toml
+  s_2b88b77aedc95c::t_86e2e70556c58e 23-27
+src/protocol/wire.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 1787,2830
+src/server/autodetect.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 148,601,605
+  s_2b88b77aedc95c::t_a155b7327e26cb 240,393
+  s_2b88b77aedc95c::t_8dc1222486b3b1 208-211,369-372,389-390
+src/remote.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 58
+src/cli/server.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 29,48,63,82,97,203,260-264,268-269
+  s_2b88b77aedc95c::t_8dc1222486b3b1 265-267
+tests/api_ping.rs
+  s_2b88b77aedc95c::t_ddf8fc304dfd6c 129
+  s_2b88b77aedc95c::t_160fcb96fc6d01 147-148,150
+  s_2b88b77aedc95c::t_f4ed56e0234b74 143
+  s_2b88b77aedc95c::t_1388e60962e146 125,325-327,419
+tests/machine_api.rs
+  s_2b88b77aedc95c::t_1388e60962e146 54,56
+  s_2b88b77aedc95c::t_f4ed56e0234b74 96,111,287,359
+  s_2b88b77aedc95c::t_160fcb96fc6d01 124,126,129-131,659
+  s_2b88b77aedc95c::t_8dc1222486b3b1 65-69,626-629
+src/remote/saved.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 115,194
+src/pane.rs
+  s_2b88b77aedc95c::t_9bf3b2d7d325c6 185,195-214,218
+  s_2b88b77aedc95c::t_423eb6ad383d35 5828
+tests/cli/workspace.rs
+  s_2b88b77aedc95c::t_423eb6ad383d35 649
+src/api/mod.rs
+  s_2b88b77aedc95c::t_5adc89a52ddb7b 20
+tests/live_handoff.rs
+  s_2b88b77aedc95c::t_1388e60962e146 64,107,110,141,144,182,185,735,828,844,861,864,908,943-944,1868,1871
+  s_2b88b77aedc95c::t_160fcb96fc6d01 84,86,127-129,162-164,206,208,210,213,215,1400
+  s_2b88b77aedc95c::t_f4ed56e0234b74 80,123,157,198
+  s_2b88b77aedc95c::t_ddf8fc304dfd6c 67
+src/client/tests/mod.rs
+  s_2b88b77aedc95c::t_5cf17441b4f569 590
+  s_2b88b77aedc95c::t_423eb6ad383d35 536,605,615,623,645,658
+src/cli/completion.rs
+  s_2b88b77aedc95c::t_8dc1222486b3b1 86-89
+src/cli/status.rs
+  s_2b88b77aedc95c::t_8dc1222486b3b1 37-46,409-411
+  s_2b88b77aedc95c::t_423eb6ad383d35 408,412-413
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c7b015df34ef43e05b5e90635d3dc71bc14f28ed",
+  "prompts": {},
+  "sessions": {
+    "s_2b88b77aedc95c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "41b646da-aa36-401e-a7a0-d769e3ef4cde",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
