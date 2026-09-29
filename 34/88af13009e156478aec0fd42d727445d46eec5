@@ -1,0 +1,30 @@
+src/client/shell/space_drag.rs
+  s_2b88b77aedc95c::t_1a7c5e9fcfa893 62,64-68
+src/client/shell/tests/agents_worktrees_notifications.rs
+  s_2b88b77aedc95c::t_d1ebb8caa3b519 2198-2215
+  s_2b88b77aedc95c::t_1a7c5e9fcfa893 2195-2197,2216-2217
+src/client/shell/tests/endpoints.rs
+  s_2b88b77aedc95c::t_d1ebb8caa3b519 2468-2474
+src/client/shell/mouse.rs
+  s_2b88b77aedc95c::t_1a7c5e9fcfa893 516-517
+  s_2b88b77aedc95c::t_990d1766739387 1235-1239
+  s_2b88b77aedc95c::t_08c3bdad1549b0 1240-1244
+src/app/api/worktrees.rs
+  s_2b88b77aedc95c::t_7f5495141fb2b3 736-737,739
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3488af13009e156478aec0fd42d727445d46eec5",
+  "prompts": {},
+  "sessions": {
+    "s_2b88b77aedc95c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "41b646da-aa36-401e-a7a0-d769e3ef4cde",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
