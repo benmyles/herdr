@@ -1,0 +1,105 @@
+src/client/shell/composition.rs
+  s_2b88b77aedc95c::t_b7ffa3600ce12a 205,207-209
+src/api/schema/repos.rs
+  s_2b88b77aedc95c::t_3d567084c4a135 72-82
+src/api/schema.rs
+  s_2b88b77aedc95c::t_3d567084c4a135 102-103
+src/api/server.rs
+  s_2b88b77aedc95c::t_3d567084c4a135 524
+src/client/shell/context_menu.rs
+  s_2b88b77aedc95c::t_2a883c11055e99 19,33-36,41-54,125-127,131-133,168-179,318-319,429-430
+  s_2b88b77aedc95c::t_e55d685141474f 431
+src/client/shell/state.rs
+  s_2b88b77aedc95c::t_2a883c11055e99 715-716
+  s_2b88b77aedc95c::t_064ed27b28612f 103,284-286
+  s_2b88b77aedc95c::t_67eeb63ba200a1 289-290,351,519-563,592,701,727-730,788,809,847-852
+  s_2b88b77aedc95c::t_b7ffa3600ce12a 186-202,245-251,288,1084,1251,1447,1901
+  s_2b88b77aedc95c::t_376ad3b0eea473 287,291
+src/client/shell/overlays.rs
+  s_2b88b77aedc95c::t_0c362cbf5ca724 91-93
+src/client/shell/mouse.rs
+  s_2b88b77aedc95c::t_12249a77a363ad 1263
+  s_2b88b77aedc95c::t_a20829d275afe2 511-514,569,1191-1201,1204-1220,1303-1314,1384-1388,2020,2185-2208
+  s_2b88b77aedc95c::t_0c362cbf5ca724 1538-1542,1546,1550
+  s_2b88b77aedc95c::t_a1062f2ea3558d 1221,1389
+src/app/api/worktrees.rs
+  s_2b88b77aedc95c::t_fca659a06dbb6a 712-746,749-777
+  s_2b88b77aedc95c::t_28ea5a9e47b70a 747-748
+  s_2b88b77aedc95c::t_cdee2fe1f2ddf9 711
+src/client/shell/overlay_input.rs
+  s_2b88b77aedc95c::t_0c362cbf5ca724 448-451,633
+src/client/shell/tests/agents_worktrees_notifications.rs
+  s_2b88b77aedc95c::t_b32585abcfe87c 1691,1693
+  s_2b88b77aedc95c::t_28ea5a9e47b70a 2015-2266
+  s_2b88b77aedc95c::t_5ddf9e5f30ab14 206-210
+  s_2b88b77aedc95c::t_c0e90a671d3fd0 1548-1563,1628-1632
+docs/next/api/herdr-api.schema.json
+  s_2b88b77aedc95c::t_61aa94f27be097 4107-4127,5316-5326,5329-5331
+  s_2b88b77aedc95c::t_40e3e8f944b3fc 5327-5328
+src/client/shell/endpoint_navigation.rs
+  s_2b88b77aedc95c::t_12249a77a363ad 15-27
+src/client/shell/space_drag.rs
+  s_2b88b77aedc95c::t_a20829d275afe2 1-166,169-243
+  s_2b88b77aedc95c::t_28ea5a9e47b70a 167-168
+src/client/shell/space_worktrees.rs
+  s_2b88b77aedc95c::t_0c362cbf5ca724 542-547,570-572,578-585,697-750,752-793,796-798,801-910
+  s_2b88b77aedc95c::t_ed5ebca5e00d56 586,911-913
+  s_2b88b77aedc95c::t_b32585abcfe87c 82-88
+  s_2b88b77aedc95c::t_28ea5a9e47b70a 89-99,592-594,751,794-795,799-800
+  s_2b88b77aedc95c::t_9a15b50089d5b5 587
+src/api/mod.rs
+  s_2b88b77aedc95c::t_3d567084c4a135 47
+src/client/shell/sidebar.rs
+  s_2b88b77aedc95c::t_064ed27b28612f 295-299,328-330,403-409,560-563,567-569,573,575-576,590,613-614,629-631,650,783-806
+  s_2b88b77aedc95c::t_6a976bfb0d5ae2 462-463,761-782
+  s_2b88b77aedc95c::t_a2c6ab5ea19d59 410-411
+src/client/shell/tests/endpoints.rs
+  s_2b88b77aedc95c::t_37ccfad93ee844 718-728
+  s_2b88b77aedc95c::t_c0e90a671d3fd0 693-703
+src/server/headless/client_views.rs
+  s_2b88b77aedc95c::t_3d567084c4a135 238,280,315
+src/app/api/worktrees/space.rs
+  s_2b88b77aedc95c::t_28ea5a9e47b70a 356-365
+  s_2b88b77aedc95c::t_3d567084c4a135 317-355,366-423
+src/client/shell/endpoint_sidebar.rs
+  s_2b88b77aedc95c::t_8196e2989a1301 531-535,546,579-580
+  s_2b88b77aedc95c::t_064ed27b28612f 290-293,317-318,507-513
+  s_2b88b77aedc95c::t_57178da6d6435f 514-515,581
+src/app/api.rs
+  s_2b88b77aedc95c::t_3d567084c4a135 1048-1050
+src/client/shell/worktrees.rs
+  s_2b88b77aedc95c::t_0c362cbf5ca724 175-199,569-570
+src/client/shell.rs
+  s_2b88b77aedc95c::t_a20829d275afe2 35
+src/client/shell/input.rs
+  s_2b88b77aedc95c::t_0c362cbf5ca724 487-489
+src/client/shell/actions.rs
+  s_2b88b77aedc95c::t_0c362cbf5ca724 540-543,847-848
+  s_2b88b77aedc95c::t_28ea5a9e47b70a 849-852
+  s_2b88b77aedc95c::t_91e6136eeccf9d 853
+src/client/shell/repo_overlays.rs
+  s_2b88b77aedc95c::t_0c362cbf5ca724 515-598,606-607,610-707
+  s_2b88b77aedc95c::t_28ea5a9e47b70a 599-605,608-609
+src/server/client_commands.rs
+  s_2b88b77aedc95c::t_61ad016c1d65d1 357-359
+  s_2b88b77aedc95c::t_3d567084c4a135 55
+  s_2b88b77aedc95c::t_5fedfa2108e38b 356
+src/client/shell/render.rs
+  s_2b88b77aedc95c::t_064ed27b28612f 337
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "612065b47095fbacbe71548cb1d43a736a3ec3b0",
+  "prompts": {},
+  "sessions": {
+    "s_2b88b77aedc95c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "41b646da-aa36-401e-a7a0-d769e3ef4cde",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
