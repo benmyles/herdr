@@ -3,10 +3,10 @@ use std::path::{Path, PathBuf};
 
 /// Legacy environment variable for overriding the client socket path.
 ///
-/// Contractual override behavior for auto-detect uses `HERDR_SOCKET_PATH`.
+/// Contractual override behavior for auto-detect uses `HERDR_BENMYLES_SOCKET_PATH`.
 /// This variable is kept as a fallback for callers that explicitly need a
-/// client-only override when `HERDR_SOCKET_PATH` is not set.
-pub const CLIENT_SOCKET_PATH_ENV_VAR: &str = "HERDR_CLIENT_SOCKET_PATH";
+/// client-only override when `HERDR_BENMYLES_SOCKET_PATH` is not set.
+pub const CLIENT_SOCKET_PATH_ENV_VAR: &str = "HERDR_BENMYLES_CLIENT_SOCKET_PATH";
 
 /// Socket permission mode (owner read/write only).
 const SOCKET_PERMISSION_MODE: u32 = 0o600;
@@ -63,7 +63,7 @@ pub(crate) fn derive_client_socket_from_api_socket(api_socket_path: &Path) -> Pa
 pub(crate) fn prepare_socket_path(path: &Path) -> io::Result<()> {
     crate::ipc::prepare_socket_path(path, |path| {
         format!(
-            "herdr server is already running (socket busy at {})",
+            "herdr-benmyles server is already running (socket busy at {})",
             path.display()
         )
     })

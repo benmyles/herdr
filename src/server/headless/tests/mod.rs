@@ -292,7 +292,7 @@ fn headless_api_request_drains_all_pending_internal_events_before_reading_state(
             .event_tx
             .try_send(AppEvent::UpdateReady {
                 version: format!("4.0.{i}"),
-                install_command: "herdr install".into(),
+                install_command: "herdr-benmyles install".into(),
             })
             .unwrap();
     }
@@ -6898,7 +6898,7 @@ fn update_notification_reaches_client_shell_independent_of_delivery() {
 
     let changed = server.handle_internal_event_with_forwarding(AppEvent::UpdateReady {
         version: "9.9.9".to_string(),
-        install_command: "herdr update".into(),
+        install_command: "herdr-benmyles update".into(),
     });
 
     assert!(changed);
@@ -6935,7 +6935,7 @@ fn update_notification_is_semantic_for_system_delivery() {
 
     let changed = server.handle_internal_event_with_forwarding(AppEvent::UpdateReady {
         version: "9.9.9".to_string(),
-        install_command: "herdr update".into(),
+        install_command: "herdr-benmyles update".into(),
     });
 
     assert!(changed);
@@ -6952,7 +6952,7 @@ fn update_notification_is_semantic_for_system_delivery() {
             assert_eq!(notification.title, "Herdr v9.9.9 available");
             assert_eq!(
                 notification.body.as_deref(),
-                Some("detach, run `herdr update`, then run Herdr again to reconnect")
+                Some("detach, run `herdr-benmyles update`, then run Herdr again to reconnect")
             );
         }
         other => panic!("expected semantic update notification, got {other:?}"),

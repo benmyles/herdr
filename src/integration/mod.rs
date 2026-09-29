@@ -18,7 +18,8 @@ pub(crate) use actions::{
 #[cfg(test)]
 pub(crate) use env::integration_env_lock;
 pub(crate) use env::{
-    apply_pane_base_env, HERDR_PANE_ID_ENV_VAR, HERDR_TAB_ID_ENV_VAR, HERDR_WORKSPACE_ID_ENV_VAR,
+    apply_pane_base_env, HERDR_BIN_PATH_ENV_VAR, HERDR_PANE_ID_ENV_VAR, HERDR_TAB_ID_ENV_VAR,
+    HERDR_WORKSPACE_ID_ENV_VAR,
 };
 pub(crate) use registry::{
     experimental_crush_integration_status, experimental_letta_integration_status,

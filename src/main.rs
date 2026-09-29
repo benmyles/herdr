@@ -1,6 +1,6 @@
 use std::io;
 
-pub(crate) const HERDR_ENV_VAR: &str = "HERDR_ENV";
+pub(crate) const HERDR_ENV_VAR: &str = "HERDR_BENMYLES_ENV";
 pub(crate) const HERDR_ENV_VALUE: &str = "1";
 const NESTED_HERDR_MESSAGES: [&str; 6] = [
     "inception detected. we need to go deeper... said no one ever.",
@@ -120,7 +120,7 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # kitty_graphics = true
 
 [update]
-# Update channel used by background version checks and `herdr update`.
+# Update channel used by background version checks and `herdr-benmyles update`.
 # Stable builds default to "stable". Windows preview builds default to "preview"
 # so existing preview installs stay there until explicitly switched.
 # channel = "stable"
@@ -161,7 +161,7 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # previous_agent = ""     # optional, unset by default
 # next_agent = ""         # optional, unset by default
 # focus_agent = ""        # optional indexed binding, e.g. "prefix+alt+1..9"
-# remote_image_paste = "ctrl+v" # only active in herdr --remote; empty disables raw-key image paste
+# remote_image_paste = "ctrl+v" # only active in herdr-benmyles --remote; empty disables raw-key image paste
 # new_tab = "prefix+c"
 # rename_tab = "prefix+shift+t"
 # previous_tab = "prefix+p"
@@ -398,7 +398,7 @@ const DEFAULT_CONFIG: &str = r##"# herdr configuration
 # startup_per_agent_delay_ms = 100
 
 [remote]
-# Whether herdr manages the ssh config used for `herdr --remote`.
+# Whether herdr manages the ssh config used for `herdr-benmyles --remote`.
 # When true (default), herdr runs remote ssh through a generated config that
 # includes your ~/.ssh/config first and adds ServerAliveInterval/
 # ServerAliveCountMax as fallbacks (so any keepalive values you set yourself
@@ -509,7 +509,7 @@ fn main() -> io::Result<()> {
         Ok(args) => args,
         Err(err) => {
             eprintln!("error: {err}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'herdr-benmyles --help' for usage");
             std::process::exit(2);
         }
     };
@@ -520,7 +520,7 @@ fn main() -> io::Result<()> {
         Ok(args) => args,
         Err(err) => {
             eprintln!("error: {err}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'herdr-benmyles --help' for usage");
             std::process::exit(2);
         }
     };
@@ -528,7 +528,7 @@ fn main() -> io::Result<()> {
         Ok(parsed) => parsed,
         Err(err) => {
             eprintln!("error: {err}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'herdr-benmyles --help' for usage");
             std::process::exit(2);
         }
     };
@@ -543,7 +543,7 @@ fn main() -> io::Result<()> {
         })
     {
         eprintln!("error: --remote can only be used with the default launch command");
-        eprintln!("run 'herdr --help' for usage");
+        eprintln!("run 'herdr-benmyles --help' for usage");
         std::process::exit(2);
     }
 
@@ -578,7 +578,7 @@ fn main() -> io::Result<()> {
             }
             Err(err) => {
                 eprintln!("{err}");
-                eprintln!("usage: herdr update [--handoff]");
+                eprintln!("usage: herdr-benmyles update [--handoff]");
                 std::process::exit(2);
             }
         };
@@ -597,93 +597,108 @@ fn main() -> io::Result<()> {
 
     if args.iter().any(|a| a == "--help" || a == "-h") {
         platform::begin_cli_output();
-        println!("herdr — terminal workspace manager for AI coding agents");
+        println!("herdr-benmyles — terminal workspace manager for AI coding agents");
         println!();
-        println!("Usage: herdr [options]");
-        println!("       herdr --session <name> [options]");
-        println!("       herdr --machine <label-or-id> <command>");
-        println!("       herdr --remote <ssh-target> [--session <name>]");
-        println!("       herdr session attach <name>");
-        println!("       herdr completion zsh");
-        println!("       herdr update [--handoff]");
-        println!("       herdr channel set <stable|preview>");
-        println!("       herdr machine <subcommand> ...");
-        println!("       herdr server stop");
-        println!("       herdr server reload-config");
-        println!("       herdr api <subcommand> ...");
-        println!("       herdr completion <shell>");
-        println!("       herdr config <subcommand> ...");
-        println!("       herdr channel <subcommand> ...");
-        println!("       herdr workspace <subcommand> ...");
-        println!("       herdr worktree <subcommand> ...");
-        println!("       herdr tab <subcommand> ...");
-        println!("       herdr notification <subcommand> ...");
-        println!("       herdr agent <subcommand> ...");
-        println!("       herdr pane <subcommand> ...");
-        println!("       herdr session <subcommand> ...");
-        println!("       herdr integration <subcommand> ...");
+        println!("Usage: herdr-benmyles [options]");
+        println!("       herdr-benmyles --session <name> [options]");
+        println!("       herdr-benmyles --machine <label-or-id> <command>");
+        println!("       herdr-benmyles --remote <ssh-target> [--session <name>]");
+        println!("       herdr-benmyles session attach <name>");
+        println!("       herdr-benmyles completion zsh");
+        println!("       herdr-benmyles update [--handoff]");
+        println!("       herdr-benmyles channel set <stable|preview>");
+        println!("       herdr-benmyles machine <subcommand> ...");
+        println!("       herdr-benmyles server stop");
+        println!("       herdr-benmyles server reload-config");
+        println!("       herdr-benmyles api <subcommand> ...");
+        println!("       herdr-benmyles completion <shell>");
+        println!("       herdr-benmyles config <subcommand> ...");
+        println!("       herdr-benmyles channel <subcommand> ...");
+        println!("       herdr-benmyles workspace <subcommand> ...");
+        println!("       herdr-benmyles worktree <subcommand> ...");
+        println!("       herdr-benmyles tab <subcommand> ...");
+        println!("       herdr-benmyles notification <subcommand> ...");
+        println!("       herdr-benmyles agent <subcommand> ...");
+        println!("       herdr-benmyles pane <subcommand> ...");
+        println!("       herdr-benmyles session <subcommand> ...");
+        println!("       herdr-benmyles integration <subcommand> ...");
         println!();
         println!("Common commands:");
         for (command, description) in [
-            ("herdr", "Launch or attach to the persistent session"),
             (
-                "herdr status [server|client]",
+                "herdr-benmyles",
+                "Launch or attach to the persistent session",
+            ),
+            (
+                "herdr-benmyles status [server|client]",
                 "Show local client and running server status",
             ),
-            ("herdr update", "Download and install the latest version"),
-            ("herdr completion zsh", "Generate shell completions for zsh"),
             (
-                "herdr server stop",
+                "herdr-benmyles update",
+                "Download and install the latest version",
+            ),
+            (
+                "herdr-benmyles completion zsh",
+                "Generate shell completions for zsh",
+            ),
+            (
+                "herdr-benmyles server stop",
                 "Stop the running server via the API socket",
             ),
             (
-                "herdr channel set <stable|preview>",
+                "herdr-benmyles channel set <stable|preview>",
                 "Choose the stable or preview update channel",
             ),
             (
-                "herdr server reload-config",
+                "herdr-benmyles server reload-config",
                 "Reload config.toml in the running server",
             ),
             (
-                "herdr config reset-keys",
+                "herdr-benmyles config reset-keys",
                 "Back up config.toml and remove custom keybindings",
             ),
             (
-                "herdr channel <subcommand>",
+                "herdr-benmyles channel <subcommand>",
                 "Manage the stable or preview update channel",
             ),
-            ("herdr machine <subcommand>", "Manage saved SSH machines"),
             (
-                "herdr api <subcommand>",
+                "herdr-benmyles machine <subcommand>",
+                "Manage saved SSH machines",
+            ),
+            (
+                "herdr-benmyles api <subcommand>",
                 "Inspect socket API metadata and live runtime state",
             ),
             (
-                "herdr workspace <subcommand>",
+                "herdr-benmyles workspace <subcommand>",
                 "Workspace helpers over the socket API",
             ),
             (
-                "herdr worktree <subcommand>",
+                "herdr-benmyles worktree <subcommand>",
                 "Git worktree helpers over the socket API",
             ),
-            ("herdr tab <subcommand>", "Tab helpers over the socket API"),
             (
-                "herdr notification <subcommand>",
+                "herdr-benmyles tab <subcommand>",
+                "Tab helpers over the socket API",
+            ),
+            (
+                "herdr-benmyles notification <subcommand>",
                 "Notification helpers over the socket API",
             ),
             (
-                "herdr agent <subcommand>",
+                "herdr-benmyles agent <subcommand>",
                 "Agent/terminal helpers over the socket API",
             ),
             (
-                "herdr pane <subcommand>",
+                "herdr-benmyles pane <subcommand>",
                 "Pane control helpers over the socket API",
             ),
             (
-                "herdr session <subcommand>",
+                "herdr-benmyles session <subcommand>",
                 "Manage named persistent sessions",
             ),
             (
-                "herdr integration <subcommand>",
+                "herdr-benmyles integration <subcommand>",
                 "Manage built-in agent integrations",
             ),
         ] {
@@ -691,7 +706,7 @@ fn main() -> io::Result<()> {
         }
         println!();
         println!("Advanced commands:");
-        println!("  {:<32} Run as headless server", "herdr server");
+        println!("  {:<32} Run as headless server", "herdr-benmyles server");
         println!();
         println!("Options:");
         println!("  --session <name>    Use or create a named persistent session");
@@ -749,7 +764,7 @@ fn main() -> io::Result<()> {
         let arg_name = arg.split_once('=').map(|(name, _)| name).unwrap_or(arg);
         if arg.starts_with('-') && !known_flags.contains(&arg_name) {
             eprintln!("unknown option: {arg}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'herdr-benmyles --help' for usage");
             std::process::exit(2);
         }
         if !arg.starts_with('-')
@@ -771,7 +786,7 @@ fn main() -> io::Result<()> {
             .contains(&arg.as_str())
         {
             eprintln!("unknown command: {arg}");
-            eprintln!("run 'herdr --help' for usage");
+            eprintln!("run 'herdr-benmyles --help' for usage");
             std::process::exit(2);
         }
     }

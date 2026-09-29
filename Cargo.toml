@@ -20,6 +20,11 @@ include = [
     "Cargo.toml",
 ]
 
+# The fork installs beside stock herdr under its own name.
+[[bin]]
+name = "herdr-benmyles"
+path = "src/main.rs"
+
 [dependencies]
 base64 = "0.22.1"
 bincode = { version = "2", features = ["serde"] }

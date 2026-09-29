@@ -87,11 +87,11 @@ fn spawn_server(
     api_socket_path: &Path,
     _client_socket_path: &Path,
 ) -> SpawnedHerdr {
-    fs::create_dir_all(config_home.join("herdr")).unwrap();
+    fs::create_dir_all(config_home.join("herdr-benmyles")).unwrap();
     fs::create_dir_all(runtime_dir).unwrap();
     register_runtime_dir(runtime_dir);
     fs::write(
-        config_home.join("herdr/config.toml"),
+        config_home.join("herdr-benmyles/config.toml"),
         "onboarding = false\n",
     )
     .unwrap();
@@ -105,14 +105,14 @@ fn spawn_server(
         })
         .unwrap();
 
-    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr"));
+    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr-benmyles"));
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", config_home);
     cmd.env("XDG_RUNTIME_DIR", runtime_dir);
-    cmd.env("HERDR_SOCKET_PATH", api_socket_path);
-    cmd.env_remove("HERDR_CLIENT_SOCKET_PATH");
+    cmd.env("HERDR_BENMYLES_SOCKET_PATH", api_socket_path);
+    cmd.env_remove("HERDR_BENMYLES_CLIENT_SOCKET_PATH");
     cmd.env("SHELL", "/bin/sh");
-    cmd.env_remove("HERDR_ENV");
+    cmd.env_remove("HERDR_BENMYLES_ENV");
 
     let child = pair.slave.spawn_command(cmd).unwrap();
     register_spawned_herdr_pid(child.process_id());
@@ -131,11 +131,11 @@ fn spawn_herdr_auto(
     api_socket_path: &Path,
     _client_socket_path: &Path,
 ) -> SpawnedHerdr {
-    fs::create_dir_all(config_home.join("herdr")).unwrap();
+    fs::create_dir_all(config_home.join("herdr-benmyles")).unwrap();
     fs::create_dir_all(runtime_dir).unwrap();
     register_runtime_dir(runtime_dir);
     fs::write(
-        config_home.join("herdr/config.toml"),
+        config_home.join("herdr-benmyles/config.toml"),
         "onboarding = false\n",
     )
     .unwrap();
@@ -149,14 +149,14 @@ fn spawn_herdr_auto(
         })
         .unwrap();
 
-    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr"));
+    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr-benmyles"));
     // No subcommand → auto-detect launch.
     cmd.env("XDG_CONFIG_HOME", config_home);
     cmd.env("XDG_RUNTIME_DIR", runtime_dir);
-    cmd.env("HERDR_SOCKET_PATH", api_socket_path);
-    cmd.env_remove("HERDR_CLIENT_SOCKET_PATH");
+    cmd.env("HERDR_BENMYLES_SOCKET_PATH", api_socket_path);
+    cmd.env_remove("HERDR_BENMYLES_CLIENT_SOCKET_PATH");
     cmd.env("SHELL", "/bin/sh");
-    cmd.env_remove("HERDR_ENV");
+    cmd.env_remove("HERDR_BENMYLES_ENV");
 
     let child = pair.slave.spawn_command(cmd).unwrap();
     register_spawned_herdr_pid(child.process_id());
@@ -200,9 +200,9 @@ fn wait_for_log_contains(path: &Path, needle: &str, timeout: Duration) {
 }
 
 fn run_cli(socket_path: &Path, args: &[&str]) -> std::process::Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_herdr"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_herdr-benmyles"));
     command.args(args);
-    command.env("HERDR_SOCKET_PATH", socket_path);
+    command.env("HERDR_BENMYLES_SOCKET_PATH", socket_path);
     command.output().unwrap()
 }
 
@@ -249,25 +249,25 @@ fn session_attach_without_terminal_leaves_no_session() {
     register_runtime_dir(&runtime_dir);
     let name = "no-tty";
     let app_dir = if cfg!(debug_assertions) {
-        "herdr-dev"
+        "herdr-benmyles-dev"
     } else {
-        "herdr"
+        "herdr-benmyles"
     };
     let session_dir = config_home.join(app_dir).join("sessions").join(name);
     let run = |args: &[&str]| {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_herdr"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_herdr-benmyles"));
         command
             .args(args)
             .env("XDG_CONFIG_HOME", &config_home)
             .env("XDG_RUNTIME_DIR", &runtime_dir)
-            .env_remove("HERDR_CONFIG_PATH")
-            .env_remove("HERDR_ENV")
-            .env_remove("HERDR_SESSION")
-            .env_remove("HERDR_SOCKET_PATH")
-            .env_remove("HERDR_CLIENT_SOCKET_PATH")
-            .env_remove("HERDR_WORKSPACE_ID")
-            .env_remove("HERDR_TAB_ID")
-            .env_remove("HERDR_PANE_ID");
+            .env_remove("HERDR_BENMYLES_CONFIG_PATH")
+            .env_remove("HERDR_BENMYLES_ENV")
+            .env_remove("HERDR_BENMYLES_SESSION")
+            .env_remove("HERDR_BENMYLES_SOCKET_PATH")
+            .env_remove("HERDR_BENMYLES_CLIENT_SOCKET_PATH")
+            .env_remove("HERDR_BENMYLES_WORKSPACE_ID")
+            .env_remove("HERDR_BENMYLES_TAB_ID")
+            .env_remove("HERDR_BENMYLES_PANE_ID");
         // Piped stdio alone can still leave /dev/tty usable. Match noninteractive
         // SSH by detaching the child from the test runner's controlling terminal.
         unsafe {
@@ -405,7 +405,7 @@ fn auto_detect_server_running_attaches_directly() {
 }
 
 /// Socket path resolution is consistent between server and client.
-/// Both derive the client socket from the `HERDR_SOCKET_PATH` override,
+/// Both derive the client socket from the `HERDR_BENMYLES_SOCKET_PATH` override,
 /// so overriding the API socket keeps both endpoints aligned.
 #[test]
 fn auto_detect_socket_path_consistency() {
@@ -570,12 +570,12 @@ fn auto_detect_default_socket_path_from_config_dir() {
     let config_home = base.join("config");
     let runtime_dir = base.join("runtime");
 
-    // Don't set HERDR_SOCKET_PATH or HERDR_CLIENT_SOCKET_PATH.
+    // Don't set HERDR_BENMYLES_SOCKET_PATH or HERDR_BENMYLES_CLIENT_SOCKET_PATH.
     // The default paths should come from the app config directory, not XDG_RUNTIME_DIR.
     let app_dir_name = if cfg!(debug_assertions) {
-        "herdr-dev"
+        "herdr-benmyles-dev"
     } else {
-        "herdr"
+        "herdr-benmyles"
     };
     let api_socket = config_home.join(app_dir_name).join("herdr.sock");
     let client_socket = config_home.join(app_dir_name).join("herdr-client.sock");
@@ -599,15 +599,15 @@ fn auto_detect_default_socket_path_from_config_dir() {
         })
         .unwrap();
 
-    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr"));
+    let mut cmd = CommandBuilder::new(env!("CARGO_BIN_EXE_herdr-benmyles"));
     cmd.arg("server");
     cmd.env("XDG_CONFIG_HOME", &config_home);
     cmd.env("XDG_RUNTIME_DIR", &runtime_dir);
     cmd.env("SHELL", "/bin/sh");
-    cmd.env_remove("HERDR_ENV");
+    cmd.env_remove("HERDR_BENMYLES_ENV");
     // Explicitly remove socket overrides to test default path resolution.
-    cmd.env_remove("HERDR_SOCKET_PATH");
-    cmd.env_remove("HERDR_CLIENT_SOCKET_PATH");
+    cmd.env_remove("HERDR_BENMYLES_SOCKET_PATH");
+    cmd.env_remove("HERDR_BENMYLES_CLIENT_SOCKET_PATH");
 
     let child = pair.slave.spawn_command(cmd).unwrap();
     register_spawned_herdr_pid(child.process_id());
@@ -652,9 +652,9 @@ fn auto_detect_writes_client_and_server_logs_to_separate_files() {
     wait_for_socket(&client_socket, Duration::from_secs(10));
 
     let app_dir_name = if cfg!(debug_assertions) {
-        "herdr-dev"
+        "herdr-benmyles-dev"
     } else {
-        "herdr"
+        "herdr-benmyles"
     };
     let log_dir = config_home.join(app_dir_name);
     let client_log = log_dir.join("herdr-client.log");
@@ -708,12 +708,12 @@ fn auto_detect_respects_nested_guard_before_auto_attach() {
         .map(|workspaces| workspaces.len())
         .unwrap_or(0);
 
-    let output = Command::new(env!("CARGO_BIN_EXE_herdr"))
+    let output = Command::new(env!("CARGO_BIN_EXE_herdr-benmyles"))
         .env("XDG_CONFIG_HOME", &config_home)
         .env("XDG_RUNTIME_DIR", &runtime_dir)
-        .env("HERDR_SOCKET_PATH", &api_socket)
-        .env_remove("HERDR_CLIENT_SOCKET_PATH")
-        .env("HERDR_ENV", "1")
+        .env("HERDR_BENMYLES_SOCKET_PATH", &api_socket)
+        .env_remove("HERDR_BENMYLES_CLIENT_SOCKET_PATH")
+        .env("HERDR_BENMYLES_ENV", "1")
         .output()
         .unwrap();
 

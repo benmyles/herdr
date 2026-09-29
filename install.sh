@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Build an optimized herdr release and replace the herdr executable selected
-# by PATH. Symlinks are followed so package-manager or dotfile links remain
-# intact while their current target is replaced atomically.
+# Build an optimized herdr-benmyles release and install it beside stock herdr.
+# An existing herdr-benmyles on PATH is replaced; otherwise it goes next to the
+# herdr found on PATH, or into ~/.local/bin. Stock herdr is never touched.
+# Symlinks are followed so dotfile links remain intact while their current
+# target is replaced atomically.
 #
 # The vendored libghostty-vt crate is built with Zig and requires Zig 0.16.0.
 # Zig is resolved in this order:
@@ -11,12 +13,13 @@
 #   4. a cached copy under ${XDG_CACHE_HOME:-~/.cache}/herdr/zig-* (macOS)
 #   5. on macOS, downloading Zig 0.16.0 into the cache automatically
 #
-# Set HERDR_INSTALL_TARGET to test or install to an explicit path. The older
-# HERDR_BIN_DIR override remains supported and installs to HERDR_BIN_DIR/herdr.
+# Set HERDR_BENMYLES_INSTALL_TARGET to install to an explicit path, or
+# HERDR_BENMYLES_BIN_DIR to install to HERDR_BENMYLES_BIN_DIR/herdr-benmyles.
 set -euo pipefail
 
 ROOT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 ZIG_VERSION="0.16.0"
+BIN_NAME="herdr-benmyles"
 CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/herdr"
 
 find_zig() {
@@ -88,23 +91,27 @@ find_zig() {
 }
 
 find_install_path() {
-    if [[ -n "${HERDR_INSTALL_TARGET:-}" ]]; then
-        printf '%s\n' "$HERDR_INSTALL_TARGET"
+    if [[ -n "${HERDR_BENMYLES_INSTALL_TARGET:-}" ]]; then
+        printf '%s\n' "$HERDR_BENMYLES_INSTALL_TARGET"
         return 0
     fi
-    if [[ -n "${HERDR_BIN_DIR:-}" ]]; then
-        printf '%s/herdr\n' "${HERDR_BIN_DIR%/}"
+    if [[ -n "${HERDR_BENMYLES_BIN_DIR:-}" ]]; then
+        printf '%s/%s\n' "${HERDR_BENMYLES_BIN_DIR%/}" "$BIN_NAME"
         return 0
     fi
 
     local path_entry
-    path_entry="$(type -P herdr 2>/dev/null || true)"
-    if [[ -z "$path_entry" ]]; then
-        echo "error: herdr is not installed in PATH." >&2
-        echo "       Set HERDR_INSTALL_TARGET=/absolute/path/to/herdr and retry." >&2
-        exit 1
+    path_entry="$(type -P "$BIN_NAME" 2>/dev/null || true)"
+    if [[ -n "$path_entry" ]]; then
+        printf '%s\n' "$path_entry"
+        return 0
     fi
-    printf '%s\n' "$path_entry"
+    path_entry="$(type -P herdr 2>/dev/null || true)"
+    if [[ -n "$path_entry" ]]; then
+        printf '%s/%s\n' "$(dirname -- "$path_entry")" "$BIN_NAME"
+        return 0
+    fi
+    printf '%s/.local/bin/%s\n' "$HOME" "$BIN_NAME"
 }
 
 resolve_install_target() {
@@ -150,10 +157,10 @@ if [[ "$(uname -s)" == "Darwin" ]] && [[ -d "/Library/Developer/CommandLineTools
     export DEVELOPER_DIR="/Library/Developer/CommandLineTools"
 fi
 
-echo "building herdr release with $("$ZIG" version)"
+echo "building $BIN_NAME release with $("$ZIG" version)"
 cargo build --release --locked
 
-BUILD_BINARY="$ROOT_DIR/target/release/herdr"
+BUILD_BINARY="$ROOT_DIR/target/release/$BIN_NAME"
 INSTALL_DIR="$(dirname -- "$INSTALL_TARGET")"
 if [[ ! -w "$INSTALL_DIR" ]]; then
     echo "error: install directory is not writable: $INSTALL_DIR" >&2
@@ -168,7 +175,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-TEMP_BINARY="$(mktemp "$INSTALL_DIR/.herdr-install.XXXXXX")"
+TEMP_BINARY="$(mktemp "$INSTALL_DIR/.$BIN_NAME-install.XXXXXX")"
 install -m 0755 "$BUILD_BINARY" "$TEMP_BINARY"
 "$TEMP_BINARY" --version >/dev/null
 
@@ -181,4 +188,4 @@ TEMP_BINARY=""
 trap - EXIT
 
 echo "installed $("$INSTALL_TARGET" --version)"
-echo "running Herdr servers keep their current binary until they are stopped and restarted"
+echo "running $BIN_NAME servers keep their current binary until they are stopped and restarted"

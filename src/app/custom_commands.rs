@@ -248,7 +248,11 @@ impl App {
         )];
         if let Ok(current_exe) = std::env::current_exe() {
             env.push((
-                "HERDR_BIN_PATH".to_string(),
+                crate::build_info::STOCK_BIN_PATH_ENV_VAR.to_string(),
+                current_exe.display().to_string(),
+            ));
+            env.push((
+                crate::integration::HERDR_BIN_PATH_ENV_VAR.to_string(),
                 current_exe.display().to_string(),
             ));
         }

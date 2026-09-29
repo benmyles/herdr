@@ -51,9 +51,9 @@ impl Harness {
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         let app = if cfg!(debug_assertions) {
-            "herdr-dev"
+            "herdr-benmyles-dev"
         } else {
-            "herdr"
+            "herdr-benmyles"
         };
         let state = root.join("state").join(app).join("client");
         let session = root.join("config").join(app).join("sessions/fleet");
@@ -62,7 +62,11 @@ impl Harness {
         fs::create_dir_all(root.join("bin")).unwrap();
         fs::write(root.join("bin/ssh"), SSH).unwrap();
         fs::set_permissions(root.join("bin/ssh"), fs::Permissions::from_mode(0o700)).unwrap();
-        std::os::unix::fs::symlink(env!("CARGO_BIN_EXE_herdr"), root.join("remote herdr")).unwrap();
+        std::os::unix::fs::symlink(
+            env!("CARGO_BIN_EXE_herdr-benmyles"),
+            root.join("remote herdr"),
+        )
+        .unwrap();
         fs::create_dir_all(root.join("remote bin")).unwrap();
         let remote_wrapper = root.join("remote bin/herdr");
         fs::write(
@@ -89,7 +93,7 @@ exec "$TEST_REMOTE_HERDR" "$@"
         remote.set_nonblocking(true).unwrap();
         let local = UnixListener::bind(root.join("local.sock")).unwrap();
         local.set_nonblocking(true).unwrap();
-        let status = Command::new(env!("CARGO_BIN_EXE_herdr"))
+        let status = Command::new(env!("CARGO_BIN_EXE_herdr-benmyles"))
             .args(["status", "client", "--json"])
             .output()
             .unwrap();
@@ -104,7 +108,7 @@ exec "$TEST_REMOTE_HERDR" "$@"
     }
 
     fn command(&self, args: &[&str]) -> Command {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_herdr"));
+        let mut command = Command::new(env!("CARGO_BIN_EXE_herdr-benmyles"));
         command
             .args(args)
             .env(
@@ -117,14 +121,14 @@ exec "$TEST_REMOTE_HERDR" "$@"
             .env("XDG_RUNTIME_DIR", &self.root)
             .env("TEST_ROOT", &self.root)
             .env("TEST_REMOTE_HERDR", self.root.join("remote herdr"))
-            .env("HERDR_SOCKET_PATH", self.root.join("local.sock"))
+            .env("HERDR_BENMYLES_SOCKET_PATH", self.root.join("local.sock"))
             .env(
-                "HERDR_CLIENT_SOCKET_PATH",
+                "HERDR_BENMYLES_CLIENT_SOCKET_PATH",
                 self.root.join("never-client.sock"),
             )
-            .env("HERDR_SESSION", "wrong-inherited-session")
-            .env("HERDR_PANE_ID", "wrong-local-pane")
-            .env_remove("HERDR_CONFIG_PATH")
+            .env("HERDR_BENMYLES_SESSION", "wrong-inherited-session")
+            .env("HERDR_BENMYLES_PANE_ID", "wrong-local-pane")
+            .env_remove("HERDR_BENMYLES_CONFIG_PATH")
             .env_remove("HERDR_REMOTE_BINARY");
         command
     }
@@ -280,7 +284,7 @@ fn machine_api_bootstrap_falls_back_from_an_old_path_binary() {
     let harness = Harness::new();
     fs::create_dir_all(harness.root.join(".local/bin")).unwrap();
     std::os::unix::fs::symlink(
-        env!("CARGO_BIN_EXE_herdr"),
+        env!("CARGO_BIN_EXE_herdr-benmyles"),
         harness.root.join(".local/bin/herdr"),
     )
     .unwrap();
@@ -352,7 +356,7 @@ fn machine_api_recovers_a_stale_path_before_sending_a_mutation() {
     fs::remove_file(harness.root.join("remote bin/herdr")).unwrap();
     fs::create_dir_all(harness.root.join(".local/bin")).unwrap();
     std::os::unix::fs::symlink(
-        env!("CARGO_BIN_EXE_herdr"),
+        env!("CARGO_BIN_EXE_herdr-benmyles"),
         harness.root.join(".local/bin/herdr"),
     )
     .unwrap();
@@ -619,7 +623,10 @@ fn machine_api_server_stop_is_sent_only_to_the_selected_machine() {
     let server = harness.serve(json!({"result":{"type":"ok"}}), harness.protocol);
     let output = harness
         .command(&["--machine", "mac", "server", "stop"])
-        .env("HERDR_SOCKET_PATH", harness.root.join("missing-local.sock"))
+        .env(
+            "HERDR_BENMYLES_SOCKET_PATH",
+            harness.root.join("missing-local.sock"),
+        )
         .output()
         .unwrap();
     assert!(
@@ -649,6 +656,6 @@ fn machine_api_protocol_mismatch_never_sends_the_mutation() {
     let error = String::from_utf8_lossy(&output.stderr);
     assert!(error.contains("protocol_mismatch"), "{error}");
     assert!(error.contains("machine 'mac'"), "{error}");
-    assert!(!error.contains("HERDR_SOCKET_PATH="), "{error}");
+    assert!(!error.contains("HERDR_BENMYLES_SOCKET_PATH="), "{error}");
     harness.assert_local_untouched();
 }

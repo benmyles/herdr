@@ -26,7 +26,7 @@ fn integration_status(args: &[String]) -> std::io::Result<i32> {
         [] => false,
         [flag] if flag == "--outdated-only" => true,
         _ => {
-            eprintln!("usage: herdr integration status [--outdated-only]");
+            eprintln!("usage: herdr-benmyles integration status [--outdated-only]");
             return Ok(2);
         }
     };
@@ -156,13 +156,13 @@ fn parse_integration_target(
 ) -> std::io::Result<Option<IntegrationCommandTarget>> {
     let Some(target) = args.first().map(|arg| arg.as_str()) else {
         eprintln!(
-            "usage: herdr integration {action} <pi|omp|claude|codex|copilot|devin|droid|kimi|opencode|kilo|hermes|qodercli|qwen|letta|cursor|mastracode|grok|crush>"
+            "usage: herdr-benmyles integration {action} <pi|omp|claude|codex|copilot|devin|droid|kimi|opencode|kilo|hermes|qodercli|qwen|letta|cursor|mastracode|grok|crush>"
         );
         return Ok(None);
     };
     if args.len() != 1 {
         eprintln!(
-            "usage: herdr integration {action} <pi|omp|claude|codex|copilot|devin|droid|kimi|opencode|kilo|hermes|qodercli|qwen|letta|cursor|mastracode|grok|crush>"
+            "usage: herdr-benmyles integration {action} <pi|omp|claude|codex|copilot|devin|droid|kimi|opencode|kilo|hermes|qodercli|qwen|letta|cursor|mastracode|grok|crush>"
         );
         return Ok(None);
     }
@@ -202,44 +202,44 @@ fn parse_integration_target(
 }
 
 fn print_integration_help() {
-    eprintln!("herdr integration commands:");
-    eprintln!("  herdr integration install pi");
-    eprintln!("  herdr integration install omp");
-    eprintln!("  herdr integration install claude");
-    eprintln!("  herdr integration install codex");
-    eprintln!("  herdr integration install copilot");
-    eprintln!("  herdr integration install devin");
-    eprintln!("  herdr integration install droid");
-    eprintln!("  herdr integration install kimi");
-    eprintln!("  herdr integration install opencode");
-    eprintln!("  herdr integration install kilo");
-    eprintln!("  herdr integration install hermes");
-    eprintln!("  herdr integration install qodercli");
-    eprintln!("  herdr integration install qwen");
-    eprintln!("  herdr integration install letta");
-    eprintln!("  herdr integration install cursor");
-    eprintln!("  herdr integration install mastracode");
-    eprintln!("  herdr integration install antigravity-cli");
-    eprintln!("  herdr integration install grok");
-    eprintln!("  herdr integration install crush");
-    eprintln!("  herdr integration uninstall pi");
-    eprintln!("  herdr integration uninstall omp");
-    eprintln!("  herdr integration uninstall claude");
-    eprintln!("  herdr integration uninstall codex");
-    eprintln!("  herdr integration uninstall copilot");
-    eprintln!("  herdr integration uninstall devin");
-    eprintln!("  herdr integration uninstall droid");
-    eprintln!("  herdr integration uninstall kimi");
-    eprintln!("  herdr integration uninstall opencode");
-    eprintln!("  herdr integration uninstall kilo");
-    eprintln!("  herdr integration uninstall hermes");
-    eprintln!("  herdr integration uninstall qodercli");
-    eprintln!("  herdr integration uninstall qwen");
-    eprintln!("  herdr integration uninstall letta");
-    eprintln!("  herdr integration uninstall cursor");
-    eprintln!("  herdr integration uninstall mastracode");
-    eprintln!("  herdr integration uninstall antigravity-cli");
-    eprintln!("  herdr integration uninstall grok");
-    eprintln!("  herdr integration uninstall crush");
-    eprintln!("  herdr integration status [--outdated-only]");
+    eprintln!("herdr-benmyles integration commands:");
+    eprintln!("  herdr-benmyles integration install pi");
+    eprintln!("  herdr-benmyles integration install omp");
+    eprintln!("  herdr-benmyles integration install claude");
+    eprintln!("  herdr-benmyles integration install codex");
+    eprintln!("  herdr-benmyles integration install copilot");
+    eprintln!("  herdr-benmyles integration install devin");
+    eprintln!("  herdr-benmyles integration install droid");
+    eprintln!("  herdr-benmyles integration install kimi");
+    eprintln!("  herdr-benmyles integration install opencode");
+    eprintln!("  herdr-benmyles integration install kilo");
+    eprintln!("  herdr-benmyles integration install hermes");
+    eprintln!("  herdr-benmyles integration install qodercli");
+    eprintln!("  herdr-benmyles integration install qwen");
+    eprintln!("  herdr-benmyles integration install letta");
+    eprintln!("  herdr-benmyles integration install cursor");
+    eprintln!("  herdr-benmyles integration install mastracode");
+    eprintln!("  herdr-benmyles integration install antigravity-cli");
+    eprintln!("  herdr-benmyles integration install grok");
+    eprintln!("  herdr-benmyles integration install crush");
+    eprintln!("  herdr-benmyles integration uninstall pi");
+    eprintln!("  herdr-benmyles integration uninstall omp");
+    eprintln!("  herdr-benmyles integration uninstall claude");
+    eprintln!("  herdr-benmyles integration uninstall codex");
+    eprintln!("  herdr-benmyles integration uninstall copilot");
+    eprintln!("  herdr-benmyles integration uninstall devin");
+    eprintln!("  herdr-benmyles integration uninstall droid");
+    eprintln!("  herdr-benmyles integration uninstall kimi");
+    eprintln!("  herdr-benmyles integration uninstall opencode");
+    eprintln!("  herdr-benmyles integration uninstall kilo");
+    eprintln!("  herdr-benmyles integration uninstall hermes");
+    eprintln!("  herdr-benmyles integration uninstall qodercli");
+    eprintln!("  herdr-benmyles integration uninstall qwen");
+    eprintln!("  herdr-benmyles integration uninstall letta");
+    eprintln!("  herdr-benmyles integration uninstall cursor");
+    eprintln!("  herdr-benmyles integration uninstall mastracode");
+    eprintln!("  herdr-benmyles integration uninstall antigravity-cli");
+    eprintln!("  herdr-benmyles integration uninstall grok");
+    eprintln!("  herdr-benmyles integration uninstall crush");
+    eprintln!("  herdr-benmyles integration status [--outdated-only]");
 }

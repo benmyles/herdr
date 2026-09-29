@@ -1,5 +1,18 @@
 //! Build identity helpers.
 
+/// Fork identity. herdr-benmyles runs beside stock herdr, so every name that
+/// locates its binary, directories, sockets or control variables is its own.
+pub const BIN_NAME: &str = "herdr-benmyles";
+
+/// Stock environment names still exported into panes. Agent hooks installed by
+/// either build read these to find the server that owns their pane.
+pub const STOCK_ENV_VAR: &str = "HERDR_ENV";
+pub const STOCK_SOCKET_PATH_ENV_VAR: &str = "HERDR_SOCKET_PATH";
+pub const STOCK_BIN_PATH_ENV_VAR: &str = "HERDR_BIN_PATH";
+pub const STOCK_PANE_ID_ENV_VAR: &str = "HERDR_PANE_ID";
+pub const STOCK_TAB_ID_ENV_VAR: &str = "HERDR_TAB_ID";
+pub const STOCK_WORKSPACE_ID_ENV_VAR: &str = "HERDR_WORKSPACE_ID";
+
 pub const BASE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn channel() -> &'static str {

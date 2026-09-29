@@ -5,9 +5,10 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 
 use portable_pty::CommandBuilder;
 
-pub(crate) const HERDR_PANE_ID_ENV_VAR: &str = "HERDR_PANE_ID";
-pub(crate) const HERDR_TAB_ID_ENV_VAR: &str = "HERDR_TAB_ID";
-pub(crate) const HERDR_WORKSPACE_ID_ENV_VAR: &str = "HERDR_WORKSPACE_ID";
+pub(crate) const HERDR_PANE_ID_ENV_VAR: &str = "HERDR_BENMYLES_PANE_ID";
+pub(crate) const HERDR_TAB_ID_ENV_VAR: &str = "HERDR_BENMYLES_TAB_ID";
+pub(crate) const HERDR_WORKSPACE_ID_ENV_VAR: &str = "HERDR_BENMYLES_WORKSPACE_ID";
+pub(crate) const HERDR_BIN_PATH_ENV_VAR: &str = "HERDR_BENMYLES_BIN_PATH";
 
 pub(crate) const PI_CODING_AGENT_DIR_ENV_VAR: &str = "PI_CODING_AGENT_DIR";
 pub(crate) const OMP_CONFIG_DIR_ENV_VAR: &str = "PI_CONFIG_DIR";
@@ -32,9 +33,12 @@ pub(crate) const CRUSH_CONFIG_DIR_ENV_VAR: &str = "CRUSH_CONFIG_DIR";
 pub(crate) const CRUSH_GLOBAL_CONFIG_ENV_VAR: &str = "CRUSH_GLOBAL_CONFIG";
 
 pub(crate) fn apply_pane_base_env(cmd: &mut CommandBuilder) {
-    cmd.env(crate::api::SOCKET_PATH_ENV_VAR, crate::api::socket_path());
+    let socket_path = crate::api::socket_path();
+    cmd.env(crate::api::SOCKET_PATH_ENV_VAR, &socket_path);
+    cmd.env(crate::build_info::STOCK_SOCKET_PATH_ENV_VAR, &socket_path);
     if let Ok(executable) = crate::platform::launch_executable() {
-        cmd.env("HERDR_BIN_PATH", executable);
+        cmd.env(HERDR_BIN_PATH_ENV_VAR, &executable);
+        cmd.env(crate::build_info::STOCK_BIN_PATH_ENV_VAR, &executable);
     }
 }
 
