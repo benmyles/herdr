@@ -1,0 +1,54 @@
+tests/client_mode.rs
+  s_2b88b77aedc95c::t_bb8ec8a6b7e5a5 968-972
+tests/remote_attach.rs
+  s_2b88b77aedc95c::t_5d7b3e1c0a647b 121
+src/build_info.rs
+  s_2b88b77aedc95c::t_2006e969b9abcf 26-31
+src/remote/attach.rs
+  s_2b88b77aedc95c::t_d4a4eee0d4708a 1762-1770,1788,1814-1820,1824-1872
+  s_2b88b77aedc95c::t_a9dda6c23670d4 4148-4149,4162-4183
+  s_2b88b77aedc95c::t_895d80761e6a3b 1594,1596,1606-1607,1609,1614,1626-1627,1637,1674,2407,2415,2425
+  s_2b88b77aedc95c::t_b074ea8beada61 53,1563
+  s_2b88b77aedc95c::t_fdf5a1df80a73a 1223,1232,1238-1262,1350-1358,1706-1718,2161-2164,2168-2173,2179-2180,4184
+  s_2b88b77aedc95c::t_7044411f96fb23 2625
+  s_2b88b77aedc95c::t_83676cbc582606 35-41,388,391
+  s_2b88b77aedc95c::t_5d7b3e1c0a647b 2493,2512,2535
+  s_2b88b77aedc95c::t_2c434a3440f2ef 2604,2611
+  s_2b88b77aedc95c::t_c0d8ae8d7cfaa3 4747-4749,4857,4892,4896,4984,4991,4997,5004-5008,5018-5019,5065,5068,5071-5074,5422,5432
+  s_2b88b77aedc95c::t_47515d9750556f 4610,4620,4625,4630,4635,4640,4645,4650,4655,5003,5105,5109,5169,5171-5172,5174
+  s_8321b0f07fe2d6::t_ee01b4a3ba442c 1873,2181,4185,5170
+build.rs
+  s_2b88b77aedc95c::t_21b17762517ebb 74-77,112
+install.sh
+  s_2b88b77aedc95c::t_47a43297db6c3f 18-23,27-37,177-220,222-224
+tests/machine_setup.rs
+  s_2b88b77aedc95c::t_615cf2c9e0b051 23-24,37,57,137,243
+tests/machine_api.rs
+  s_2b88b77aedc95c::t_5d7b3e1c0a647b 132
+src/cli/status.rs
+  s_2b88b77aedc95c::t_2006e969b9abcf 263-264,313-314
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "208853515829ecd5d7e6b537b99ca8c45f99b479",
+  "prompts": {},
+  "sessions": {
+    "s_2b88b77aedc95c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "41b646da-aa36-401e-a7a0-d769e3ef4cde",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    },
+    "s_8321b0f07fe2d6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2c758019-99da-4dfd-8b26-376a42ce54ad",
+        "model": "claude-fable-5-1"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
