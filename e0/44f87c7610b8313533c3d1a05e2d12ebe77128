@@ -1,0 +1,149 @@
+src/client/shell/tests/copy.rs
+  s_2b88b77aedc95c::t_c1735237a6aef0 1144
+src/ui/sidebar.rs
+  s_2b88b77aedc95c::t_b09eea160f7312 10
+src/client/shell/endpoint_agents.rs
+  s_2b88b77aedc95c::t_feecb4679b0ecd 1,13-17,20-21,24,32,35,38,40,46-50,62,65,74,76-77,80,83,87-98,101-133,146-155,158-160
+  s_2b88b77aedc95c::t_8219c68e754193 99-100
+src/client/shell/composition.rs
+  s_2b88b77aedc95c::t_8219c68e754193 107-108,376-377
+  s_2b88b77aedc95c::t_7ebc96eb17b537 106,375
+  s_2b88b77aedc95c::t_c5440c4ca41947 58-59,84-85,220-221,252-253,365-374
+src/platform/macos.rs
+  s_2b88b77aedc95c::t_9070cb20df8985 1147-1156
+src/client/shell/endpoints.rs
+  s_2b88b77aedc95c::t_d88551130e3766 581,653
+  s_2b88b77aedc95c::t_8219c68e754193 584,666-671
+src/client/shell/endpoint_sidebar.rs
+  s_2b88b77aedc95c::t_dcfdca6161819b 620,628
+src/client/shell/config.rs
+  s_2b88b77aedc95c::t_c72b02e6b3c2b5 128,331
+src/client/shell/render.rs
+  s_2b88b77aedc95c::t_0608c50954eea4 253-254
+  s_2b88b77aedc95c::t_dcfdca6161819b 255
+src/client/shell/endpoint_agent_state.rs
+  s_2b88b77aedc95c::t_127600546b402c 143,484,487-502
+  s_2b88b77aedc95c::t_d88551130e3766 145-146,152,163-167,511,553-554
+  s_2b88b77aedc95c::t_de150838cf5a17 260
+  s_2b88b77aedc95c::t_ea6c3e2e502232 531-532
+  s_2b88b77aedc95c::t_237fa54baf62ff 12-15,57,76-77,120-124,129-142,460-483,486
+  s_2b88b77aedc95c::t_ca4b230006e60b 144,485
+src/config/sidebar.rs
+  s_2b88b77aedc95c::t_b09eea160f7312 142-144,436-438
+src/client/shell/agent_sidebar.rs
+  s_2b88b77aedc95c::t_0496d06caaffdf 9,12-13,31,33-42,44,52-116,131-296,298-330,337,352-368,371,377,382-412,497,500,503,514,531-533,541-556,567-570,572-633,636,639,641,644-654,656-678,680,682-684,686-698,703-713
+  s_2b88b77aedc95c::t_2a546c709a1906 10
+  s_2b88b77aedc95c::t_8219c68e754193 127-128
+  s_2b88b77aedc95c::t_dcfdca6161819b 340,349,381
+  s_2b88b77aedc95c::t_4fafda009ad9c1 117-126,129-130,297
+  s_2b88b77aedc95c::t_e4ad9ba5dd46a0 714
+src/platform/linux.rs
+  s_2b88b77aedc95c::t_9070cb20df8985 1164-1178
+src/ui/agent_grid.rs
+  s_2b88b77aedc95c::t_c56ecffe03b914 147-148
+  s_2b88b77aedc95c::t_ccabdabec66a83 719,727,729,735
+  s_2b88b77aedc95c::t_df12ced4df059b 80
+  s_2b88b77aedc95c::t_e7c9576efa6d6d 91-107,116
+  s_2b88b77aedc95c::t_3d761eef86b7e9 149
+src/workspace.rs
+  s_2b88b77aedc95c::t_3d761eef86b7e9 1059-1066
+src/client/shell/notifications.rs
+  s_2b88b77aedc95c::t_c1735237a6aef0 309,356
+src/config/model.rs
+  s_2b88b77aedc95c::t_a213920d42c930 111-150,1015-1016,1243
+src/config.rs
+  s_2b88b77aedc95c::t_3266c455ce1cb1 25
+  s_2b88b77aedc95c::t_8219c68e754193 26-29
+src/ui.rs
+  s_2b88b77aedc95c::t_4e64e59d807dd8 48
+  s_2b88b77aedc95c::t_b09eea160f7312 41-43
+src/client/shell/tests/agents_worktrees_notifications.rs
+  s_2b88b77aedc95c::t_d7ff7511d2b3e3 418
+  s_2b88b77aedc95c::t_3b4c0969d3fe40 355,415-417,512
+  s_2b88b77aedc95c::t_228e20d9e7b4a6 1408
+  s_2b88b77aedc95c::t_86342338897c2a 347,350
+  s_2b88b77aedc95c::t_bfe50085dd942d 443
+  s_2b88b77aedc95c::t_8219c68e754193 459,1483-1486,1492-1496
+  s_2b88b77aedc95c::t_c1735237a6aef0 284,301,377,394,503,571,588,605,680,1246
+  s_2b88b77aedc95c::t_f021b142b3b2f7 1482,1487-1491
+src/platform/mod.rs
+  s_2b88b77aedc95c::t_8219c68e754193 334-336
+  s_2b88b77aedc95c::t_7536cb44a6d7dc 314-333,337-340
+src/terminal/state.rs
+  s_2b88b77aedc95c::t_5c530c5cced90c 156-157,196,2180
+src/client/shell/sidebar.rs
+  s_2b88b77aedc95c::t_8c76b919ff464e 29
+  s_2b88b77aedc95c::t_dcfdca6161819b 510,516
+src/client/shell/tests/endpoints.rs
+  s_2b88b77aedc95c::t_765f6a17307574 1241-1242
+  s_2b88b77aedc95c::t_8c2a8e691d661f 1098-1099,1116-1117,1185,1187,1327-1328,1380-1381,1507-1508,1515-1516,1523-1524
+  s_2b88b77aedc95c::t_de150838cf5a17 40
+  s_2b88b77aedc95c::t_1653d5f441fa58 1023-1031,1186,1974
+src/client/shell/tests/mobile.rs
+  s_2b88b77aedc95c::t_c1735237a6aef0 206
+src/client/shell/tests/popup_focus_projection.rs
+  s_2b88b77aedc95c::t_c1735237a6aef0 955
+src/platform/windows.rs
+  s_2b88b77aedc95c::t_9070cb20df8985 2928-2939
+src/client/shell/agent_grid.rs
+  s_2b88b77aedc95c::t_72eedf7b995b34 131-171,173-178,180-195,198,206,209-210,213-221,223-233,236-244,246-263,270-272,275,277-293,298-308,318-322,351-353,355-365
+  s_2b88b77aedc95c::t_ff421a15e6a40b 211-212,222
+  s_2b88b77aedc95c::t_adfa86f8b8bae7 196-197
+  s_2b88b77aedc95c::t_f280260503553a 354
+  s_2b88b77aedc95c::t_3b4c0969d3fe40 264-269
+  s_2b88b77aedc95c::t_4fafda009ad9c1 309-312,315-316
+  s_2b88b77aedc95c::t_dd9c1429ead60d 199-205,207-208,234-235,294-297,313-314,317,323-336,341-350
+  s_2b88b77aedc95c::t_4dc3e2bb505fae 172,179,245,273-274,276
+  s_2b88b77aedc95c::t_8219c68e754193 337-340
+src/client/shell/state.rs
+  s_2b88b77aedc95c::t_0608c50954eea4 1101-1106,1274-1276,2093-2107
+  s_2b88b77aedc95c::t_c72b02e6b3c2b5 28
+  s_2b88b77aedc95c::t_c696fe07cd115a 2108
+docs/next/website/src/content/docs/configuration.mdx
+  s_2b88b77aedc95c::t_4eff2adbbb638b 358-379
+  s_2b88b77aedc95c::t_f835337108bee1 400-401
+src/ui/space_colors.rs
+  s_2b88b77aedc95c::t_4e64e59d807dd8 24-26
+  s_2b88b77aedc95c::t_df12ced4df059b 6,8,20,22,103-104
+src/protocol/wire.rs
+  s_2b88b77aedc95c::t_53b2e0c95ae2ba 1139-1142
+src/client/shell/tests/agent_grid.rs
+  s_2b88b77aedc95c::t_c1735237a6aef0 36
+  s_2b88b77aedc95c::t_a70d905cab24c0 239-271,275-322
+  s_2b88b77aedc95c::t_8219c68e754193 272-274
+src/platform/fallback.rs
+  s_2b88b77aedc95c::t_7536cb44a6d7dc 255-259
+src/client/shell.rs
+  s_2b88b77aedc95c::t_c72b02e6b3c2b5 5
+src/app/actions.rs
+  s_2b88b77aedc95c::t_5c530c5cced90c 1695
+src/server/client_shell.rs
+  s_2b88b77aedc95c::t_c56ecffe03b914 162-173,189
+src/client/mod.rs
+  s_2b88b77aedc95c::t_08f18cab51fd5e 2261-2262
+docs/next/website/src/data/config-reference.json
+  s_2b88b77aedc95c::t_f995fc47ac4f8b 1057-1086
+src/ui/sidebar/tokens.rs
+  s_2b88b77aedc95c::t_b09eea160f7312 12-14,58-60,73-75
+src/client/shell/agent_marks.rs
+  s_2b88b77aedc95c::t_6e0713d9ceb122 1-52,56-136,156-248,252-497,502-538
+  s_2b88b77aedc95c::t_df163490a6360f 137-155
+  s_2b88b77aedc95c::t_8219c68e754193 249-251,498-501
+  s_2b88b77aedc95c::t_3b4c0969d3fe40 53-55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e044f87c7610b8313533c3d1a05e2d12ebe77128",
+  "prompts": {},
+  "sessions": {
+    "s_2b88b77aedc95c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "41b646da-aa36-401e-a7a0-d769e3ef4cde",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
