@@ -1,0 +1,140 @@
+src/app/api/worktrees/deferred.rs
+  s_2b88b77aedc95c::t_d57396202b36ed 429
+  s_2b88b77aedc95c::t_98d699eb65de52 672
+  s_2b88b77aedc95c::t_b0a51899e01d0d 47
+  s_2b88b77aedc95c::t_6918322a871f87 196,352,359-369,371-374,391,397-428,430-435
+  s_2b88b77aedc95c::t_da7624f7db9138 370
+  s_2b88b77aedc95c::t_20a5d559402aeb 436-437
+src/app/api/repos.rs
+  s_2b88b77aedc95c::t_4d09d6dd495461 2-3,77,118-135
+  s_2b88b77aedc95c::t_a5b2c9e1195eb6 136-137
+src/api/mod.rs
+  s_2b88b77aedc95c::t_f71b62b6d3e6ca 50
+src/worktree/space_create.rs
+  s_2b88b77aedc95c::t_e063dcc120075a 498
+  s_2b88b77aedc95c::t_531ca813943093 21-22,185-189
+src/client/shell/sidebar.rs
+  s_2b88b77aedc95c::t_d716c1bfb1b5b2 861-862
+  s_2b88b77aedc95c::t_5b1fbb69721546 865-868,870-873,875-883,885
+  s_2b88b77aedc95c::t_60c230f6705c91 850,860,863-864,869,874,884,886-887
+src/app/actions.rs
+  s_2b88b77aedc95c::t_f6dabb18152801 1613
+src/server/headless/tests/mod.rs
+  s_2b88b77aedc95c::t_f6dabb18152801 4961
+src/repos.rs
+  s_2b88b77aedc95c::t_5a94a2e861f937 422-425
+  s_2b88b77aedc95c::t_1edab99bce947b 26-27,42,45-49,188-249,378-421,426-433,435-440
+src/config.rs
+  s_2b88b77aedc95c::t_5a94a2e861f937 32-33
+docs/next/website/src/content/docs/configuration.mdx
+  s_2b88b77aedc95c::t_296b559ad325d3 118-140
+src/app/api.rs
+  s_2b88b77aedc95c::t_f6dabb18152801 183-187
+  s_2b88b77aedc95c::t_4d09d6dd495461 1059-1061
+src/client/shell/repo_overlays.rs
+  s_2b88b77aedc95c::t_dde344ee6fbd51 403-404,412-431,434-438,444-465,467,510,514,518,527,541
+  s_2b88b77aedc95c::t_5a94a2e861f937 439-443,466
+src/app/api/worktrees.rs
+  s_2b88b77aedc95c::t_42ef014a13c6a4 735,1297
+  s_2b88b77aedc95c::t_82546a690098de 798
+  s_2b88b77aedc95c::t_bcf6af06798116 878-961
+  s_2b88b77aedc95c::t_f6dabb18152801 2743,2831,2902
+src/api/schema/repos.rs
+  s_2b88b77aedc95c::t_f71b62b6d3e6ca 23-60
+src/server/client_commands.rs
+  s_2b88b77aedc95c::t_970d7e1286829b 374-376
+  s_2b88b77aedc95c::t_f71b62b6d3e6ca 44
+  s_2b88b77aedc95c::t_b99fb6a7fa93a2 373
+src/protocol/wire.rs
+  s_2b88b77aedc95c::t_5e62508ede725a 2979-2995
+  s_2b88b77aedc95c::t_adcae0605d39e1 979-1019,1132,1196,3004-3013
+  s_2b88b77aedc95c::t_cd02141026fdb7 2953-2957
+  s_2b88b77aedc95c::t_090d223cb8eb8f 1130-1131,1133-1142
+  s_2b88b77aedc95c::t_9be63a6fcfffd1 978
+src/client/shell/worktrees.rs
+  s_2b88b77aedc95c::t_f008deacb559a4 502-506,508,511-518
+src/config/sidebar.rs
+  s_2b88b77aedc95c::t_60c230f6705c91 50-53
+src/server/client_shell.rs
+  s_2b88b77aedc95c::t_090d223cb8eb8f 101-103
+  s_2b88b77aedc95c::t_adcae0605d39e1 320
+  s_2b88b77aedc95c::t_5a94a2e861f937 99-100,104-105
+src/client/shell/notifications.rs
+  s_2b88b77aedc95c::t_da7624f7db9138 107-108,122-131,136,172-176,178,184
+src/app/worktree_setup.rs
+  s_2b88b77aedc95c::t_6fbd3d323512f3 1-129
+  s_2b88b77aedc95c::t_bb5d367086a384 130-221
+src/app/mod.rs
+  s_2b88b77aedc95c::t_d57396202b36ed 127-128,608
+  s_2b88b77aedc95c::t_6fbd3d323512f3 30,125-126,607
+src/client/shell/state.rs
+  s_2b88b77aedc95c::t_4df19ceb65ea87 590-591
+  s_2b88b77aedc95c::t_d763e720893ba9 613
+  s_2b88b77aedc95c::t_98e98a03e5e51d 571-583,596-612,614-621
+src/ui.rs
+  s_2b88b77aedc95c::t_953957c58e52d7 43
+docs/next/api/herdr-api.schema.json
+  s_2b88b77aedc95c::t_49750d47990c20 3891-3935,5441-5456,9748-9751,9762-9790,10079-10084
+  s_2b88b77aedc95c::t_abf12a43da17b8 10085
+src/client/shell/endpoints.rs
+  s_2b88b77aedc95c::t_6dcab297670431 617,622-630,757-781,784-785
+  s_2b88b77aedc95c::t_f628f40ea8086d 783
+  s_2b88b77aedc95c::t_5a94a2e861f937 782
+  s_2b88b77aedc95c::t_1be20c7ec3f1bb 786
+src/client/shell/tests/agents_worktrees_notifications.rs
+  s_2b88b77aedc95c::t_8310ac1f29c7fc 1995-2037,2042-2077,2080-2081
+  s_2b88b77aedc95c::t_5a94a2e861f937 2038-2041
+  s_2b88b77aedc95c::t_509e648243c674 2079
+  s_2b88b77aedc95c::t_3771171813e10b 1720
+  s_2b88b77aedc95c::t_ce2c562cf95e0a 112
+  s_2b88b77aedc95c::t_2761b48e9001ec 2078
+  s_2b88b77aedc95c::t_42ef014a13c6a4 1908
+  s_2b88b77aedc95c::t_7838d0f78a22a3 1994
+src/api/server.rs
+  s_2b88b77aedc95c::t_f71b62b6d3e6ca 528
+src/client/shell/tests/mod.rs
+  s_2b88b77aedc95c::t_ce2c562cf95e0a 44
+src/api/schema.rs
+  s_2b88b77aedc95c::t_f71b62b6d3e6ca 112-113
+src/client/shell/space_worktrees.rs
+  s_2b88b77aedc95c::t_5e5b535a9f2e0e 44-49,51
+  s_2b88b77aedc95c::t_013b0806ffe73a 395
+  s_2b88b77aedc95c::t_4df19ceb65ea87 282,285,295,297,361
+  s_2b88b77aedc95c::t_3771171813e10b 994
+  s_2b88b77aedc95c::t_5a94a2e861f937 299-305,393-394
+  s_2b88b77aedc95c::t_d763e720893ba9 283-284,286-294,296,313-314,362,370,386,392,396-417,537,599,711-738,744
+src/events.rs
+  s_2b88b77aedc95c::t_f6dabb18152801 27-28,32-47,76-77,226-227
+src/api/schema/response.rs
+  s_2b88b77aedc95c::t_98d699eb65de52 101-104
+src/app/api/worktrees/space.rs
+  s_2b88b77aedc95c::t_6918322a871f87 123-131,133-141,145,149,164,309-311
+  s_2b88b77aedc95c::t_d57396202b36ed 132
+  s_2b88b77aedc95c::t_5a94a2e861f937 344-347
+src/worktree.rs
+  s_2b88b77aedc95c::t_6918322a871f87 7
+  s_2b88b77aedc95c::t_531ca813943093 4
+src/worktree/hooks.rs
+  s_2b88b77aedc95c::t_67ae18499c7dc4 1-54,60-91,103-104,125-140,146-284,293-326
+  s_2b88b77aedc95c::t_d57396202b36ed 93,95,101
+  s_2b88b77aedc95c::t_6918322a871f87 92,94,96-100,102,105-124
+  s_2b88b77aedc95c::t_5a94a2e861f937 55-59,141-145,285-292
+src/client/shell/tests/mobile.rs
+  s_2b88b77aedc95c::t_ce2c562cf95e0a 377,578,620
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2dfd8aba28d32842d29a32349f6bfbd774c7a6eb",
+  "prompts": {},
+  "sessions": {
+    "s_2b88b77aedc95c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "41b646da-aa36-401e-a7a0-d769e3ef4cde",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
