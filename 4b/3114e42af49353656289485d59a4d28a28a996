@@ -1,0 +1,103 @@
+src/client/shell/state.rs
+  s_25e7ed85e3c500::t_10cc7da72d4006 53-56,1220,1257,1392
+  s_25e7ed85e3c500::t_f6eb9f5dd7d589 141-142,363,848,870
+src/client/shell.rs
+  s_25e7ed85e3c500::t_3067917f08c919 34
+  s_25e7ed85e3c500::t_f6eb9f5dd7d589 22
+  s_25e7ed85e3c500::t_be5816476874bd 23
+src/client/shell/command_palette_overlay.rs
+  s_25e7ed85e3c500::t_1a41e02516e3d3 72-78
+  s_25e7ed85e3c500::t_dcfd987c16a01b 16-18,152-153,156-157,221
+  s_25e7ed85e3c500::t_e59503ec6126e2 1-15,19-71,79-151,154-155,158-198,204-220,222-229
+  s_25e7ed85e3c500::t_be5816476874bd 199-203
+src/client/shell/overlay_input.rs
+  s_25e7ed85e3c500::t_f6eb9f5dd7d589 451,576
+  s_25e7ed85e3c500::t_c212f8332c7474 577-579
+src/client/shell/tests/command_palette.rs
+  s_25e7ed85e3c500::t_be5816476874bd 1,3,118-125,150-154,170-173,282-285
+  s_25e7ed85e3c500::t_3067917f08c919 298-310,317-399
+  s_25e7ed85e3c500::t_dbefab9f05afd3 2,4-117,126-149,155-169,174-281,286-297
+  s_25e7ed85e3c500::t_23e09d181f11ec 311-316
+src/client/shell/palette_usage.rs
+  s_25e7ed85e3c500::t_751b1d01e299a6 1-40,42-149,155-161,167-169
+  s_25e7ed85e3c500::t_3067917f08c919 41,150-154,162-166
+src/client/shell/config.rs
+  s_25e7ed85e3c500::t_10cc7da72d4006 161-162,198-204
+src/config/keybinds.rs
+  s_25e7ed85e3c500::t_ae95c61d0ff980 331,501,631,1599-1606
+  s_25e7ed85e3c500::t_74051cbba2dcfb 1607-1610
+src/client/shell/fuzzy.rs
+  s_25e7ed85e3c500::t_f840b046de74ca 22-25,80-83,132-134
+  s_25e7ed85e3c500::t_5c75f4b10064a8 88-92
+  s_25e7ed85e3c500::t_b1b28c2ec3fbca 61,73
+  s_25e7ed85e3c500::t_91b1445f08d105 6,10,19-20,79,135
+  s_25e7ed85e3c500::t_412c8103edcfd4 1-5,7-9,13-18,21,26-60,62-72,74-78,84-86,94-131,136-153
+  s_25e7ed85e3c500::t_1a41e02516e3d3 11-12,87,93
+src/client/shell/command_palette.rs
+  s_25e7ed85e3c500::t_f6eb9f5dd7d589 570-571
+  s_25e7ed85e3c500::t_d10b3b46b1cb18 1-81,87-94,110,118-120,122-126,131-132,134-136,144-146,148-151,188-189,191-291,293-297,303-314,316-321,323-329,333-354,357-358,362-366,368-395,398-413,416-444,447-451,453,463-464,467-468,475-476,495-504,511-516,519-533,536-547,550-569,572-660,662,664-668,670-692,713,718-758,763-829
+  s_25e7ed85e3c500::t_a45acdc006ecfb 82-86,315,322,330-332,367
+  s_25e7ed85e3c500::t_10cc7da72d4006 116,121,127-130,147,452,454-462,661,663,669,693-702
+  s_25e7ed85e3c500::t_be5816476874bd 298-302,465-466,469-474,477-491,494,505-510
+  s_25e7ed85e3c500::t_dcfd987c16a01b 95,97-107,708,760
+  s_25e7ed85e3c500::t_3067917f08c919 361
+  s_25e7ed85e3c500::t_f2a6dcd56ff8b5 96,108-109,111-115,117,133,137-143,158-187,190,703-706,709-712,714-716,759,762
+  s_25e7ed85e3c500::t_17049bbbbc2f70 707,717,761
+  s_25e7ed85e3c500::t_3712f44b9e3ea8 292,355-356,359-360,396-397,414-415,445-446,492-493,517-518,534-535,548-549
+  s_25e7ed85e3c500::t_1a41e02516e3d3 152-157
+src/input/mod.rs
+  s_25e7ed85e3c500::t_8a508858c48c56 17
+src/client/shell/overlays.rs
+  s_25e7ed85e3c500::t_f6eb9f5dd7d589 3,6-7,55,99-101
+src/input/keybind_help.rs
+  s_25e7ed85e3c500::t_8a508858c48c56 7,73-85,88,124-144,148,152-156,160-164,168-213,219-222,225-250,254,258-262,266-282,286-290,294-298
+src/client/shell/agent_grid.rs
+  s_25e7ed85e3c500::t_5f059621e0e43b 149-150,154,185-188
+  s_25e7ed85e3c500::t_6cadc2ed6a0f9f 189-190
+src/client/shell/composition.rs
+  s_25e7ed85e3c500::t_f6eb9f5dd7d589 684-697
+src/config/model.rs
+  s_25e7ed85e3c500::t_ae95c61d0ff980 399-400,534-535,672,778,1153
+src/client/shell/input.rs
+  s_25e7ed85e3c500::t_f6eb9f5dd7d589 497
+src/client/shell/render.rs
+  s_25e7ed85e3c500::t_f6eb9f5dd7d589 12-14
+docs/next/website/src/data/config-reference.json
+  s_25e7ed85e3c500::t_ae95c61d0ff980 545-549
+  s_25e7ed85e3c500::t_2473604df6d815 544
+src/input/keybindings.rs
+  s_25e7ed85e3c500::t_8f05b48cf09371 3,73,76-134,137-141,200-227
+src/client/shell/mouse.rs
+  s_25e7ed85e3c500::t_f6eb9f5dd7d589 1709-1711
+src/client/shell/agent_sidebar.rs
+  s_25e7ed85e3c500::t_f5d6606badee15 76-78,81
+docs/next/website/src/content/docs/keyboard.mdx
+  s_25e7ed85e3c500::t_5728fa0ab0e0f3 68
+  s_25e7ed85e3c500::t_db2ab853b4ea7b 61
+  s_25e7ed85e3c500::t_c2ea2d03f21a5e 69
+src/client/shell/preferences.rs
+  s_25e7ed85e3c500::t_c83e9d109970c5 50-55,61
+src/client/shell/tests/mod.rs
+  s_25e7ed85e3c500::t_be5816476874bd 258
+src/client/shell/actions.rs
+  s_25e7ed85e3c500::t_f6eb9f5dd7d589 54-58
+  s_25e7ed85e3c500::t_f840b046de74ca 220-241,243-283,285-286
+src/main.rs
+  s_25e7ed85e3c500::t_ae95c61d0ff980 154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4b3114e42af49353656289485d59a4d28a28a996",
+  "prompts": {},
+  "sessions": {
+    "s_25e7ed85e3c500": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3892cfdc-de73-4f3e-8f4a-5c8d9d1ba855",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
