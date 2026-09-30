@@ -924,10 +924,16 @@ impl ClientShellState {
                 }))
             }
             KeybindAction::PreviousAgent | KeybindAction::NextAgent => {
-                let agents = super::agent_sidebar::ordered_agent_pane_ids(
+                let mut agents = super::agent_sidebar::ordered_agent_pane_ids(
                     snapshot,
                     self.config.agent_panel_sort,
                 );
+                // The grid cycles through the agents it shows.
+                if self.agent_grid_active() {
+                    agents.retain(|pane_id| {
+                        !super::agent_grid::agent_grid_excludes(snapshot, pane_id)
+                    });
+                }
                 if agents.is_empty() {
                     return None;
                 }

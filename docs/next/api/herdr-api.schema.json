@@ -2447,6 +2447,22 @@
             }
           ]
         },
+        "PaneAgentGridSetParams": {
+          "description": "Leaves a pane out of, or returns it to, the live agent grid. Panes start\nincluded; the setting is shared by every client and lasts while the pane lives.",
+          "properties": {
+            "excluded": {
+              "type": "boolean"
+            },
+            "pane_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "pane_id",
+            "excluded"
+          ],
+          "type": "object"
+        },
         "PaneAgentState": {
           "enum": [
             "idle",
@@ -6342,6 +6358,22 @@
             },
             "params": {
               "$ref": "#/schemas/request/$defs/PaneInputSetParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "pane.agent_grid.set",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/PaneAgentGridSetParams"
             }
           },
           "required": [

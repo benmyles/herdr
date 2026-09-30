@@ -11,6 +11,25 @@ impl ClientShellState {
             .map(|hit| hit.workspace_id.clone())
     }
 
+    /// The active endpoint's agent row under `point`, from either panel layout.
+    pub(super) fn active_endpoint_agent_at(&self, point: (u16, u16)) -> Option<String> {
+        self.hits
+            .endpoint_agents
+            .iter()
+            .find(|(rect, endpoint_id, _)| {
+                endpoint_id == &self.active_endpoint_id && super::contains(*rect, point)
+            })
+            .map(|(_, _, pane_id)| pane_id)
+            .or_else(|| {
+                self.hits
+                    .agents
+                    .iter()
+                    .find(|(rect, _)| super::contains(*rect, point))
+                    .map(|(_, pane_id)| pane_id)
+            })
+            .cloned()
+    }
+
     pub(super) fn endpoint_workspace_is_draggable(&self, press: &ClientWorkspacePress) -> bool {
         if press.endpoint_id != self.active_endpoint_id {
             return false;

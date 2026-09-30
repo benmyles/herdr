@@ -29,7 +29,7 @@ impl HeadlessServer {
                 .app
                 .find_pane(pane_id)
                 .is_some_and(|(workspace_index, _)| {
-                    crate::ui::pane_is_live_agent(
+                    crate::ui::pane_in_agent_grid(
                         &self.app.state,
                         &self.app.terminal_runtimes,
                         workspace_index,

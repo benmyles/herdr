@@ -223,6 +223,8 @@ pub enum Method {
     PaneFocus(PaneTarget),
     #[serde(rename = "pane.input.set")]
     PaneInputSet(PaneInputSetParams),
+    #[serde(rename = "pane.agent_grid.set")]
+    PaneAgentGridSet(PaneAgentGridSetParams),
     #[serde(rename = "pane.link.activate")]
     PaneLinkActivate(PaneLinkActivateParams),
     #[serde(rename = "pane.link.resolve")]

@@ -76,13 +76,26 @@ impl ClientContextMenuOverlay {
                 item("Rename", Action::Rename),
                 item("Close", Action::Close),
             ],
+            ClientContextMenuTarget::Agent {
+                agent_grid_excluded,
+                ..
+            } => vec![if *agent_grid_excluded {
+                item("Include in grid", Action::IncludeInAgentGrid)
+            } else {
+                item("Exclude from grid", Action::ExcludeFromAgentGrid)
+            }],
             ClientContextMenuTarget::Pane {
                 source_pane_id,
                 has_manual_label,
                 right_click_passthrough,
+                agent_grid_tile,
                 ..
             } => {
-                let mut items = vec![item("Rename pane", Action::RenamePane)];
+                let mut items = Vec::new();
+                if *agent_grid_tile {
+                    items.push(item("Exclude from grid", Action::ExcludeFromAgentGrid));
+                }
+                items.push(item("Rename pane", Action::RenamePane));
                 if *has_manual_label {
                     items.push(item("Clear pane name", Action::ClearPaneName));
                 }
@@ -273,6 +286,7 @@ impl ClientShellState {
             .focused_pane_id
             .clone()
             .filter(|focused| focused != &pane_id);
+        let agent_grid_tile = self.agent_grid_active() && self.agent_grid_exclusion_supported();
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Pane {
                 pane_id,
@@ -280,11 +294,37 @@ impl ClientShellState {
                 source_pane_id,
                 has_manual_label: pane.label.is_some(),
                 right_click_passthrough: pane.right_click_passthrough,
+                agent_grid_tile,
             },
             x,
             y,
             highlighted: 0,
         }));
+    }
+
+    /// Opens the menu for an agent row. Its only action leaves the agent out
+    /// of the live agent grid, so endpoints without that open nothing.
+    pub(super) fn open_agent_context_menu(&mut self, pane_id: String, x: u16, y: u16) -> bool {
+        if !self.agent_grid_exclusion_supported() {
+            return false;
+        }
+        let Some(snapshot) = self.snapshot.as_deref() else {
+            return false;
+        };
+        if !snapshot.agents.iter().any(|agent| agent.pane_id == pane_id) {
+            return false;
+        }
+        let agent_grid_excluded = super::agent_grid::agent_grid_excludes(snapshot, &pane_id);
+        self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
+            target: ClientContextMenuTarget::Agent {
+                pane_id,
+                agent_grid_excluded,
+            },
+            x,
+            y,
+            highlighted: 0,
+        }));
+        true
     }
 
     pub(super) fn move_context_menu_selection(&mut self, delta: isize) {
@@ -342,6 +382,15 @@ impl ClientShellState {
                 tab_id,
                 workspace_id,
             } => self.activate_tab_context_action(tab_id, workspace_id, action, outcome),
+            ClientContextMenuTarget::Agent { pane_id, .. } => match action {
+                ClientContextMenuAction::ExcludeFromAgentGrid => {
+                    self.set_agent_grid_excluded(pane_id, true, outcome)
+                }
+                ClientContextMenuAction::IncludeInAgentGrid => {
+                    self.set_agent_grid_excluded(pane_id, false, outcome)
+                }
+                _ => {}
+            },
             ClientContextMenuTarget::Pane {
                 pane_id,
                 workspace_id,
@@ -630,6 +679,9 @@ impl ClientShellState {
             ),
             ClientContextMenuAction::ClosePane => {
                 self.push_endpoint_method(Method::PaneClose(PaneTarget { pane_id }), outcome)
+            }
+            ClientContextMenuAction::ExcludeFromAgentGrid => {
+                self.set_agent_grid_excluded(pane_id, true, outcome)
             }
             _ => {}
         }

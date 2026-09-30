@@ -40,6 +40,14 @@ pub struct PaneInputSetParams {
     pub right_click: PaneRightClickTarget,
 }
 
+/// Leaves a pane out of, or returns it to, the live agent grid. Panes start
+/// included; the setting is shared by every client and lasts while the pane lives.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct PaneAgentGridSetParams {
+    pub pane_id: String,
+    pub excluded: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct PaneLinkActivateParams {
     pub pane_id: String,

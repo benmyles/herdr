@@ -17,6 +17,7 @@ fn grid_snapshot() -> ClientShellSnapshot {
         foreground_cwd: Some("/repo".into()),
         focused: false,
         right_click_passthrough: false,
+        agent_grid_excluded: false,
     });
     projected.agents = vec![ClientShellAgent {
         pane_id: "pane_2".into(),
@@ -251,6 +252,7 @@ fn grid_tiles_are_titled_from_their_own_agent() {
         foreground_cwd: Some("/repo".into()),
         focused: false,
         right_click_passthrough: false,
+        agent_grid_excluded: false,
     });
     projected.agents[0].terminal_title_stripped = Some("fix the grid".into());
     let mut blocked = projected.agents[0].clone();
@@ -319,4 +321,225 @@ fn grid_tiles_are_titled_from_their_own_agent() {
     assert!(claude.contains("fix the grid"), "{claude}");
     assert!(!claude.contains("Action"), "{claude}");
     assert!(claude.trim_end().ends_with("─┐"), "{claude}");
+}
+
+/// Two agents in the second tab; `pane_2` is focused.
+fn two_agent_state(excluded: &[&str]) -> ClientShellState {
+    let mut projected = grid_snapshot();
+    let mut second = projected.panes[1].clone();
+    second.pane_id = "pane_3".into();
+    projected.panes.push(second);
+    let mut agent = projected.agents[0].clone();
+    agent.pane_id = "pane_3".into();
+    agent.agent = Some("codex".into());
+    projected.agents.push(agent);
+    projected.focused_tab_id = Some("tab_2".into());
+    projected.focused_pane_id = Some("pane_2".into());
+    for pane in &mut projected.panes {
+        pane.focused = pane.pane_id == "pane_2";
+        pane.agent_grid_excluded = excluded.contains(&pane.pane_id.as_str());
+    }
+    projected.agents[0].focused = true;
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(projected));
+    state.set_pane_surface(surface());
+    state.compose(106, 30).expect("shell frame");
+    state
+}
+
+fn agent_row(state: &ClientShellState, pane_id: &str) -> Rect {
+    state
+        .hits
+        .agents
+        .iter()
+        .map(|(rect, id)| (rect, id))
+        .chain(
+            state
+                .hits
+                .endpoint_agents
+                .iter()
+                .map(|(rect, _, id)| (rect, id)),
+        )
+        .find(|(_, id)| id.as_str() == pane_id)
+        .map(|(rect, _)| *rect)
+        .expect("agent row")
+}
+
+fn right_click(state: &mut ClientShellState, rect: Rect) -> ClientShellInput {
+    state.handle_raw_events(vec![RawInputEvent::Mouse(MouseEvent {
+        kind: MouseEventKind::Down(MouseButton::Right),
+        column: rect.x + rect.width / 2,
+        row: rect.y,
+        modifiers: KeyModifiers::empty(),
+    })])
+}
+
+fn menu_labels(state: &ClientShellState) -> Vec<&'static str> {
+    match &state.overlay {
+        Some(ClientShellOverlay::ContextMenu(menu)) => {
+            menu.items().iter().map(|item| item.label).collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+fn activate_menu_item(state: &mut ClientShellState, label: &str) -> ClientShellInput {
+    let index = menu_labels(state)
+        .iter()
+        .position(|item| *item == label)
+        .unwrap_or_else(|| panic!("menu offers {label:?}: {:?}", menu_labels(state)));
+    let mut outcome = ClientShellInput::default();
+    state.activate_context_menu_item(index, &mut outcome);
+    outcome
+}
+
+fn grid_excluded(pane_id: &str, excluded: bool) -> crate::api::schema::Method {
+    crate::api::schema::Method::PaneAgentGridSet(crate::api::schema::PaneAgentGridSetParams {
+        pane_id: pane_id.into(),
+        excluded,
+    })
+}
+
+fn pane_focus(pane_id: &str) -> crate::api::schema::Method {
+    crate::api::schema::Method::PaneFocus(crate::api::schema::PaneTarget {
+        pane_id: pane_id.into(),
+    })
+}
+
+/// Whether the agent row starts with the grid rail in the accent color.
+fn has_grid_rail(state: &mut ClientShellState, pane_id: &str) -> bool {
+    state.set_pane_surface(surface());
+    let frame = state.compose(106, 30).expect("frame");
+    let buffer = frame.to_ratatui_buffer().expect("buffer");
+    let row = agent_row(state, pane_id);
+    let cell = &buffer[(row.x, row.y)];
+    cell.symbol() == "▎" && cell.fg == state.config.palette.accent
+}
+
+#[test]
+fn right_clicking_an_agent_row_excludes_it_and_moves_the_grid_selection() {
+    let mut state = two_agent_state(&[]);
+    state.show_test_agent_grid();
+    state.set_pane_surface(surface());
+    state.compose(106, 30).expect("grid frame");
+
+    let row = agent_row(&state, "pane_2");
+    assert!(right_click(&mut state, row).repaint);
+    assert_eq!(menu_labels(&state), vec!["Exclude from grid"]);
+    assert_eq!(
+        methods(&activate_menu_item(&mut state, "Exclude from grid")),
+        vec![grid_excluded("pane_2", true), pane_focus("pane_3")],
+        "the selected tile left, so keyboard input moves to a tile still shown"
+    );
+    assert!(state.agent_grid_active());
+
+    let mut state = two_agent_state(&["pane_2"]);
+    state.show_test_agent_grid();
+    state.set_pane_surface(surface());
+    state.compose(106, 30).expect("grid frame");
+    let row = agent_row(&state, "pane_2");
+    right_click(&mut state, row);
+    assert_eq!(menu_labels(&state), vec!["Include in grid"]);
+    assert_eq!(
+        methods(&activate_menu_item(&mut state, "Include in grid")),
+        vec![grid_excluded("pane_2", false)]
+    );
+}
+
+#[test]
+fn excluding_an_agent_outside_the_grid_leaves_focus_alone() {
+    let mut state = two_agent_state(&[]);
+    let row = agent_row(&state, "pane_2");
+    right_click(&mut state, row);
+    assert_eq!(
+        methods(&activate_menu_item(&mut state, "Exclude from grid")),
+        vec![grid_excluded("pane_2", true)]
+    );
+}
+
+#[test]
+fn only_agents_shown_in_the_grid_carry_the_rail() {
+    let mut state = two_agent_state(&["pane_2"]);
+    assert!(
+        !has_grid_rail(&mut state, "pane_3"),
+        "no rail without a grid"
+    );
+
+    state.show_test_agent_grid();
+    assert!(has_grid_rail(&mut state, "pane_3"));
+    assert!(!has_grid_rail(&mut state, "pane_2"));
+}
+
+#[test]
+fn opening_the_grid_skips_an_excluded_focused_agent() {
+    let mut state = two_agent_state(&["pane_2"]);
+    let open = press(&mut state, |hits| hits.agent_grid_toggle);
+    assert_eq!(methods(&open), vec![grid_set(true), pane_focus("pane_3")]);
+}
+
+#[test]
+fn selecting_an_excluded_agent_leaves_the_grid_for_its_tab() {
+    let mut state = two_agent_state(&["pane_3"]);
+    state.show_test_agent_grid();
+    state.set_pane_surface(surface());
+    state.compose(106, 30).expect("grid frame");
+
+    let row = agent_row(&state, "pane_3");
+    let select = press(&mut state, move |_| row);
+    assert_eq!(
+        methods(&select),
+        vec![grid_set(false), pane_focus("pane_3")]
+    );
+    assert!(!state.agent_grid_active());
+}
+
+#[test]
+fn agent_cycling_in_the_grid_skips_excluded_agents() {
+    use crate::input::KeybindAction;
+
+    let mut state = two_agent_state(&["pane_3"]);
+    assert_eq!(
+        state.endpoint_method_for_action(KeybindAction::NextAgent),
+        Some(pane_focus("pane_3")),
+        "without a grid every agent takes a turn"
+    );
+    state.show_test_agent_grid();
+    assert_eq!(
+        state.endpoint_method_for_action(KeybindAction::NextAgent),
+        Some(pane_focus("pane_2"))
+    );
+}
+
+#[test]
+fn grid_tiles_offer_exclusion_first_in_their_pane_menu() {
+    let mut state = two_agent_state(&[]);
+    state.open_pane_context_menu("pane_3".into(), 40, 10);
+    assert!(!menu_labels(&state).contains(&"Exclude from grid"));
+
+    state.show_test_agent_grid();
+    state.open_pane_context_menu("pane_3".into(), 40, 10);
+    assert_eq!(menu_labels(&state)[0], "Exclude from grid");
+    assert_eq!(
+        methods(&activate_menu_item(&mut state, "Exclude from grid")),
+        vec![grid_excluded("pane_3", true)],
+        "the selected tile stays when another tile leaves"
+    );
+}
+
+#[test]
+fn endpoints_without_grid_exclusion_open_no_agent_menu() {
+    let mut state = two_agent_state(&[]);
+    state.set_endpoint_methods(Some(vec![
+        "pane.focus".into(),
+        "client_shell.agent_grid.set".into(),
+    ]));
+    state.set_pane_surface(surface());
+    state.compose(106, 30).expect("frame");
+    let row = agent_row(&state, "pane_2");
+    right_click(&mut state, row);
+    assert!(state.overlay.is_none());
+
+    state.show_test_agent_grid();
+    state.open_pane_context_menu("pane_2".into(), 40, 10);
+    assert!(!menu_labels(&state).contains(&"Exclude from grid"));
 }

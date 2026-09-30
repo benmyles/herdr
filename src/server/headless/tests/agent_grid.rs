@@ -195,3 +195,73 @@ async fn agent_grid_owns_agent_geometry_until_it_closes() {
 
     shutdown_test_runtimes(&mut server);
 }
+
+#[tokio::test]
+async fn excluding_an_agent_returns_it_to_tab_geometry_and_regrids_the_rest() {
+    let GridFixture {
+        mut server,
+        shell,
+        first_agent,
+        second_agent,
+        ..
+    } = grid_fixture();
+    let (control, render) = connect_test_shell(&mut server, 7, 100, 30);
+    let _ = client_shell_snapshot(&control);
+    server.render_and_stream();
+    let _ = recv_pane_surface(&render, "tab surface");
+    let tab_size = runtime_size(&server, 0, shell);
+    assert!(set_grid(&mut server, 7, true));
+    let _ = control.recv().expect("grid response");
+    server.render_and_stream();
+    let _ = recv_pane_surface(&render, "grid surface");
+    assert_ne!(runtime_size(&server, 0, first_agent), tab_size);
+
+    let first_id = server.app.public_pane_id(0, first_agent).unwrap();
+    assert!(
+        server.handle_server_event(ServerEvent::ClientShellEndpointRequest {
+            client_id: 7,
+            boot_id: server.client_shell_boot_id.clone(),
+            request: Box::new(api::schema::Request {
+                id: "exclude".into(),
+                method: api::schema::Method::PaneAgentGridSet(
+                    api::schema::PaneAgentGridSetParams {
+                        pane_id: first_id.clone(),
+                        excluded: true,
+                    },
+                ),
+            }),
+        }),
+        "leaving an agent out repaints"
+    );
+    server.render_and_stream();
+    let grid = recv_pane_surface(&render, "regridded surface");
+    let second_id = server.app.public_pane_id(1, second_agent).unwrap();
+    assert_eq!(
+        grid.panes
+            .iter()
+            .map(|pane| pane.pane_id.as_str())
+            .collect::<Vec<_>>(),
+        vec![second_id.as_str()],
+        "the remaining agent takes the whole grid"
+    );
+    assert_eq!(server.app.state.agent_grid_resize_locks.len(), 1);
+    assert_eq!(
+        runtime_size(&server, 0, first_agent),
+        tab_size,
+        "the excluded agent returns to its tab size"
+    );
+    let snapshot = server.clients[&7]
+        .shell_snapshot
+        .as_ref()
+        .expect("snapshot");
+    assert!(snapshot
+        .panes
+        .iter()
+        .any(|pane| pane.pane_id == first_id && pane.agent_grid_excluded));
+    assert!(!snapshot
+        .panes
+        .iter()
+        .any(|pane| pane.pane_id == second_id && pane.agent_grid_excluded));
+
+    shutdown_test_runtimes(&mut server);
+}

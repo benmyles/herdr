@@ -52,8 +52,9 @@ fn is_live_agent(
 }
 
 /// Whether a pane belongs in the live agent grid: a detected agent terminal
-/// with a running runtime. Ordinary shell panes never appear in the grid.
-pub(crate) fn pane_is_live_agent(
+/// with a running runtime that the user has not left out. Ordinary shell
+/// panes never appear in the grid.
+pub(crate) fn pane_in_agent_grid(
     app: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,
     workspace_index: usize,
@@ -61,15 +62,16 @@ pub(crate) fn pane_is_live_agent(
 ) -> bool {
     app.workspaces
         .get(workspace_index)
-        .and_then(|workspace| workspace.terminal_id(pane_id))
-        .is_some_and(|terminal_id| {
-            is_live_agent(
-                app,
-                terminal_runtimes,
-                workspace_index,
-                pane_id,
-                terminal_id,
-            )
+        .and_then(|workspace| workspace.pane_state(pane_id))
+        .is_some_and(|pane| {
+            !pane.agent_grid_excluded
+                && is_live_agent(
+                    app,
+                    terminal_runtimes,
+                    workspace_index,
+                    pane_id,
+                    &pane.attached_terminal_id,
+                )
         })
 }
 
@@ -105,8 +107,31 @@ fn sidebar_workspace_order(app: &AppState) -> Vec<usize> {
     order
 }
 
-/// Every live agent in space, workspace, tab, and pane order. The order does
-/// not depend on agent status, so tiles never jump when an agent changes state.
+/// Whether some live agent is left out of the grid, which then may be empty
+/// only because of the user's choice.
+fn any_excluded_live_agent(app: &AppState, terminal_runtimes: &TerminalRuntimeRegistry) -> bool {
+    app.workspaces
+        .iter()
+        .enumerate()
+        .any(|(workspace_index, workspace)| {
+            workspace.tabs.iter().any(|tab| {
+                tab.panes.iter().any(|(&pane_id, pane)| {
+                    pane.agent_grid_excluded
+                        && is_live_agent(
+                            app,
+                            terminal_runtimes,
+                            workspace_index,
+                            pane_id,
+                            &pane.attached_terminal_id,
+                        )
+                })
+            })
+        })
+}
+
+/// Every live agent the user has not left out, in space, workspace, tab, and
+/// pane order. The order does not depend on agent status, so tiles never jump
+/// when an agent changes state.
 pub(crate) fn live_agent_targets(
     app: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,
@@ -126,6 +151,9 @@ pub(crate) fn live_agent_targets(
                 let Some(pane) = tab.panes.get(&pane_id) else {
                     continue;
                 };
+                if pane.agent_grid_excluded {
+                    continue;
+                }
                 let terminal_id = &pane.attached_terminal_id;
                 if !is_live_agent(
                     app,
@@ -340,8 +368,13 @@ pub(crate) fn render_agent_grid(
     area: Rect,
 ) {
     if tiles.is_empty() {
+        let message = if any_excluded_live_agent(app, terminal_runtimes) {
+            "every agent is excluded from the grid"
+        } else {
+            "no live agents"
+        };
         frame.render_widget(
-            Paragraph::new(Line::from("no live agents"))
+            Paragraph::new(Line::from(message))
                 .alignment(ratatui::layout::Alignment::Center)
                 .style(Style::default().fg(app.palette.overlay0)),
             area,
@@ -625,17 +658,45 @@ mod tests {
             vec![first_agent, second_agent]
         );
         assert!(!tiles.iter().any(|tile| tile.info.id == shell));
-        assert!(pane_is_live_agent(
+        assert!(pane_in_agent_grid(
             &app,
             &TerminalRuntimeRegistry::new(),
             1,
             second_agent
         ));
-        assert!(!pane_is_live_agent(
+        assert!(!pane_in_agent_grid(
             &app,
             &TerminalRuntimeRegistry::new(),
             0,
             shell
+        ));
+    }
+
+    #[tokio::test]
+    async fn grid_leaves_out_excluded_agents_and_keeps_the_rest_in_order() {
+        let (mut app, _, first_agent, second_agent) = cross_workspace_agent_app();
+        app.workspaces[0]
+            .pane_state_mut(first_agent)
+            .expect("first agent pane")
+            .agent_grid_excluded = true;
+
+        let tiles = grid(&app, None);
+        assert_eq!(
+            tiles.iter().map(|tile| tile.info.id).collect::<Vec<_>>(),
+            vec![second_agent]
+        );
+        assert_eq!(tiles[0].info.rect, Rect::new(0, 0, 120, 40));
+        assert!(!pane_in_agent_grid(
+            &app,
+            &TerminalRuntimeRegistry::new(),
+            0,
+            first_agent
+        ));
+        assert!(pane_in_agent_grid(
+            &app,
+            &TerminalRuntimeRegistry::new(),
+            1,
+            second_agent
         ));
     }
 

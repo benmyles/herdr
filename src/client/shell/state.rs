@@ -743,6 +743,8 @@ pub(super) enum ClientContextMenuAction {
     ToggleSpace,
     OpenClosedMember,
     RemoveClosedMember,
+    ExcludeFromAgentGrid,
+    IncludeInAgentGrid,
 }
 
 #[derive(Debug)]
@@ -781,6 +783,13 @@ pub(super) enum ClientContextMenuTarget {
         source_pane_id: Option<String>,
         has_manual_label: bool,
         right_click_passthrough: bool,
+        /// Set when the pane is a live agent grid tile that can be left out.
+        agent_grid_tile: bool,
+    },
+    /// An agent row in the agents panel.
+    Agent {
+        pane_id: String,
+        agent_grid_excluded: bool,
     },
 }
 

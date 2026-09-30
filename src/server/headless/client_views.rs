@@ -260,6 +260,7 @@ impl HeadlessServer {
                 | Method::PaneFocus(_)
                 | Method::PaneFocusDirection(_)
                 | Method::PaneInputSet(_)
+                | Method::PaneAgentGridSet(_)
                 | Method::PaneLinkActivate(_)
                 | Method::PaneLinkResolve(_)
                 | Method::PaneRename(_)
@@ -509,7 +510,7 @@ impl HeadlessServer {
         pane_id: crate::layout::PaneId,
     ) -> bool {
         if self.client_shows_agent_grid(client_id) {
-            return crate::ui::pane_is_live_agent(
+            return crate::ui::pane_in_agent_grid(
                 &self.app.state,
                 &self.app.terminal_runtimes,
                 workspace_index,

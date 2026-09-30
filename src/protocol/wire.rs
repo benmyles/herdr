@@ -1172,6 +1172,10 @@ pub struct ClientShellPane {
     pub foreground_cwd: Option<String>,
     pub focused: bool,
     pub right_click_passthrough: bool,
+    /// Whether the user left this pane out of the live agent grid. Older
+    /// servers send nothing and show every agent.
+    #[serde(default)]
+    pub agent_grid_excluded: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2975,6 +2979,7 @@ mod tests {
                 foreground_cwd: Some("/repo".into()),
                 focused: true,
                 right_click_passthrough: false,
+                agent_grid_excluded: false,
             }],
             agents: vec![ClientShellAgent {
                 pane_id: "w1:p1".into(),

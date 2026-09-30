@@ -76,6 +76,7 @@ pub(crate) fn request_changes_ui(request: &Request) -> bool {
             | Method::PaneEditScrollback(_)
             | Method::PaneFocus(_)
             | Method::PaneInputSet(_)
+            | Method::PaneAgentGridSet(_)
             | Method::PaneRename(_)
             | Method::PaneReportAgent(_)
             | Method::PaneReportAgentSession(_)

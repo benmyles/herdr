@@ -73,7 +73,13 @@ pub(super) fn render_expanded(
     ) {
         return false;
     }
-    let lines = expanded_lines(endpoints, active_endpoint_id, config, clock);
+    let lines = expanded_lines(
+        endpoints,
+        active_endpoint_id,
+        agent_grid == Some(true),
+        config,
+        clock,
+    );
     super::agent_sidebar::render_panel_lines(
         buffer,
         area,
@@ -89,9 +95,11 @@ pub(super) fn render_expanded(
 
 /// Panel lines across every endpoint: grouped per machine, or one flat list
 /// when an agent view or the priority sort orders agents across machines.
+/// `agent_grid` is set while the active endpoint shows its live agent grid.
 fn expanded_lines(
     endpoints: &[ClientShellEndpoint],
     active_endpoint_id: &ClientEndpointId,
+    agent_grid: bool,
     config: &ClientShellConfig,
     clock: AgentClock,
 ) -> Vec<super::agent_sidebar::PanelLine> {
@@ -105,6 +113,7 @@ fn expanded_lines(
             machine: many.then_some(endpoint.label),
             stale: endpoint.stale(),
             active: endpoint.endpoint_id == active_endpoint_id,
+            agent_grid: agent_grid && endpoint.endpoint_id == active_endpoint_id,
             snapshot: endpoint.snapshot,
         })
         .collect::<Vec<_>>();
@@ -146,6 +155,7 @@ impl ClientShellState {
         let lines = expanded_lines(
             &self.endpoints,
             &self.active_endpoint_id,
+            false,
             &self.config,
             self.agent_clock(std::time::Instant::now()),
         );

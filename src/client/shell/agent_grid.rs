@@ -40,29 +40,68 @@ impl ClientShellState {
         let active = !self.agent_grid_active();
         self.set_agent_grid(active, outcome);
         if active {
-            self.focus_agent_for_grid(outcome);
+            self.focus_agent_for_grid(None, outcome);
+        }
+    }
+
+    /// Whether the endpoint can leave agents out of its grid.
+    pub(super) fn agent_grid_exclusion_supported(&self) -> bool {
+        self.supports_endpoint_method(&crate::api::schema::Method::PaneAgentGridSet(
+            crate::api::schema::PaneAgentGridSetParams {
+                pane_id: String::new(),
+                excluded: true,
+            },
+        ))
+    }
+
+    /// Leaves an agent out of the grid or returns it. Leaving out the selected
+    /// tile moves the selection to the next agent still shown.
+    pub(super) fn set_agent_grid_excluded(
+        &mut self,
+        pane_id: String,
+        excluded: bool,
+        outcome: &mut ClientShellInput,
+    ) {
+        self.push_endpoint_method(
+            crate::api::schema::Method::PaneAgentGridSet(
+                crate::api::schema::PaneAgentGridSetParams {
+                    pane_id: pane_id.clone(),
+                    excluded,
+                },
+            ),
+            outcome,
+        );
+        if excluded && self.agent_grid_active() {
+            self.focus_agent_for_grid(Some(&pane_id), outcome);
         }
     }
 
     /// The grid shows only agents, so keyboard input must target one of them.
-    fn focus_agent_for_grid(&mut self, outcome: &mut ClientShellInput) {
+    /// `leaving` is an agent just left out whose snapshot has not caught up.
+    fn focus_agent_for_grid(&mut self, leaving: Option<&str>, outcome: &mut ClientShellInput) {
         let Some(snapshot) = self.snapshot.as_deref() else {
             return;
         };
-        let focused = snapshot.focused_pane_id.as_deref();
-        if snapshot
-            .agents
-            .iter()
-            .any(|agent| Some(agent.pane_id.as_str()) == focused)
-        {
-            return;
-        }
-        let Some(pane_id) = super::agent_sidebar::ordered_agent_pane_ids(
+        let shown =
+            |pane_id: &str| Some(pane_id) != leaving && !agent_grid_excludes(snapshot, pane_id);
+        let agents = super::agent_sidebar::ordered_agent_pane_ids(
             snapshot,
             crate::config::AgentPanelSortConfig::Spaces,
-        )
-        .into_iter()
-        .next() else {
+        );
+        let focused = snapshot.focused_pane_id.as_deref();
+        let current = agents
+            .iter()
+            .position(|pane_id| Some(pane_id.as_str()) == focused);
+        if current.is_some_and(|index| shown(&agents[index])) {
+            return;
+        }
+        // The next shown agent after the one leaving, else the first.
+        let start = current.map_or(0, |index| index + 1);
+        let Some(pane_id) = (0..agents.len())
+            .map(|offset| &agents[(start + offset) % agents.len()])
+            .find(|pane_id| shown(pane_id))
+            .cloned()
+        else {
             return;
         };
         self.push_endpoint_method(
@@ -107,6 +146,11 @@ impl ClientShellState {
 
         let navigates = match method {
             Method::WorkspaceFocus(_) | Method::TabFocus(_) | Method::SpaceMemberOpen(_) => true,
+            // An agent left out of the grid is shown in its own tab.
+            Method::PaneFocus(target) => self
+                .snapshot
+                .as_deref()
+                .is_some_and(|snapshot| agent_grid_excludes(snapshot, &target.pane_id)),
             Method::WorkspaceCreate(params) => params.focus,
             Method::TabCreate(params) => params.focus,
             _ => false,
@@ -127,6 +171,14 @@ impl ClientShellState {
         }
         outcome
     }
+}
+
+/// Whether the endpoint leaves `pane_id` out of its live agent grid.
+pub(super) fn agent_grid_excludes(snapshot: &ClientShellSnapshot, pane_id: &str) -> bool {
+    snapshot
+        .panes
+        .iter()
+        .any(|pane| pane.pane_id == pane_id && pane.agent_grid_excluded)
 }
 
 /// Draws each grid tile's title over the top border the server drew: status

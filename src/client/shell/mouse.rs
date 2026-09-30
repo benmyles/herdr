@@ -1900,6 +1900,12 @@ impl ClientShellState {
                 if !self.config.mouse_capture {
                     return;
                 }
+                if let Some(pane_id) = self.active_endpoint_agent_at(point) {
+                    if self.open_agent_context_menu(pane_id, mouse.column, mouse.row) {
+                        outcome.repaint = true;
+                    }
+                    return;
+                }
                 let workspace_id = (!self.sidebar_collapsed)
                     .then(|| self.active_endpoint_workspace_at(point))
                     .flatten();

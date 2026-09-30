@@ -113,6 +113,10 @@ pub struct PaneSnapshot {
     pub agent_session: Option<PaneAgentSessionSnapshot>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub launch_argv: Option<Vec<String>>,
+    /// Whether the user left the pane out of the live agent grid, kept so the
+    /// choice survives live handoff and restart.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub agent_grid_excluded: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -389,7 +393,7 @@ fn capture_tab(
     terminal_runtimes: &TerminalRuntimeRegistry,
 ) -> TabSnapshot {
     let mut panes = HashMap::new();
-    for id in tab.panes.keys() {
+    for (id, pane) in &tab.panes {
         let terminal_id = tab.terminal_id(*id);
         let terminal = terminal_id.and_then(|id| terminals.get(id));
         let cwd = terminal_id
@@ -440,6 +444,7 @@ fn capture_tab(
                 managed_agent_kind,
                 agent_session,
                 launch_argv,
+                agent_grid_excluded: pane.agent_grid_excluded,
             },
         );
     }
@@ -824,6 +829,7 @@ mod tests {
                 managed_agent_kind: None,
                 agent_session: None,
                 launch_argv: None,
+                agent_grid_excluded: false,
             },
         );
         panes.insert(
@@ -835,6 +841,7 @@ mod tests {
                 managed_agent_kind: None,
                 agent_session: None,
                 launch_argv: None,
+                agent_grid_excluded: false,
             },
         );
 
@@ -1156,6 +1163,27 @@ mod tests {
         assert_eq!(tab.panes.len(), 1);
         assert!(matches!(tab.layout, LayoutSnapshot::Pane(_)));
         assert!(!tab.zoomed);
+    }
+
+    #[test]
+    fn capture_contract_tracks_panes_left_out_of_the_agent_grid() {
+        let mut state = state_with_workspaces(&["one"]);
+        let root = state.workspaces[0].tabs[0].root_pane;
+        let other = state.workspaces[0].test_split(Direction::Horizontal);
+        state.workspaces[0]
+            .pane_state_mut(root)
+            .unwrap()
+            .agent_grid_excluded = true;
+
+        let snapshot = capture_from_state(&state);
+        let panes = &snapshot.workspaces[0].tabs[0].panes;
+        assert!(panes[&root.raw()].agent_grid_excluded);
+        assert!(!panes[&other.raw()].agent_grid_excluded);
+        let json = serde_json::to_value(&panes[&other.raw()]).unwrap();
+        assert!(
+            json.get("agent_grid_excluded").is_none(),
+            "included panes keep the snapshot unchanged"
+        );
     }
 
     #[test]
@@ -1488,6 +1516,7 @@ mod tests {
                 managed_agent_kind: None,
                 agent_session: None,
                 launch_argv: None,
+                agent_grid_excluded: false,
             },
         );
         panes.insert(
@@ -1501,6 +1530,7 @@ mod tests {
                 managed_agent_kind: None,
                 agent_session: None,
                 launch_argv: None,
+                agent_grid_excluded: false,
             },
         );
 

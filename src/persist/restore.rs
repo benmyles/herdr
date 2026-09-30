@@ -445,6 +445,17 @@ fn restore_workspace(
     )
 }
 
+/// A restored pane's view state, keeping whether the user left it out of the
+/// live agent grid.
+fn restored_pane_state(
+    terminal_id: TerminalId,
+    saved_pane: Option<&super::snapshot::PaneSnapshot>,
+) -> PaneState {
+    let mut pane = PaneState::new(terminal_id);
+    pane.agent_grid_excluded = saved_pane.is_some_and(|pane| pane.agent_grid_excluded);
+    pane
+}
+
 fn unavailable_restored_terminal(
     pane: Option<&super::snapshot::PaneSnapshot>,
     cwd: PathBuf,
@@ -522,7 +533,7 @@ fn restore_tab(
                 "Saved directory is unavailable. Restore the directory and restart this session."
                     .into(),
             );
-            panes.insert(*id, PaneState::new(terminal.id.clone()));
+            panes.insert(*id, restored_pane_state(terminal.id.clone(), saved_pane));
             terminals.push(terminal);
             continue;
         }
@@ -602,7 +613,7 @@ fn restore_tab(
                     std::time::Instant::now(),
                 );
             }
-            panes.insert(*id, PaneState::new(terminal_id));
+            panes.insert(*id, restored_pane_state(terminal_id, saved_pane));
             terminals.push(terminal);
             continue;
         }
@@ -705,7 +716,7 @@ fn restore_tab(
                 if let Some(agent_state) = handoff_agent_state {
                     terminal.restore_handoff_agent_state(agent_state);
                 }
-                panes.insert(*id, PaneState::new(terminal_id.clone()));
+                panes.insert(*id, restored_pane_state(terminal_id.clone(), saved_pane));
                 terminal_runtimes.insert(terminal_id, runtime);
                 terminals.push(terminal);
             }
@@ -733,7 +744,7 @@ fn restore_tab(
                         saved_pane, cwd,
                         format!("Could not start the saved shell: {e}. Fix the shell configuration and restart this session."),
                     );
-                    panes.insert(*id, PaneState::new(terminal.id.clone()));
+                    panes.insert(*id, restored_pane_state(terminal.id.clone(), saved_pane));
                     terminals.push(terminal);
                 }
             }
@@ -1340,6 +1351,7 @@ mod tests {
                                 value: "opencode-session".into(),
                             }),
                             launch_argv: None,
+                            agent_grid_excluded: true,
                         },
                     )]),
                     zoomed: false,
@@ -1356,7 +1368,7 @@ mod tests {
         };
         let (events, _event_rx) = mpsc::channel(4);
 
-        let (_workspaces, terminals, _runtimes) = restore(
+        let (workspaces, terminals, _runtimes) = restore(
             &snapshot,
             None,
             24,
@@ -1370,6 +1382,13 @@ mod tests {
             Arc::new(RenderSignal::new()),
         );
 
+        assert!(
+            workspaces[0].tabs[0]
+                .panes
+                .values()
+                .all(|pane| pane.agent_grid_excluded),
+            "leaving the pane out of the live agent grid survives restore"
+        );
         let terminal = terminals
             .values()
             .next()
@@ -1423,6 +1442,7 @@ mod tests {
                                 managed_agent_kind: None,
                                 agent_session: None,
                                 launch_argv: None,
+                                agent_grid_excluded: false,
                             },
                         ),
                         (
@@ -1434,6 +1454,7 @@ mod tests {
                                 managed_agent_kind: None,
                                 agent_session: None,
                                 launch_argv: None,
+                                agent_grid_excluded: false,
                             },
                         ),
                     ]),
@@ -1487,6 +1508,7 @@ mod tests {
                     managed_agent_kind: None,
                     agent_session: None,
                     launch_argv: None,
+                    agent_grid_excluded: false,
                 },
             )
         };
@@ -1502,6 +1524,7 @@ mod tests {
                 value: "codex-session".into(),
             }),
             launch_argv: None,
+            agent_grid_excluded: false,
         };
         let snapshot = SessionSnapshot {
             version: super::super::snapshot::SNAPSHOT_VERSION,
@@ -1658,6 +1681,7 @@ mod tests {
                                 value: "codex-session".into(),
                             }),
                             launch_argv: None,
+                            agent_grid_excluded: false,
                         },
                     )]),
                     zoomed: false,
@@ -1964,6 +1988,7 @@ mod tests {
                 managed_agent_kind: None,
                 agent_session: None,
                 launch_argv: None,
+                agent_grid_excluded: false,
             },
         );
         let mut history = SessionHistorySnapshot {

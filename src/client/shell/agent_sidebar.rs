@@ -137,6 +137,9 @@ pub(super) struct AgentPanelSource<'a> {
     pub(super) stale: bool,
     /// Focus marks count only on the active endpoint.
     pub(super) active: bool,
+    /// Set when this endpoint's live agent grid is shown; rows then mark the
+    /// agents it shows.
+    pub(super) agent_grid: bool,
     pub(super) snapshot: &'a ClientShellSnapshot,
 }
 
@@ -183,6 +186,9 @@ pub(super) struct PanelAgent {
     context: Option<String>,
     age: Option<String>,
     indent: u16,
+    /// Whether the shown live agent grid has this agent's tile; `None` while
+    /// no grid is shown.
+    in_agent_grid: Option<bool>,
 }
 
 impl PanelAgent {
@@ -221,6 +227,9 @@ impl PanelAgent {
                 .then(|| super::agent_marks::age_label(agent.state_changed_at_ms, clock.now))
                 .flatten(),
             indent,
+            in_agent_grid: source
+                .agent_grid
+                .then(|| !super::agent_grid::agent_grid_excludes(source.snapshot, &agent.pane_id)),
         }
     }
 }
@@ -360,6 +369,7 @@ pub(super) fn render_agent_panel(
         machine: None,
         stale: false,
         active: true,
+        agent_grid: agent_grid == Some(true),
         snapshot,
     }];
     let flat = (snapshot.agent_view_label.is_some()
@@ -656,6 +666,16 @@ fn render_panel_agent(
     if agent.focused {
         buffer.set_style(rect, Style::default().bg(palette.active_row_bg));
     }
+    // Agents shown in the live grid carry the lit agents heading's accent.
+    if agent.in_agent_grid == Some(true) {
+        put_str(
+            buffer,
+            rect,
+            rect.x,
+            AGENT_GRID_RAIL,
+            Style::default().fg(palette.accent),
+        );
+    }
     let stale = |style: Style| {
         if agent.stale {
             Style::default()
@@ -711,6 +731,10 @@ fn render_panel_agent(
         );
     }
 }
+
+/// Left-edge mark on agent rows the shown live grid has a tile for. Agent
+/// rows always indent at least one column, so the rail never covers text.
+const AGENT_GRID_RAIL: &str = "▎";
 
 /// Draws `text` from `x`, clipped to `rect`, ending with `…` when cut.
 /// Returns the column after the text.

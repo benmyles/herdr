@@ -19,6 +19,7 @@ const CLIENT_SHELL_METHODS: &[&str] = &[
     "integration.install",
     "integration.list",
     "layout.set_split_ratio",
+    "pane.agent_grid.set",
     "pane.clear",
     "pane.close",
     "pane.copy_motion",
@@ -317,6 +318,10 @@ mod tests {
         assert_eq!(
             actual.remove("client_shell.agent_grid.set").as_deref(),
             Some("f8de7ab79e3a8dea9fe850d3d61f1a48a409c518b89fc4a7b47f3e5fdaa29c57")
+        );
+        assert_eq!(
+            actual.remove("pane.agent_grid.set").as_deref(),
+            Some("ffce9f1621b3eb64e34fe2ac54b10580cce2c55bccf1ab4f81dae3b6fa6ed5f4")
         );
         assert_eq!(
             actual.remove("space.assign").as_deref(),
