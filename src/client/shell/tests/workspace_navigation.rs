@@ -25,6 +25,7 @@ fn grouped_workspaces() -> ClientShellSnapshot {
             name: "repo".into(),
             color: 0,
             built_in: false,
+            agent_context: None,
             closed: Vec::new(),
         },
         crate::protocol::ClientShellSpace {
@@ -32,6 +33,7 @@ fn grouped_workspaces() -> ClientShellSnapshot {
             name: "other".into(),
             color: 0,
             built_in: true,
+            agent_context: None,
             closed: Vec::new(),
         },
     ];

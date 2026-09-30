@@ -11,6 +11,7 @@ impl ClientContextMenuOverlay {
                 collapsed,
                 editable,
                 worktrees,
+                agent_context,
                 ..
             } => {
                 let mut items = Vec::new();
@@ -20,6 +21,16 @@ impl ClientContextMenuOverlay {
                 }
                 if *editable && !*built_in {
                     items.push(item("Rename", Action::RenameSpace));
+                }
+                if let Some(enabled) = agent_context {
+                    items.push(item(
+                        if *enabled {
+                            "[x] Enable agent context"
+                        } else {
+                            "[ ] Enable agent context"
+                        },
+                        Action::ToggleSpaceAgentContext,
+                    ));
                 }
                 items.push(item(
                     if *collapsed { "Expand" } else { "Collapse" },
@@ -164,6 +175,10 @@ impl ClientShellState {
         let collapsed = self.group_is_collapsed(&self.active_endpoint_id, &space_id);
         let editable = self.active_endpoint_supports_spaces();
         let worktrees = editable && self.endpoint_supports_space_worktrees();
+        // `other` groups nothing, so it has no agent context to offer.
+        let agent_context = space
+            .agent_context
+            .filter(|_| !built_in && self.space_agent_context_supported());
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Space {
                 space_id,
@@ -171,6 +186,7 @@ impl ClientShellState {
                 collapsed,
                 editable,
                 worktrees,
+                agent_context,
             },
             x,
             y,
@@ -505,8 +521,40 @@ impl ClientShellState {
                 }),
                 outcome,
             ),
+            ClientContextMenuAction::ToggleSpaceAgentContext => {
+                let enabled = self
+                    .snapshot
+                    .as_deref()
+                    .and_then(|snapshot| {
+                        snapshot
+                            .spaces
+                            .iter()
+                            .find(|space| space.space_id == space_id)
+                    })
+                    .and_then(|space| space.agent_context);
+                if let Some(enabled) = enabled {
+                    self.push_endpoint_method(
+                        crate::api::schema::Method::SpaceAgentContextSet(
+                            crate::api::schema::SpaceAgentContextSetParams {
+                                space_id,
+                                enabled: !enabled,
+                            },
+                        ),
+                        outcome,
+                    );
+                }
+            }
             _ => {}
         }
+    }
+
+    pub(super) fn space_agent_context_supported(&self) -> bool {
+        self.supports_endpoint_method(&crate::api::schema::Method::SpaceAgentContextSet(
+            crate::api::schema::SpaceAgentContextSetParams {
+                space_id: String::new(),
+                enabled: true,
+            },
+        ))
     }
 
     fn activate_tab_context_action(

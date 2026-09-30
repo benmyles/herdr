@@ -1031,6 +1031,10 @@ pub struct ClientShellSpace {
     /// Members whose terminals were closed; they reopen in place.
     #[serde(default)]
     pub closed: Vec<ClientShellClosedMember>,
+    /// Whether agents in this space are told about its other checkouts.
+    /// Absent from servers without the setting.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_context: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

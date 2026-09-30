@@ -7,6 +7,25 @@ pub(crate) fn shell_single_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\"'\"'"))
 }
 
+/// The session-start hook command that gives Claude Code and Codex the
+/// context of their Herdr space. It runs the Herdr binary that started the
+/// pane, found through the pane's environment, so it does nothing in other
+/// terminals and needs no path that could go stale.
+pub(crate) fn agent_context_hook_command() -> String {
+    let var = super::HERDR_BIN_PATH_ENV_VAR;
+    #[cfg(windows)]
+    {
+        format!(
+            "powershell -NoProfile -Command \"if ($env:{var}) {{ & $env:{var} agent-context session-start }}\""
+        )
+    }
+
+    #[cfg(not(windows))]
+    {
+        format!("[ -n \"${{{var}:-}}\" ] && \"${var}\" agent-context session-start || true")
+    }
+}
+
 pub(crate) fn hook_command(hook_path: &Path, action: Option<&str>) -> String {
     let path = hook_path.display().to_string();
     #[cfg(windows)]

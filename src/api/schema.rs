@@ -99,6 +99,8 @@ pub enum Method {
     SpaceMemberOpen(SpaceMemberTarget),
     #[serde(rename = "space.member.remove")]
     SpaceMemberRemove(SpaceMemberTarget),
+    #[serde(rename = "space.agent_context.set")]
+    SpaceAgentContextSet(SpaceAgentContextSetParams),
     #[serde(rename = "space.worktree.create")]
     SpaceWorktreeCreate(SpaceWorktreeCreateParams),
     #[serde(rename = "space.worktree.open")]
@@ -227,6 +229,10 @@ pub enum Method {
     PaneInputSet(PaneInputSetParams),
     #[serde(rename = "pane.agent_grid.set")]
     PaneAgentGridSet(PaneAgentGridSetParams),
+    /// The context an agent starting in the pane gets about its space, for
+    /// agent session-start hooks.
+    #[serde(rename = "pane.agent_context.get")]
+    PaneAgentContextGet(PaneTarget),
     #[serde(rename = "pane.link.activate")]
     PaneLinkActivate(PaneLinkActivateParams),
     #[serde(rename = "pane.link.resolve")]

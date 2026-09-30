@@ -42,6 +42,7 @@ pub(super) fn command() -> Command {
         .subcommand(tab_command())
         .subcommand(notification_command())
         .subcommand(agent_command())
+        .subcommand(agent_context_command())
         .subcommand(pane_command())
         .subcommand(terminal_command())
         .subcommand(session_command())
@@ -315,6 +316,17 @@ fn notification_command() -> Command {
                     "bottom-right",
                 ]))
                 .arg(option("sound", "SOUND").value_parser(["none", "done", "request"])),
+        )
+}
+
+/// Run by agent session-start hooks, not by people, so it stays out of help.
+fn agent_context_command() -> Command {
+    Command::new("agent-context")
+        .hide(true)
+        .about("Print an agent's space context for a session-start hook")
+        .subcommand(
+            Command::new("session-start")
+                .about("Read hook input on stdin and print the space context as hook output"),
         )
 }
 

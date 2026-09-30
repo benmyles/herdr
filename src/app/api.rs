@@ -1047,6 +1047,9 @@ impl App {
             Method::SpaceMemberRemove(target) => {
                 return self.handle_space_member_remove(request.id, target);
             }
+            Method::SpaceAgentContextSet(params) => {
+                return self.handle_space_agent_context_set(request.id, params);
+            }
             Method::SpaceWorktreeCreate(_) => {
                 return responses::encode_error(
                     request.id,
@@ -1185,6 +1188,9 @@ impl App {
             Method::PaneInputSet(params) => return self.handle_pane_input_set(request.id, params),
             Method::PaneAgentGridSet(params) => {
                 return self.handle_pane_agent_grid_set(request.id, params)
+            }
+            Method::PaneAgentContextGet(target) => {
+                return self.handle_pane_agent_context_get(request.id, target)
             }
             Method::PaneLinkResolve(params) => {
                 return self.handle_pane_link_resolve(request.id, params);

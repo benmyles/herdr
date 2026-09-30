@@ -46,6 +46,7 @@ const CLIENT_SHELL_METHODS: &[&str] = &[
     "repo.settings.set",
     "repo.update",
     "server.reload_config",
+    "space.agent_context.set",
     "space.assign",
     "space.create",
     "space.delete",
@@ -329,6 +330,10 @@ mod tests {
         assert_eq!(
             actual.remove("pane.agent_grid.set").as_deref(),
             Some("ffce9f1621b3eb64e34fe2ac54b10580cce2c55bccf1ab4f81dae3b6fa6ed5f4")
+        );
+        assert_eq!(
+            actual.remove("space.agent_context.set").as_deref(),
+            Some("bbb7c77d7799f7955711eb383cacf5b90090ccc03b5ff7c4eb16f729f060784c")
         );
         assert_eq!(
             actual.remove("space.assign").as_deref(),

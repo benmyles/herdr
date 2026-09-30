@@ -33,6 +33,19 @@ pub struct Space {
     pub color: usize,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub closed: Vec<ClosedMember>,
+    /// Whether agents started in a member are told about the space's other
+    /// checkouts. On by default; `other` never groups related work, so its
+    /// agents are never told.
+    #[serde(default = "default_agent_context", skip_serializing_if = "is_true")]
+    pub agent_context: bool,
+}
+
+fn default_agent_context() -> bool {
+    true
+}
+
+fn is_true(value: &bool) -> bool {
+    *value
 }
 
 impl Space {
@@ -42,6 +55,7 @@ impl Space {
             name,
             color,
             closed: Vec::new(),
+            agent_context: true,
         }
     }
 
@@ -51,6 +65,7 @@ impl Space {
             name: OTHER_SPACE_NAME.to_owned(),
             color,
             closed: Vec::new(),
+            agent_context: true,
         }
     }
 

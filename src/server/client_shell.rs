@@ -305,6 +305,7 @@ pub(super) fn snapshot_with_completions(
                         branch: member.branch.clone(),
                     })
                     .collect(),
+                agent_context: Some(!space.is_other() && space.agent_context),
             })
             .collect(),
         repos: app

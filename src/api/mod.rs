@@ -32,6 +32,7 @@ pub(crate) fn request_changes_ui(request: &Request) -> bool {
             | Method::SpaceAssign(_)
             | Method::SpaceMemberOpen(_)
             | Method::SpaceMemberRemove(_)
+            | Method::SpaceAgentContextSet(_)
             | Method::ProductAnnouncementDismiss(_)
             | Method::ReleaseNotesDismiss(_)
             | Method::CommandInvoke(_)

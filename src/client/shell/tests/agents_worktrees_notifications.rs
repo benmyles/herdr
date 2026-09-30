@@ -116,6 +116,7 @@ fn space_members_render_labels_branches_and_collapsed_status() {
         name: "repo".into(),
         color: 0,
         built_in: false,
+        agent_context: None,
         closed: Vec::new(),
     }];
     state.set_snapshot(Box::new(snapshot));
@@ -1422,6 +1423,7 @@ fn space_color_snapshot() -> ClientShellSnapshot {
             name: "feature".into(),
             color: 0,
             built_in: false,
+            agent_context: None,
             closed: Vec::new(),
         },
         crate::protocol::ClientShellSpace {
@@ -1429,6 +1431,7 @@ fn space_color_snapshot() -> ClientShellSnapshot {
             name: "other".into(),
             color: 0,
             built_in: true,
+            agent_context: None,
             closed: Vec::new(),
         },
     ];
@@ -1528,6 +1531,7 @@ fn spaced_snapshot() -> ClientShellSnapshot {
             name: "knowledge".into(),
             color: 2,
             built_in: false,
+            agent_context: None,
             closed: vec![crate::protocol::ClientShellClosedMember {
                 member_id: "member_old".into(),
                 label: "old-project".into(),
@@ -1540,6 +1544,7 @@ fn spaced_snapshot() -> ClientShellSnapshot {
             name: "other".into(),
             color: 0,
             built_in: true,
+            agent_context: None,
             closed: Vec::new(),
         },
     ];
@@ -2227,6 +2232,7 @@ fn creating_a_space_offers_its_first_worktree() {
                 built_in: false,
                 workspace_ids: Vec::new(),
                 closed: Vec::new(),
+                agent_context: true,
             },
         }),
     );
@@ -2254,6 +2260,7 @@ fn two_space_snapshot() -> ClientShellSnapshot {
             name: "billing".into(),
             color: 3,
             built_in: false,
+            agent_context: None,
             closed: Vec::new(),
         },
     );

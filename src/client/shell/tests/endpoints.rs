@@ -623,6 +623,7 @@ fn saved_machine_preserves_endpoint_scoped_space_collapses() {
                 name: "repo".into(),
                 color: 1,
                 built_in: false,
+                agent_context: None,
                 closed: Vec::new(),
             },
             crate::protocol::ClientShellSpace {
@@ -630,6 +631,7 @@ fn saved_machine_preserves_endpoint_scoped_space_collapses() {
                 name: "other".into(),
                 color: 0,
                 built_in: true,
+                agent_context: None,
                 closed: Vec::new(),
             },
         ];
@@ -843,6 +845,7 @@ fn expanded_machine_sidebar_applies_space_row_gap_within_each_machine() {
             name: "repo".into(),
             color: 0,
             built_in: false,
+            agent_context: None,
             closed: Vec::new(),
         },
         crate::protocol::ClientShellSpace {
@@ -850,6 +853,7 @@ fn expanded_machine_sidebar_applies_space_row_gap_within_each_machine() {
             name: "other".into(),
             color: 0,
             built_in: true,
+            agent_context: None,
             closed: Vec::new(),
         },
     ];

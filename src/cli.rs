@@ -23,6 +23,7 @@ macro_rules! println {
 }
 
 mod agent;
+mod agent_context;
 mod api;
 mod completion;
 mod integration;
@@ -125,6 +126,7 @@ pub fn maybe_run(args: &[String]) -> std::io::Result<CommandOutcome> {
         "tab" => tab::run_tab_command(&args[2..])?,
         "notification" => notification::run_notification_command(&args[2..])?,
         "agent" => agent::run_agent_command(&args[2..])?,
+        "agent-context" => agent_context::run_agent_context_command(&args[2..])?,
         "terminal" => run_terminal_command(&args[2..])?,
         "pane" => pane::run_pane_command(&args[2..])?,
         "plugin" => plugin::run_plugin_command(&args[2..])?,

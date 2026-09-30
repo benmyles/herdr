@@ -764,6 +764,8 @@ pub(super) enum ClientContextMenuAction {
     RemoveClosedMember,
     ExcludeFromAgentGrid,
     IncludeInAgentGrid,
+    /// Turns the space's agent context on or off.
+    ToggleSpaceAgentContext,
 }
 
 #[derive(Debug)]
@@ -783,6 +785,8 @@ pub(super) enum ClientContextMenuTarget {
         editable: bool,
         /// Whether the endpoint can create worktrees from its repos.
         worktrees: bool,
+        /// The space's agent context setting, when the endpoint can change it.
+        agent_context: Option<bool>,
     },
     /// The "+ worktree" row under a space.
     AddWorktree {

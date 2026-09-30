@@ -1,7 +1,7 @@
 use crate::api::schema::{
     ClosedSpaceMemberInfo, EmptyParams, EventData, EventEnvelope, EventKind, ResponseResult,
-    SpaceAssignParams, SpaceCreateParams, SpaceInfo, SpaceMemberTarget, SpaceMoveParams,
-    SpaceRenameParams, SpaceTarget,
+    SpaceAgentContextSetParams, SpaceAssignParams, SpaceCreateParams, SpaceInfo, SpaceMemberTarget,
+    SpaceMoveParams, SpaceRenameParams, SpaceTarget,
 };
 use crate::app::spaces::SpaceError;
 use crate::app::App;
@@ -47,6 +47,7 @@ impl App {
                     branch: member.branch.clone(),
                 })
                 .collect(),
+            agent_context: !space.is_other() && space.agent_context,
         }
     }
 
@@ -137,6 +138,22 @@ impl App {
             return space_error(id, error);
         }
         self.schedule_session_save();
+        self.space_info_response(id, &params.space_id)
+    }
+
+    pub(super) fn handle_space_agent_context_set(
+        &mut self,
+        id: String,
+        params: SpaceAgentContextSetParams,
+    ) -> String {
+        match self
+            .state
+            .set_space_agent_context(&params.space_id, params.enabled)
+        {
+            Ok(true) => self.schedule_session_save(),
+            Ok(false) => {}
+            Err(error) => return space_error(id, error),
+        }
         self.space_info_response(id, &params.space_id)
     }
 

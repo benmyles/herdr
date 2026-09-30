@@ -1015,10 +1015,14 @@ fn install_claude_is_idempotent_for_hook_entries() {
     let settings: Value =
         serde_json::from_str(&fs::read_to_string(claude_dir.join("settings.json")).unwrap())
             .unwrap();
+    // The stock session hook and the fork's agent context hook.
     assert_eq!(
         settings["hooks"]["SessionStart"].as_array().unwrap().len(),
-        1
+        2
     );
+    assert!(super::claude_settings::has_agent_context(
+        &settings.to_string()
+    ));
     assert!(settings["hooks"].get("UserPromptSubmit").is_none());
     assert!(settings["hooks"].get("PreToolUse").is_none());
     assert!(settings["hooks"].get("PermissionRequest").is_none());
@@ -1388,7 +1392,11 @@ fn install_codex_is_idempotent_for_hook_entries_and_feature_flag() {
         serde_json::from_str(&fs::read_to_string(codex_dir.join("hooks.json")).unwrap()).unwrap();
     let config = fs::read_to_string(codex_dir.join("config.toml")).unwrap();
 
-    assert_eq!(hooks["hooks"]["SessionStart"].as_array().unwrap().len(), 1);
+    // The stock session hook and the fork's agent context hook.
+    assert_eq!(hooks["hooks"]["SessionStart"].as_array().unwrap().len(), 2);
+    assert!(super::claude_settings::has_agent_context(
+        &hooks.to_string()
+    ));
     assert!(hooks["hooks"].get("UserPromptSubmit").is_none());
     assert!(hooks["hooks"].get("PreToolUse").is_none());
     assert!(hooks["hooks"].get("PermissionRequest").is_none());
@@ -1399,6 +1407,90 @@ fn install_codex_is_idempotent_for_hook_entries_and_feature_flag() {
 
     std::env::remove_var("HOME");
     let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn agent_context_hook_is_required_for_a_current_claude_or_codex_install() {
+    let _lock = integration_env_lock();
+    let base = unique_base();
+    let home = base.join("home");
+    let claude_dir = home.join(".claude");
+    let codex_dir = home.join(".codex");
+    fs::create_dir_all(&claude_dir).unwrap();
+    fs::create_dir_all(&codex_dir).unwrap();
+    std::env::set_var("HOME", &home);
+
+    let claude = install_claude().unwrap();
+    let codex = install_codex().unwrap();
+    let status = |target, path: &Path, version| {
+        integration_status_at(target, path.to_path_buf(), version).state
+    };
+    let claude_version = CLAUDE_INTEGRATION_VERSION;
+    let codex_version = CODEX_INTEGRATION_VERSION;
+    assert_eq!(
+        status(
+            crate::api::schema::IntegrationTarget::Claude,
+            &claude.hook_path,
+            claude_version
+        ),
+        IntegrationStatusKind::Current
+    );
+    assert_eq!(
+        status(
+            crate::api::schema::IntegrationTarget::Codex,
+            &codex.hook_path,
+            codex_version
+        ),
+        IntegrationStatusKind::Current
+    );
+
+    // A stock install leaves the context hook out.
+    let settings = fs::read_to_string(&claude.settings_path).unwrap();
+    let without =
+        super::claude_settings::uninstall_agent_context(&settings, &claude.settings_path).unwrap();
+    assert!(!super::claude_settings::has_agent_context(&without));
+    fs::write(&claude.settings_path, &without).unwrap();
+    assert_eq!(
+        status(
+            crate::api::schema::IntegrationTarget::Claude,
+            &claude.hook_path,
+            claude_version
+        ),
+        IntegrationStatusKind::Outdated
+    );
+
+    uninstall_claude().unwrap();
+    uninstall_codex().unwrap();
+    for path in [&claude.settings_path, &codex.hooks_path] {
+        let content = fs::read_to_string(path).unwrap_or_default();
+        assert!(
+            !super::claude_settings::has_agent_context(&content),
+            "{content}"
+        );
+    }
+
+    std::env::remove_var("HOME");
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
+fn claude_agent_context_hook_install_keeps_existing_settings() {
+    let path = Path::new("/tmp/settings.json");
+    let content = "{\n  \"model\": \"opus\",\n  \"hooks\": {\n    \"Stop\": []\n  }\n}\n";
+    let installed = super::claude_settings::install_agent_context(content, path).unwrap();
+    assert!(
+        installed.starts_with("{\n  \"model\": \"opus\",\n"),
+        "{installed}"
+    );
+    assert!(super::claude_settings::has_agent_context(&installed));
+    assert_eq!(
+        super::claude_settings::install_agent_context(&installed, path).unwrap(),
+        installed,
+        "installing twice changes nothing"
+    );
+    let removed = super::claude_settings::uninstall_agent_context(&installed, path).unwrap();
+    let value: Value = serde_json::from_str(&removed).unwrap();
+    assert_eq!(value, json!({"model": "opus", "hooks": {"Stop": []}}));
 }
 
 #[test]

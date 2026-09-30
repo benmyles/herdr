@@ -19,6 +19,14 @@ pub struct SpaceRenameParams {
     pub name: String,
 }
 
+/// Turns on or off the context agents in a space's checkouts get about the
+/// space's other checkouts. The built-in `other` space has none.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct SpaceAgentContextSetParams {
+    pub space_id: String,
+    pub enabled: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct SpaceMoveParams {
     pub space_id: String,
@@ -66,4 +74,8 @@ pub struct SpaceInfo {
     pub workspace_ids: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub closed: Vec<ClosedSpaceMemberInfo>,
+    /// Whether agents in this space are told about its other checkouts.
+    /// Always false for the built-in `other` space.
+    #[serde(default = "super::default_true")]
+    pub agent_context: bool,
 }

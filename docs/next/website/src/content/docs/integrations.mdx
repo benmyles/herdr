@@ -147,6 +147,8 @@ Claude integration v10 matches only the documented `SessionStart` sources: `star
 
 Herdr uses `~/.claude` by default, or `CLAUDE_CONFIG_DIR` when set. The Claude config directory must already exist. Install writes `hooks/herdr-agent-state.sh` and updates `settings.json` with Herdr hook entries. Uninstall removes the matching hook entries and deletes the hook script.
 
+Install also adds a second `SessionStart` hook that gives Claude Code its [space's agent context](/docs/configuration/#agent-context). It runs `herdr-benmyles agent-context session-start` through the `HERDR_BENMYLES_BIN_PATH` variable that Herdr panes export, so it prints nothing in other terminals. `herdr-benmyles integration status` reports the integration as outdated until this hook is installed.
+
 ## Codex
 
 Install the Codex hook:
@@ -158,6 +160,8 @@ herdr integration install codex
 The Codex hook reports session identity through the same local socket API used by other integrations. Codex state comes from Herdr's screen manifest detection.
 
 Herdr uses `~/.codex` by default, or `CODEX_HOME` when set. The Codex config directory must already exist. Install writes `herdr-agent-state.sh`, updates `hooks.json`, and ensures `[features] hooks = true` in `config.toml`. It also removes the deprecated top-level `codex_hooks` flag when present. Uninstall removes Herdr entries from `hooks.json` and deletes the hook script, but leaves `config.toml` unchanged.
+
+As with Claude Code, install adds a second `SessionStart` hook to `hooks.json` that gives Codex its [space's agent context](/docs/configuration/#agent-context).
 
 ## GitHub Copilot CLI
 

@@ -5,17 +5,19 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Map, Value};
 
 use super::claude_settings::{
-    install as install_claude_settings, uninstall as uninstall_claude_settings,
+    install as install_claude_settings, install_agent_context as install_claude_agent_context,
+    uninstall as uninstall_claude_settings,
+    uninstall_agent_context as uninstall_claude_agent_context,
 };
-use super::command::hook_command;
 #[cfg(windows)]
 use super::command::powershell_encoded_hook_command;
 #[cfg(not(windows))]
 use super::command::shell_single_quote;
+use super::command::{agent_context_hook_command, hook_command};
 use super::config_edit::{
     build_codex_config_with_hooks, build_kimi_config_with_hooks, ensure_command_hook,
     ensure_direct_command_hook, ensure_flat_command_hook, ensure_hermes_plugin_enabled,
-    ensure_hooks_object, ensure_simple_command_hook, hooks_object_if_present,
+    ensure_hooks_object, ensure_simple_command_hook, hooks_object_if_present, remove_command_hook,
     remove_direct_hook_commands, remove_flat_command_hook, remove_hermes_plugin_enabled,
     remove_hook_commands, remove_kimi_config_block, remove_simple_command_hook,
 };
@@ -148,6 +150,7 @@ pub(crate) fn install_claude() -> io::Result<ClaudeInstallPaths> {
         "{}".to_string()
     };
     let updated_settings = install_claude_settings(&existing_settings, &settings_path, &hook_path)?;
+    let updated_settings = install_claude_agent_context(&updated_settings, &settings_path)?;
     remove_legacy_bash_hook_file(&hook_path)?;
 
     if updated_settings != existing_settings {
@@ -199,6 +202,13 @@ pub(crate) fn install_codex() -> io::Result<CodexInstallPaths> {
         hooks,
         "SessionStart",
         hook_command(&hook_path, Some("session")),
+        10,
+        None,
+    )?;
+    ensure_command_hook(
+        hooks,
+        "SessionStart",
+        agent_context_hook_command(),
         10,
         None,
     )?;
@@ -585,6 +595,7 @@ pub(crate) fn uninstall_claude() -> io::Result<ClaudeUninstallResult> {
         let existing_settings = fs::read_to_string(&settings_path)?;
         let new_settings =
             uninstall_claude_settings(&existing_settings, &settings_path, &hook_path)?;
+        let new_settings = uninstall_claude_agent_context(&new_settings, &settings_path)?;
         updated_settings = new_settings != existing_settings;
         if updated_settings {
             write_config(&settings_path, new_settings)?;
@@ -632,6 +643,8 @@ pub(crate) fn uninstall_codex() -> io::Result<CodexUninstallResult> {
             updated_hooks |=
                 remove_hook_commands(hooks, "PermissionRequest", &hook_path, Some("blocked"))?;
             updated_hooks |= remove_hook_commands(hooks, "Stop", &hook_path, Some("idle"))?;
+            updated_hooks |=
+                remove_command_hook(hooks, "SessionStart", &agent_context_hook_command())?;
         }
 
         if updated_hooks {

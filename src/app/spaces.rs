@@ -182,6 +182,28 @@ impl AppState {
         Ok(())
     }
 
+    /// Turn the agent context for a space's members on or off. Returns
+    /// whether it changed.
+    pub(crate) fn set_space_agent_context(
+        &mut self,
+        space_id: &str,
+        enabled: bool,
+    ) -> Result<bool, SpaceError> {
+        if space_id == OTHER_SPACE_ID {
+            return Err(SpaceError::BuiltIn);
+        }
+        let index = self
+            .space_index(space_id)
+            .ok_or_else(|| SpaceError::NotFound(space_id.to_owned()))?;
+        let space = &mut self.spaces[index];
+        if space.agent_context == enabled {
+            return Ok(false);
+        }
+        space.agent_context = enabled;
+        self.mark_session_dirty();
+        Ok(true)
+    }
+
     /// Delete a space. Its live workspaces move to `other`; nothing is closed
     /// and no files are touched. Closed members are forgotten.
     pub(crate) fn delete_space(&mut self, space_id: &str) -> Result<(), SpaceError> {

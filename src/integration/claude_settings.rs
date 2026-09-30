@@ -8,7 +8,7 @@ use jsonc_parser::cst::{CstInputValue, CstNode, CstObject, CstRootNode};
 use jsonc_parser::{json, parse_to_ast, CollectOptions, ParseOptions};
 use serde_json::{json as serde_json_value, Map, Value};
 
-use super::command::hook_command;
+use super::command::{agent_context_hook_command, hook_command};
 use super::config_edit::{
     ensure_command_hook, ensure_hooks_object, hook_command_variants, hooks_object_if_present,
     is_matching_command_hook,
@@ -92,6 +92,129 @@ pub(crate) fn install(content: &str, settings_path: &Path, hook_path: &Path) -> 
         EditKind::Install,
         &desired,
     )
+}
+
+/// Whether the settings run the agent context session-start hook.
+pub(crate) fn has_agent_context(content: &str) -> bool {
+    let command = agent_context_hook_command();
+    serde_json::from_str::<Value>(content)
+        .ok()
+        .and_then(|settings| settings.pointer("/hooks/SessionStart").cloned())
+        .and_then(|entries| entries.as_array().cloned())
+        .is_some_and(|entries| {
+            entries.iter().any(|entry| {
+                entry
+                    .get("hooks")
+                    .and_then(Value::as_array)
+                    .is_some_and(|hooks| {
+                        hooks
+                            .iter()
+                            .any(|hook| is_matching_command_hook(hook, &command))
+                    })
+            })
+        })
+}
+
+/// Adds the agent context session-start hook, keeping the file's formatting.
+pub(crate) fn install_agent_context(content: &str, settings_path: &Path) -> io::Result<String> {
+    let command = agent_context_hook_command();
+    let original = parse_value(content, settings_path)?;
+    let mut desired = original.clone();
+    let hooks = ensure_hooks_object(
+        &mut desired,
+        settings_path,
+        "claude settings",
+        "claude settings hooks",
+    )?;
+    ensure_command_hook(
+        hooks,
+        "SessionStart",
+        command.clone(),
+        10,
+        Some(SESSION_START_MATCHER),
+    )?;
+    if desired == original {
+        return Ok(content.to_string());
+    }
+
+    let root = parse_cst(content, settings_path)?;
+    let root_object = root
+        .value()
+        .and_then(|value| value.as_object())
+        .ok_or_else(|| not_an_object(settings_path, "claude settings"))?;
+    let hooks = match root_object.get("hooks") {
+        Some(property) => property
+            .object_value()
+            .ok_or_else(|| not_an_object(settings_path, "claude settings hooks"))?,
+        None => root_object
+            .append("hooks", CstInputValue::Object(Vec::new()))
+            .object_value()
+            .ok_or_else(|| io::Error::other("failed to create claude settings hooks object"))?,
+    };
+    let session_start = match hooks.get("SessionStart") {
+        Some(property) => property
+            .array_value()
+            .ok_or_else(|| io::Error::other("hook entries for SessionStart must be an array"))?,
+        None => hooks
+            .append("SessionStart", CstInputValue::Array(Vec::new()))
+            .array_value()
+            .ok_or_else(|| io::Error::other("failed to create SessionStart hook array"))?,
+    };
+    session_start.append(json!({
+        matcher: SESSION_START_MATCHER,
+        hooks: [{
+            "type": "command",
+            command: command,
+            timeout: 10u64,
+        }],
+    }));
+    verify_updated(root.to_string(), settings_path, &desired)
+}
+
+/// Removes the agent context session-start hook, keeping the file's
+/// formatting.
+pub(crate) fn uninstall_agent_context(content: &str, settings_path: &Path) -> io::Result<String> {
+    let command = agent_context_hook_command();
+    let original = parse_value(content, settings_path)?;
+    let mut desired = original.clone();
+    let Some(hooks) = hooks_object_if_present(
+        &mut desired,
+        settings_path,
+        "claude settings",
+        "claude settings hooks",
+    )?
+    else {
+        return Ok(content.to_string());
+    };
+    if !remove_value_event_commands(hooks, "SessionStart", std::slice::from_ref(&command), None)? {
+        return Ok(content.to_string());
+    }
+
+    let root = parse_cst(content, settings_path)?;
+    let hooks = root
+        .value()
+        .and_then(|value| value.as_object())
+        .and_then(|root| root.get("hooks"))
+        .and_then(|property| property.object_value())
+        .ok_or_else(|| not_an_object(settings_path, "claude settings hooks"))?;
+    remove_event_commands(&hooks, "SessionStart", &[command], false, &Value::Null)?;
+    verify_updated(root.to_string(), settings_path, &desired)
+}
+
+fn parse_cst(content: &str, settings_path: &Path) -> io::Result<CstRootNode> {
+    CstRootNode::parse(content, &strict_parse_options()).map_err(|err| {
+        io::Error::other(format!(
+            "failed to parse {}: {err}",
+            settings_path.display()
+        ))
+    })
+}
+
+fn not_an_object(settings_path: &Path, what: &str) -> io::Error {
+    io::Error::other(format!(
+        "{what} at {} must be a JSON object",
+        settings_path.display()
+    ))
 }
 
 pub(crate) fn uninstall(

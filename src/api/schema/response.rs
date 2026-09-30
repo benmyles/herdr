@@ -67,6 +67,12 @@ pub enum ResponseResult {
     SpaceInfo {
         space: SpaceInfo,
     },
+    /// Context for an agent starting in a pane; absent when its space has
+    /// none to give.
+    PaneAgentContext {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        context: Option<String>,
+    },
     SpaceList {
         spaces: Vec<SpaceInfo>,
     },
