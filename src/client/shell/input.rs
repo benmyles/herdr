@@ -494,6 +494,7 @@ impl ClientShellState {
                     search_focused: true,
                     ..
                 }))
+                | Some(ClientShellOverlay::CommandPalette(_))
         )
     }
 

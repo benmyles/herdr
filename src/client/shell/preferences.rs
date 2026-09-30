@@ -47,12 +47,18 @@ pub(super) fn load(path: &Path) -> Option<ClientChromePreferences> {
 }
 
 pub(super) fn store(path: &Path, preferences: ClientChromePreferences) -> Result<(), String> {
+    write_json_atomically(path, &preferences)
+}
+
+/// Writes `value` as JSON beside `path` and renames it into place, so a
+/// reader never sees a partial file.
+pub(super) fn write_json_atomically(path: &Path, value: &impl Serialize) -> Result<(), String> {
     let parent = path
         .parent()
         .ok_or_else(|| format!("invalid client shell state path: {}", path.display()))?;
     std::fs::create_dir_all(parent)
         .map_err(|error| format!("failed to create client shell state directory: {error}"))?;
-    let content = serde_json::to_vec_pretty(&preferences)
+    let content = serde_json::to_vec_pretty(value)
         .map_err(|error| format!("failed to encode client shell state: {error}"))?;
     let sequence = NEXT_TEMP_FILE.fetch_add(1, Ordering::Relaxed);
     let mut temp_name = path

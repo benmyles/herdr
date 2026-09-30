@@ -4,7 +4,7 @@ use crossterm::event::{KeyCode, KeyModifiers};
 
 use crate::{
     config::{ActionKeybinds, IndexedKeybind, Keybinds},
-    input::TerminalKey,
+    input::{KeybindAction, TerminalKey},
 };
 
 pub(crate) type KeybindHelpEntry = (String, Cow<'static, str>);
@@ -70,13 +70,22 @@ pub(crate) fn keybind_help_groups(
             "global",
             vec![
                 entry(crate::config::format_key_combo(prefix), "prefix mode"),
-                entry(binding_label(&keybinds.help), "keybinds"),
-                entry(binding_label(&keybinds.settings), "settings"),
-                entry(binding_label(&keybinds.detach), "detach"),
-                entry(binding_label(&keybinds.reload_config), "reload config"),
+                entry(binding_label(&keybinds.help), KeybindAction::Help.label()),
+                entry(
+                    binding_label(&keybinds.settings),
+                    KeybindAction::Settings.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.detach),
+                    KeybindAction::Detach.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.reload_config),
+                    KeybindAction::ReloadConfig.label(),
+                ),
                 entry(
                     binding_label(&keybinds.open_notification_target),
-                    "open notification target",
+                    KeybindAction::OpenNotificationTarget.label(),
                 ),
             ],
         ),
@@ -112,85 +121,182 @@ pub(crate) fn keybind_help_groups(
             vec![
                 entry(
                     binding_label(&keybinds.workspace_picker),
-                    "workspace navigation",
+                    KeybindAction::WorkspacePicker.label(),
                 ),
-                entry(binding_label(&keybinds.goto), "session navigator"),
-                entry(binding_label(&keybinds.new_workspace), "new workspace"),
-                entry(binding_label(&keybinds.new_worktree), "new worktree"),
-                entry(binding_label(&keybinds.open_worktree), "open worktree"),
+                entry(
+                    binding_label(&keybinds.goto),
+                    KeybindAction::OpenNavigator.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.command_palette),
+                    KeybindAction::CommandPalette.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.new_workspace),
+                    KeybindAction::NewWorkspace.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.new_worktree),
+                    KeybindAction::NewWorktree.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.open_worktree),
+                    KeybindAction::OpenWorktree.label(),
+                ),
                 entry(
                     binding_label(&keybinds.remove_worktree),
-                    "delete worktree checkout",
+                    KeybindAction::RemoveWorktree.label(),
                 ),
                 entry(
                     binding_label(&keybinds.rename_workspace),
-                    "rename workspace",
+                    KeybindAction::RenameWorkspace.label(),
                 ),
-                entry(binding_label(&keybinds.close_workspace), "close workspace"),
+                entry(
+                    binding_label(&keybinds.close_workspace),
+                    KeybindAction::CloseWorkspace.label(),
+                ),
                 entry(
                     binding_label(&keybinds.previous_workspace),
-                    "previous workspace",
+                    KeybindAction::PreviousWorkspace.label(),
                 ),
-                entry(binding_label(&keybinds.next_workspace), "next workspace"),
+                entry(
+                    binding_label(&keybinds.next_workspace),
+                    KeybindAction::NextWorkspace.label(),
+                ),
                 entry(
                     indexed_label(&keybinds.switch_workspace),
-                    "switch workspace 1-9",
+                    KeybindAction::SwitchWorkspace(0).label(),
                 ),
-                entry(binding_label(&keybinds.previous_agent), "previous agent"),
-                entry(binding_label(&keybinds.next_agent), "next agent"),
-                entry(indexed_label(&keybinds.focus_agent), "focus agent 1-9"),
-                entry(binding_label(&keybinds.new_tab), "new tab"),
-                entry(binding_label(&keybinds.rename_tab), "rename tab"),
-                entry(binding_label(&keybinds.previous_tab), "previous tab"),
-                entry(binding_label(&keybinds.next_tab), "next tab"),
-                entry(binding_label(&keybinds.move_tab_previous), "move tab left"),
-                entry(binding_label(&keybinds.move_tab_next), "move tab right"),
-                entry(indexed_label(&keybinds.switch_tab), "switch tab 1-9"),
-                entry(binding_label(&keybinds.close_tab), "close tab"),
+                entry(
+                    binding_label(&keybinds.previous_agent),
+                    KeybindAction::PreviousAgent.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.next_agent),
+                    KeybindAction::NextAgent.label(),
+                ),
+                entry(
+                    indexed_label(&keybinds.focus_agent),
+                    KeybindAction::FocusAgent(0).label(),
+                ),
+                entry(
+                    binding_label(&keybinds.new_tab),
+                    KeybindAction::NewTab.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.rename_tab),
+                    KeybindAction::RenameTab.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.previous_tab),
+                    KeybindAction::PreviousTab.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.next_tab),
+                    KeybindAction::NextTab.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.move_tab_previous),
+                    KeybindAction::MoveTabPrevious.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.move_tab_next),
+                    KeybindAction::MoveTabNext.label(),
+                ),
+                entry(
+                    indexed_label(&keybinds.switch_tab),
+                    KeybindAction::SwitchTab(0).label(),
+                ),
+                entry(
+                    binding_label(&keybinds.close_tab),
+                    KeybindAction::CloseTab.label(),
+                ),
             ],
         ),
         (
             "panes",
             vec![
-                entry(binding_label(&keybinds.split_vertical), "split vertical"),
+                entry(
+                    binding_label(&keybinds.split_vertical),
+                    KeybindAction::SplitVertical.label(),
+                ),
                 entry(
                     binding_label(&keybinds.split_horizontal),
-                    "split horizontal",
+                    KeybindAction::SplitHorizontal.label(),
                 ),
-                entry(binding_label(&keybinds.close_pane), "close pane"),
-                entry(binding_label(&keybinds.rename_pane), "rename pane"),
-                entry(binding_label(&keybinds.edit_scrollback), "edit scrollback"),
-                entry(binding_label(&keybinds.clear_pane), "clear pane"),
-                entry(binding_label(&keybinds.copy_mode), "copy mode"),
-                entry(binding_label(&keybinds.zoom), "zoom pane"),
-                entry(binding_label(&keybinds.resize_mode), "resize mode"),
+                entry(
+                    binding_label(&keybinds.close_pane),
+                    KeybindAction::ClosePane.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.rename_pane),
+                    KeybindAction::RenamePane.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.edit_scrollback),
+                    KeybindAction::EditScrollback.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.clear_pane),
+                    KeybindAction::ClearPane.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.copy_mode),
+                    KeybindAction::CopyMode.label(),
+                ),
+                entry(binding_label(&keybinds.zoom), KeybindAction::Zoom.label()),
+                entry(
+                    binding_label(&keybinds.resize_mode),
+                    KeybindAction::EnterResizeMode.label(),
+                ),
                 entry(
                     binding_label(&keybinds.resize_pane_left),
-                    "resize pane left",
+                    KeybindAction::ResizePaneLeft.label(),
                 ),
                 entry(
                     binding_label(&keybinds.resize_pane_down),
-                    "resize pane down",
+                    KeybindAction::ResizePaneDown.label(),
                 ),
-                entry(binding_label(&keybinds.resize_pane_up), "resize pane up"),
+                entry(
+                    binding_label(&keybinds.resize_pane_up),
+                    KeybindAction::ResizePaneUp.label(),
+                ),
                 entry(
                     binding_label(&keybinds.resize_pane_right),
-                    "resize pane right",
+                    KeybindAction::ResizePaneRight.label(),
                 ),
-                entry(binding_label(&keybinds.toggle_sidebar), "toggle sidebar"),
-                entry(binding_label(&keybinds.focus_pane_left), "focus pane left"),
-                entry(binding_label(&keybinds.focus_pane_down), "focus pane down"),
-                entry(binding_label(&keybinds.focus_pane_up), "focus pane up"),
+                entry(
+                    binding_label(&keybinds.toggle_sidebar),
+                    KeybindAction::ToggleSidebar.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.focus_pane_left),
+                    KeybindAction::FocusPaneLeft.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.focus_pane_down),
+                    KeybindAction::FocusPaneDown.label(),
+                ),
+                entry(
+                    binding_label(&keybinds.focus_pane_up),
+                    KeybindAction::FocusPaneUp.label(),
+                ),
                 entry(
                     binding_label(&keybinds.focus_pane_right),
-                    "focus pane right",
+                    KeybindAction::FocusPaneRight.label(),
                 ),
-                entry(binding_label(&keybinds.cycle_pane_next), "cycle pane next"),
+                entry(
+                    binding_label(&keybinds.cycle_pane_next),
+                    KeybindAction::CyclePaneNext.label(),
+                ),
                 entry(
                     binding_label(&keybinds.cycle_pane_previous),
-                    "cycle pane previous",
+                    KeybindAction::CyclePanePrevious.label(),
                 ),
-                entry(binding_label(&keybinds.last_pane), "last pane"),
+                entry(
+                    binding_label(&keybinds.last_pane),
+                    KeybindAction::LastPane.label(),
+                ),
             ],
         ),
     ];

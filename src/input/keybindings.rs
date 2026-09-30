@@ -1,6 +1,6 @@
 use crossterm::event::KeyCode;
 
-use crate::config::{CustomCommandKeybind, Keybinds};
+use crate::config::{ActionKeybinds, CustomCommandKeybind, Keybinds};
 
 use super::TerminalKey;
 
@@ -70,32 +70,75 @@ pub(crate) enum KeybindAction {
     OpenNotificationTarget,
     Detach,
     OpenNavigator,
+    CommandPalette,
 }
 
-pub(crate) fn resolve_direct_binding(
-    keybinds: &Keybinds,
-    key: &TerminalKey,
-) -> Option<KeybindMatch> {
-    resolve_exact_binding(keybinds, key, KeybindDispatch::Direct)
+impl KeybindAction {
+    /// What the action does, as the keybind help and the command palette name it.
+    pub(crate) fn label(self) -> &'static str {
+        match self {
+            Self::NewWorkspace => "new workspace",
+            Self::NewWorktree => "new worktree",
+            Self::OpenWorktree => "open worktree",
+            Self::RemoveWorktree => "delete worktree checkout",
+            Self::RenameWorkspace => "rename workspace",
+            Self::CloseWorkspace => "close workspace",
+            Self::SwitchWorkspace(_) => "switch workspace 1-9",
+            Self::SwitchTab(_) => "switch tab 1-9",
+            Self::FocusAgent(_) => "focus agent 1-9",
+            Self::WorkspacePicker => "workspace navigation",
+            Self::PreviousWorkspace => "previous workspace",
+            Self::NextWorkspace => "next workspace",
+            Self::PreviousAgent => "previous agent",
+            Self::NextAgent => "next agent",
+            Self::NewTab => "new tab",
+            Self::RenameTab => "rename tab",
+            Self::PreviousTab => "previous tab",
+            Self::NextTab => "next tab",
+            Self::MoveTabPrevious => "move tab left",
+            Self::MoveTabNext => "move tab right",
+            Self::CloseTab => "close tab",
+            Self::RenamePane => "rename pane",
+            Self::FocusPaneLeft => "focus pane left",
+            Self::FocusPaneDown => "focus pane down",
+            Self::FocusPaneUp => "focus pane up",
+            Self::FocusPaneRight => "focus pane right",
+            Self::SwapPaneLeft => "swap pane left",
+            Self::SwapPaneDown => "swap pane down",
+            Self::SwapPaneUp => "swap pane up",
+            Self::SwapPaneRight => "swap pane right",
+            Self::SplitVertical => "split vertical",
+            Self::SplitHorizontal => "split horizontal",
+            Self::ClosePane => "close pane",
+            Self::EditScrollback => "edit scrollback",
+            Self::ClearPane => "clear pane",
+            Self::CopyMode => "copy mode",
+            Self::Zoom => "zoom pane",
+            Self::EnterResizeMode => "resize mode",
+            Self::ResizePaneLeft => "resize pane left",
+            Self::ResizePaneDown => "resize pane down",
+            Self::ResizePaneUp => "resize pane up",
+            Self::ResizePaneRight => "resize pane right",
+            Self::ToggleSidebar => "toggle sidebar",
+            Self::CyclePaneNext => "cycle pane next",
+            Self::CyclePanePrevious => "cycle pane previous",
+            Self::LastPane => "last pane",
+            Self::Help => "keybinds",
+            Self::Settings => "settings",
+            Self::ReloadConfig => "reload config",
+            Self::OpenNotificationTarget => "open notification target",
+            Self::Detach => "detach",
+            Self::OpenNavigator => "session navigator",
+            Self::CommandPalette => "command palette",
+        }
+    }
 }
 
-pub(crate) fn resolve_prefix_binding(
-    keybinds: &Keybinds,
-    key: &TerminalKey,
-) -> Option<KeybindMatch> {
-    resolve_exact_binding(keybinds, key, KeybindDispatch::Prefix).or_else(|| {
-        generated_character_key(key).and_then(|generated_key| {
-            resolve_exact_binding(keybinds, &generated_key, KeybindDispatch::Prefix)
-        })
-    })
-}
-
-pub(crate) fn resolve_non_indexed_action(
-    keybinds: &Keybinds,
-    key: &TerminalKey,
-    dispatch: KeybindDispatch,
-) -> Option<KeybindAction> {
-    for (bindings, action) in [
+/// Every action bound through one binding list. Key dispatch and the command
+/// palette both read this table, so an action listed here is bindable and
+/// offered in the palette.
+pub(crate) fn action_bindings(keybinds: &Keybinds) -> [(&ActionKeybinds, KeybindAction); 50] {
+    [
         (&keybinds.help, KeybindAction::Help),
         (&keybinds.settings, KeybindAction::Settings),
         (&keybinds.workspace_picker, KeybindAction::WorkspacePicker),
@@ -154,7 +197,34 @@ pub(crate) fn resolve_non_indexed_action(
         ),
         (&keybinds.detach, KeybindAction::Detach),
         (&keybinds.goto, KeybindAction::OpenNavigator),
-    ] {
+        (&keybinds.command_palette, KeybindAction::CommandPalette),
+    ]
+}
+
+pub(crate) fn resolve_direct_binding(
+    keybinds: &Keybinds,
+    key: &TerminalKey,
+) -> Option<KeybindMatch> {
+    resolve_exact_binding(keybinds, key, KeybindDispatch::Direct)
+}
+
+pub(crate) fn resolve_prefix_binding(
+    keybinds: &Keybinds,
+    key: &TerminalKey,
+) -> Option<KeybindMatch> {
+    resolve_exact_binding(keybinds, key, KeybindDispatch::Prefix).or_else(|| {
+        generated_character_key(key).and_then(|generated_key| {
+            resolve_exact_binding(keybinds, &generated_key, KeybindDispatch::Prefix)
+        })
+    })
+}
+
+pub(crate) fn resolve_non_indexed_action(
+    keybinds: &Keybinds,
+    key: &TerminalKey,
+    dispatch: KeybindDispatch,
+) -> Option<KeybindAction> {
+    for (bindings, action) in action_bindings(keybinds) {
         if action_matches(bindings, key, dispatch) {
             return Some(action);
         }

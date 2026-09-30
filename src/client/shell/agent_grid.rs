@@ -146,11 +146,12 @@ impl ClientShellState {
 
         let navigates = match method {
             Method::WorkspaceFocus(_) | Method::TabFocus(_) | Method::SpaceMemberOpen(_) => true,
-            // An agent left out of the grid is shown in its own tab.
+            // A pane the grid has no tile for, such as a shell or an agent
+            // left out, is shown in its own tab.
             Method::PaneFocus(target) => self
                 .snapshot
                 .as_deref()
-                .is_some_and(|snapshot| agent_grid_excludes(snapshot, &target.pane_id)),
+                .is_some_and(|snapshot| !agent_grid_shows(snapshot, &target.pane_id)),
             Method::WorkspaceCreate(params) => params.focus,
             Method::TabCreate(params) => params.focus,
             _ => false,
@@ -179,6 +180,12 @@ pub(super) fn agent_grid_excludes(snapshot: &ClientShellSnapshot, pane_id: &str)
         .panes
         .iter()
         .any(|pane| pane.pane_id == pane_id && pane.agent_grid_excluded)
+}
+
+/// Whether the live agent grid has a tile for `pane_id`.
+fn agent_grid_shows(snapshot: &ClientShellSnapshot, pane_id: &str) -> bool {
+    snapshot.agents.iter().any(|agent| agent.pane_id == pane_id)
+        && !agent_grid_excludes(snapshot, pane_id)
 }
 
 /// Draws each grid tile's title over the top border the server drew: status

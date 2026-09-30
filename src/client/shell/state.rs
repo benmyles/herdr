@@ -50,6 +50,10 @@ pub(crate) struct ClientShellConfig {
     pub(super) local_config_path: std::path::PathBuf,
     pub(super) preferences_path: Option<std::path::PathBuf>,
     pub(super) preferences: preferences::ClientChromePreferences,
+    /// Where command palette usage is kept; unset in tests, which then keep
+    /// usage in memory only.
+    pub(super) palette_usage_path: Option<std::path::PathBuf>,
+    pub(super) palette_usage: super::palette_usage::PaletteUsage,
     pub(super) startup_config_diagnostic: Option<String>,
     pub(super) startup_onboarding: bool,
 }
@@ -134,6 +138,8 @@ pub(super) struct ShellHitMap {
     pub(super) navigator_rows: Vec<(Rect, ClientNavigatorTarget)>,
     pub(super) navigator_scrollbar: Rect,
     pub(super) navigator_scroll_metrics: Option<crate::pane::ScrollMetrics>,
+    pub(super) command_palette_popup: Rect,
+    pub(super) command_palette_rows: Vec<(Rect, usize)>,
     pub(super) worktree_search: Rect,
     pub(super) worktree_rows: Vec<(Rect, usize)>,
     pub(super) help_popup: Rect,
@@ -354,6 +360,7 @@ pub(super) enum ClientShellOverlayKind {
     ContextMenu,
     GlobalMenu,
     Settings,
+    CommandPalette,
 }
 
 #[derive(Debug)]
@@ -838,6 +845,7 @@ pub(super) enum ClientShellOverlay {
     ContextMenu(ClientContextMenuOverlay),
     GlobalMenu(ClientGlobalMenuOverlay),
     Settings(ClientSettingsOverlay),
+    CommandPalette(super::command_palette::ClientCommandPaletteOverlay),
 }
 
 impl ClientShellOverlay {
@@ -859,6 +867,7 @@ impl ClientShellOverlay {
             Self::ContextMenu(_) => ClientShellOverlayKind::ContextMenu,
             Self::GlobalMenu(_) => ClientShellOverlayKind::GlobalMenu,
             Self::Settings(_) => ClientShellOverlayKind::Settings,
+            Self::CommandPalette(_) => ClientShellOverlayKind::CommandPalette,
         }
     }
 }
@@ -1208,6 +1217,7 @@ pub(crate) struct ClientShellState {
     pub(super) endpoint_error_deadline: Option<std::time::Instant>,
     pub(super) dismissed_product_announcement: Option<(String, String)>,
     pub(super) agent_grid_owner: Option<super::agent_grid::ClientAgentGridOwner>,
+    pub(super) palette_usage: super::palette_usage::PaletteUsage,
 }
 
 pub(super) fn product_announcement_state(
@@ -1244,6 +1254,7 @@ pub(super) struct WorkspaceEntry {
 impl ClientShellState {
     pub(crate) fn new(mut config: ClientShellConfig) -> Self {
         let preferences = config.preferences.clone();
+        let palette_usage = std::mem::take(&mut config.palette_usage);
         let local_config_diagnostic = config.startup_config_diagnostic.take();
         let overlay = config
             .startup_onboarding
@@ -1378,6 +1389,7 @@ impl ClientShellState {
             endpoint_error_deadline: None,
             dismissed_product_announcement: None,
             agent_grid_owner: None,
+            palette_usage,
         }
     }
 

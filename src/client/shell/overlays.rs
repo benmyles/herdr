@@ -1,7 +1,10 @@
 use super::*;
 
+mod command_palette_overlay;
 mod repo_overlays;
 mod settings_overlay;
+
+pub(crate) use command_palette_overlay::render_command_palette;
 mod worktree_overlays;
 
 #[derive(Default)]
@@ -49,6 +52,7 @@ pub(crate) fn render_client_overlay(
         ClientShellOverlay::Navigator(_)
             | ClientShellOverlay::ContextMenu(_)
             | ClientShellOverlay::GlobalMenu(_)
+            | ClientShellOverlay::CommandPalette(_)
     ) {
         for y in b.area.y..b.area.bottom() {
             for x in b.area.x..b.area.right() {
@@ -92,7 +96,9 @@ pub(crate) fn render_client_overlay(
             repo_overlays::render_existing_worktree_overlay(b, v, s, p)
         }
         ClientShellOverlay::RepoEdit(v) => repo_overlays::render_repo_edit_overlay(b, v, p),
-        ClientShellOverlay::ContextMenu(_) | ClientShellOverlay::GlobalMenu(_) => None,
+        ClientShellOverlay::ContextMenu(_)
+        | ClientShellOverlay::GlobalMenu(_)
+        | ClientShellOverlay::CommandPalette(_) => None,
     }
 }
 

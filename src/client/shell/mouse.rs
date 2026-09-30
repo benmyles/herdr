@@ -1706,6 +1706,9 @@ impl ClientShellState {
             }
             return;
         }
+        if self.route_command_palette_mouse(mouse, outcome) {
+            return;
+        }
         if matches!(self.overlay, Some(ClientShellOverlay::Navigator(_))) {
             let row_hit = self
                 .hits

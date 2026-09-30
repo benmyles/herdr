@@ -58,11 +58,14 @@ Workspaces and session:
 | Rename workspace | `prefix+shift+w` |
 | Close workspace | `prefix+shift+d` |
 | Goto picker | `prefix+g` |
+| Command palette | `prefix+space` |
 | Toggle sidebar | `prefix+b` |
 
 The full keymap and the binding syntax live in the [keybinding reference](/docs/configuration/#keybindings).
 
 The Goto picker (`prefix+g`) lists each agent or terminal on its own row, grouped by workspace. Split tabs never hide their panes behind another row. Click a row or press Enter to jump directly to it. Press `/` to search names, agent kinds, tabs, workspaces, branches, or paths; use Up/Down or `j/k` to move between rows when not typing a search. Left/Right jumps to the first agent or terminal in the previous/next workspace section, without wrapping. While editing a search, Left/Right moves the text cursor instead. Outside search, `b/w/i/d` filter blocked, working, idle, or done agents, and `a` shows all terminals again. The selected destination's location and path appear below the list. When the list overflows, use the mouse wheel, click the scrollbar track, or drag its thumb to scroll without opening a destination.
+
+The command palette (`prefix+space`) searches everything Herdr can reach in one list: agents, terminals, workspaces, tabs, spaces, other connected machines, the live agent grid, every settings tab, every Herdr command, and your custom commands. Type to filter; matching is fuzzy, so `tgl sdbr` finds "toggle sidebar". Each word can match a result's name, its location, or its kind, so `settings theme` opens the theme tab, and spaces are optional: `a1` finds tab 1 of workspace `api`. Commands show their current keybinding. The first 26 results are lettered a to z; press `ctrl` with a result's letter to open it. Use Up/Down to move, Enter or a click to open the selected result, Tab to fill the search with its name, and Esc or a click outside to close. Results you choose often and recently rank higher, and with an empty search they come first; the counts live in `command-palette.json` in Herdr's state directory. Jumping to a terminal that the live agent grid does not show leaves the grid for that terminal's tab.
 
 ## Editing text fields
 

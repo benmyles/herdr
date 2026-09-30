@@ -448,6 +448,7 @@ impl ClientShellState {
         if self.insert_worktree_overlay_text(text)
             || self.insert_repo_overlay_text(text)
             || self.insert_existing_worktree_text(text)
+            || self.insert_command_palette_text(text)
         {
             return true;
         }
@@ -569,6 +570,10 @@ impl ClientShellState {
                 }
                 _ => {}
             }
+            return;
+        }
+
+        if self.route_command_palette_key(key, outcome) {
             return;
         }
 

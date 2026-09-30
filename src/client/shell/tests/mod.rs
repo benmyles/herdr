@@ -255,6 +255,7 @@ mod agent_grid;
 mod agents_worktrees_notifications;
 mod chrome_context;
 mod close_tab;
+mod command_palette;
 mod copy;
 mod endpoint_requests;
 mod endpoints;

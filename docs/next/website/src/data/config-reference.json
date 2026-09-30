@@ -542,6 +542,12 @@
           "description": "Open the session navigator."
         },
         {
+          "key": "keys.command_palette",
+          "type": "keybinding",
+          "default": "\"prefix+space\"",
+          "description": "Open the command palette to jump anywhere or run any command."
+        },
+        {
           "key": "keys.navigate_workspace_up",
           "type": "keybinding",
           "default": "\"up\"",

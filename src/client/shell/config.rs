@@ -158,6 +158,8 @@ impl ClientShellConfig {
             local_config_path: crate::config::config_path(),
             preferences_path: None,
             preferences: preferences::ClientChromePreferences::default(),
+            palette_usage_path: None,
+            palette_usage: Default::default(),
             startup_config_diagnostic: None,
             startup_onboarding: false,
         }
@@ -193,6 +195,13 @@ impl ClientShellConfig {
 
     pub(crate) fn with_local_endpoint(self, socket_path: &std::path::Path) -> Self {
         self.with_preferences_path(preferences::path_for_local_endpoint(socket_path))
+            .with_palette_usage_path(super::palette_usage::path())
+    }
+
+    pub(super) fn with_palette_usage_path(mut self, path: std::path::PathBuf) -> Self {
+        self.palette_usage = super::palette_usage::load(&path);
+        self.palette_usage_path = Some(path);
+        self
     }
 
     pub(super) fn with_preferences_path(mut self, path: std::path::PathBuf) -> Self {

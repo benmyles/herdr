@@ -73,12 +73,12 @@ fn workspace_agents(snapshot: &ClientShellSnapshot, index: usize) -> Vec<&Client
 
 /// A space and its workspaces in sidebar order. `space` is `None` for
 /// workspaces from servers without spaces.
-struct WorkspaceGroup {
-    space: Option<usize>,
-    workspaces: Vec<usize>,
+pub(super) struct WorkspaceGroup {
+    pub(super) space: Option<usize>,
+    pub(super) workspaces: Vec<usize>,
 }
 
-fn grouped_workspaces(snapshot: &ClientShellSnapshot) -> Vec<WorkspaceGroup> {
+pub(super) fn grouped_workspaces(snapshot: &ClientShellSnapshot) -> Vec<WorkspaceGroup> {
     let mut listed = vec![false; snapshot.workspaces.len()];
     let mut groups = snapshot
         .spaces

@@ -681,6 +681,20 @@ impl ClientShellState {
                 occlusion.cover(rendered.area);
                 self.hits.context_menu_rows = rendered.menu_rows;
                 None
+            } else if let ClientShellOverlay::CommandPalette(palette) = overlay {
+                let entries = self.command_palette_entries();
+                let results = super::command_palette::rank(&entries, palette.query.as_str());
+                let rendered = render::render_command_palette(
+                    &mut composed,
+                    palette,
+                    &results,
+                    entries.len(),
+                    &self.config.palette,
+                )?;
+                occlusion.cover(rendered.area);
+                self.hits.command_palette_popup = rendered.area;
+                self.hits.command_palette_rows = rendered.rows;
+                rendered.cursor
             } else if let ClientShellOverlay::GlobalMenu(menu) = overlay {
                 let rendered = render::render_global_menu(
                     &mut composed,
