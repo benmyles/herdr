@@ -16,6 +16,43 @@ pub(super) fn default_worktree_name(space_name: &str) -> String {
     space_name.split_whitespace().collect::<Vec<_>>().join("-")
 }
 
+/// Words for throwaway worktree names in `other`. Each is a lowercase ASCII
+/// word, so any three joined by `-` form a valid branch name.
+const THROWAWAY_NAME_WORDS: &[&str] = &[
+    "arc", "blade", "byte", "chrome", "cipher", "circuit", "cortex", "cyber", "daemon", "deck",
+    "drift", "drone", "echo", "fiber", "flare", "flux", "fuse", "ghost", "glitch", "grid", "haze",
+    "hex", "holo", "ice", "implant", "ion", "jack", "kernel", "laser", "lumen", "matrix", "mesh",
+    "mirror", "nano", "neon", "neural", "node", "nova", "null", "onyx", "optic", "orbit",
+    "phantom", "pixel", "plasma", "prism", "proxy", "pulse", "quantum", "rain", "razor", "relay",
+    "rogue", "rune", "sector", "shard", "signal", "silicon", "smog", "sprawl", "static", "stim",
+    "strobe", "surge", "synth", "trace", "uplink", "vapor", "vector", "visor", "void", "volt",
+    "wetware", "wire", "wraith", "zero",
+];
+
+/// Three distinct words from `THROWAWAY_NAME_WORDS`, chosen by `seed`.
+fn throwaway_worktree_name_from(mut seed: u64) -> String {
+    let mut pool = THROWAWAY_NAME_WORDS.to_vec();
+    let mut words = Vec::with_capacity(3);
+    for _ in 0..3 {
+        let len = pool.len() as u64;
+        words.push(pool.swap_remove((seed % len) as usize));
+        seed /= len;
+    }
+    words.join("-")
+}
+
+/// A random name for a quick worktree in `other`, which has no space name to
+/// borrow.
+pub(super) fn throwaway_worktree_name() -> String {
+    use std::hash::{BuildHasher, Hasher};
+
+    // Each `RandomState` is freshly keyed, so this differs on every call.
+    let seed = std::collections::hash_map::RandomState::new()
+        .build_hasher()
+        .finish();
+    throwaway_worktree_name_from(seed)
+}
+
 pub(super) fn space_worktree_preview(
     template: &str,
     space_name: &str,
@@ -141,7 +178,7 @@ impl ClientShellState {
             ClientSpaceWorktreeOverlay {
                 name: TextEditor::new(
                     &if built_in {
-                        String::new()
+                        throwaway_worktree_name()
                     } else {
                         default_worktree_name(&space_name)
                     },
@@ -1024,5 +1061,29 @@ mod tests {
         let invalid = space_worktree_preview(template, "k", &repo(None), "has space", true);
         assert!(!invalid.valid);
         assert_eq!(default_worktree_name(" billing  launch "), "billing-launch");
+    }
+
+    #[test]
+    fn throwaway_names_are_three_distinct_words_and_valid_branches() {
+        for seed in [0, 1, 75, 76 * 75, u64::MAX, 0x9e37_79b9_7f4a_7c15] {
+            let name = throwaway_worktree_name_from(seed);
+            let words = name.split('-').collect::<Vec<_>>();
+            assert_eq!(words.len(), 3, "{name}");
+            assert!(words.iter().all(|word| THROWAWAY_NAME_WORDS.contains(word)));
+            assert!(words[0] != words[1] && words[1] != words[2] && words[0] != words[2]);
+            assert!(crate::repos::validated_branch(&name, "branch name").is_ok());
+        }
+        assert_ne!(
+            throwaway_worktree_name_from(1),
+            throwaway_worktree_name_from(2)
+        );
+        let mut sorted = THROWAWAY_NAME_WORDS.to_vec();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(
+            sorted.len(),
+            THROWAWAY_NAME_WORDS.len(),
+            "no repeated words"
+        );
     }
 }

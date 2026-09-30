@@ -2151,6 +2151,39 @@ fn mouse(
 }
 
 #[test]
+fn other_gets_an_add_worktree_row_with_a_random_name() {
+    let mut state = repo_state();
+    let mut snapshot = repo_snapshot();
+    snapshot.workspaces[0].space_id = Some("other".into());
+    state.set_snapshot(Box::new(snapshot));
+    screen_text(&mut state);
+    let add = state
+        .hits
+        .add_worktree
+        .iter()
+        .find(|hit| hit.space_id == "other")
+        .cloned()
+        .expect("other + worktree");
+
+    click(&mut state, MouseButton::Left, add.rect);
+    let mut outcome = ClientShellInput::default();
+    state.activate_context_menu_item(0, &mut outcome);
+    let Some(ClientShellOverlay::SpaceWorktree(dialog)) = &state.overlay else {
+        panic!("new worktree dialog");
+    };
+    assert_eq!(dialog.space_id, "other");
+    let name = dialog.name.as_str().to_owned();
+    assert_eq!(name.split('-').count(), 3, "{name}");
+    assert_ne!(name, "other");
+
+    state.handle_input_bytes(b"\r");
+    let Some(ClientShellOverlay::SpaceWorktree(dialog)) = &state.overlay else {
+        panic!("dialog stays open while creating");
+    };
+    assert!(dialog.creating);
+}
+
+#[test]
 fn add_worktree_row_adds_an_existing_checkout_to_the_space() {
     let mut state = repo_state();
     let text = screen_text(&mut state);

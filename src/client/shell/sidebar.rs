@@ -547,7 +547,7 @@ pub(in crate::client::shell) enum SidebarRow {
         member_index: usize,
         last_child: bool,
     },
-    /// "+ worktree" at the end of an expanded user space.
+    /// "+ worktree" at the end of an expanded space.
     AddWorktree {
         space_index: usize,
     },
@@ -600,8 +600,7 @@ pub(in crate::client::shell) fn sidebar_rows(
             }
             continue;
         }
-        let add_row = add_rows && !space.built_in;
-        let total = members.len() + space.closed.len() + usize::from(add_row);
+        let total = members.len() + space.closed.len() + usize::from(add_rows);
         for (position, index) in members.iter().copied().enumerate() {
             rows.push(SidebarRow::Workspace(WorkspaceEntry {
                 index,
@@ -616,7 +615,7 @@ pub(in crate::client::shell) fn sidebar_rows(
                 last_child: members.len() + member_index + 1 == total,
             });
         }
-        if add_row {
+        if add_rows {
             rows.push(SidebarRow::AddWorktree { space_index });
         }
     }

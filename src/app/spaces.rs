@@ -312,12 +312,17 @@ impl AppState {
     }
 
     /// Remember a workspace that is about to close so its space can reopen
-    /// it. Only user spaces keep closed members; `other` lets them go.
+    /// it. User spaces keep every member; `other` keeps only linked worktrees
+    /// and lets plain terminals go.
     pub(crate) fn retain_closed_member(&mut self, ws_idx: usize) {
         let Some(workspace) = self.workspaces.get(ws_idx) else {
             return;
         };
-        if workspace.space_id == OTHER_SPACE_ID {
+        if workspace.space_id == OTHER_SPACE_ID
+            && !workspace
+                .worktree_space()
+                .is_some_and(|space| space.is_linked_worktree)
+        {
             return;
         }
         let Some(space_index) = self.space_index(&workspace.space_id) else {
@@ -539,6 +544,34 @@ mod tests {
         assert_eq!(order(&state), vec![("w2", "other"), ("w1", "other")]);
         assert_eq!(state.spaces.len(), 1);
         assert_eq!(state.delete_space(OTHER_SPACE_ID), Err(SpaceError::BuiltIn));
+    }
+
+    #[test]
+    fn other_keeps_closed_linked_worktrees_only() {
+        let mut state = state_with(&[
+            ("w1", OTHER_SPACE_ID),
+            ("w2", OTHER_SPACE_ID),
+            ("w3", OTHER_SPACE_ID),
+        ]);
+        state.normalize_spaces();
+        let membership = |checkout: &str, is_linked_worktree| {
+            Some(crate::workspace::WorktreeSpaceMembership {
+                key: "/repo/.git".into(),
+                label: "repo".into(),
+                repo_root: "/repo".into(),
+                checkout_path: checkout.into(),
+                is_linked_worktree,
+            })
+        };
+        state.workspaces[0].worktree_space = membership("/wt/neon-ghost-relay", true);
+        state.workspaces[1].worktree_space = membership("/repo", false);
+        for idx in 0..3 {
+            state.retain_closed_member(idx);
+        }
+        let closed = &state.space(OTHER_SPACE_ID).unwrap().closed;
+        assert_eq!(closed.len(), 1);
+        assert_eq!(closed[0].cwd, std::path::Path::new("/wt/neon-ghost-relay"));
+        assert!(closed[0].worktree_space.is_some());
     }
 
     #[test]
