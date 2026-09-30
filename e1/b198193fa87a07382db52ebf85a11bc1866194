@@ -1,0 +1,29 @@
+src/client/shell/sidebar.rs
+  s_d0f98f56b5eed8::t_e1b70c11c7a03b 284,553-554,631
+src/client/shell/endpoint_sidebar.rs
+  s_d0f98f56b5eed8::t_e1b70c11c7a03b 290
+src/client/shell/tests/agents_worktrees_notifications.rs
+  s_d0f98f56b5eed8::t_0c04928c13aa9f 2157-2160
+  s_d0f98f56b5eed8::t_8607ec755d12cc 2156
+  s_d0f98f56b5eed8::t_219bcb760aee30 1589-1591,1594-1595
+src/client/shell/tests/endpoints.rs
+  s_d0f98f56b5eed8::t_69513ab2c9c5c0 659,705,730
+src/space.rs
+  s_d0f98f56b5eed8::t_e1b70c11c7a03b 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e1b198193fa87a07382db52ebf85a11bc1866194",
+  "prompts": {},
+  "sessions": {
+    "s_d0f98f56b5eed8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ecef884f-7023-4736-87d9-0920da9e531d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
