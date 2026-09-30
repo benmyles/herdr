@@ -1800,6 +1800,11 @@ fn space_worktree_dialog_creates_from_the_chosen_repo() {
         "{text}"
     );
 
+    let text = screen_text(&mut state);
+    assert!(text.contains("[x] guided"), "{text}");
+    assert!(text.contains("[ ] pyshiftup"), "{text}");
+
+    // Moving the highlight doesn't change which repos are checked.
     state.handle_input_bytes(b"\x1b[A");
     let submit = state.handle_input_bytes(b"\r");
     let [ClientShellAction::Endpoint { request, .. }] = &submit.actions[..] else {
@@ -1809,7 +1814,7 @@ fn space_worktree_dialog_creates_from_the_chosen_repo() {
         &request.method,
         crate::api::schema::Method::SpaceWorktreeCreate(params)
             if params.space_id == "space_knowledge"
-                && params.repo == "pyshiftup"
+                && params.repo == "guided"
                 && params.name == "knowledge"
                 && params.sync
                 && !params.focus
@@ -1864,6 +1869,123 @@ fn space_worktree_dialog_creates_from_the_chosen_repo() {
             |notice| notice.key.kind == ClientEndpointNoticeKind::Warning
                 && notice.body.contains("didn't update")
         ));
+}
+
+fn created_in_tab(tab_id: &str, warnings: &[&str]) -> crate::api::schema::ResponseResult {
+    let mut result = space_worktree_created(warnings);
+    if let crate::api::schema::ResponseResult::SpaceWorktreeCreated(info) = &mut result {
+        info.tab.tab_id = tab_id.into();
+    }
+    result
+}
+
+fn create_requests(outcome: &ClientShellInput) -> Vec<(String, String, bool)> {
+    outcome
+        .actions
+        .iter()
+        .map(|action| match action {
+            ClientShellAction::Endpoint { request, .. } => match &request.method {
+                crate::api::schema::Method::SpaceWorktreeCreate(params) => {
+                    (request.id.clone(), params.repo.clone(), params.sync)
+                }
+                other => panic!("unexpected method {other:?}"),
+            },
+            other => panic!("unexpected action {other:?}"),
+        })
+        .collect()
+}
+
+fn focused_tab(actions: &[ClientShellAction]) -> Option<String> {
+    match actions {
+        [ClientShellAction::Endpoint { request, .. }] => match &request.method {
+            crate::api::schema::Method::TabFocus(target) => Some(target.tab_id.clone()),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+#[test]
+fn space_worktree_dialog_creates_one_worktree_per_checked_repo() {
+    let mut state = repo_state();
+    state.open_space_worktree_dialog("space_knowledge");
+    // Click checks a row; space checks the highlighted one.
+    screen_text(&mut state);
+    let guided_row = state
+        .hits
+        .overlay_hits
+        .iter()
+        .find(|(_, hit)| *hit == ClientOverlayHit::SpaceWorktreeRepo(1))
+        .map(|(rect, _)| *rect)
+        .expect("guided row");
+    click(&mut state, MouseButton::Left, guided_row);
+    assert!(matches!(
+        &state.overlay,
+        Some(ClientShellOverlay::SpaceWorktree(dialog)) if dialog.checked.is_empty()
+    ));
+    let empty = state.handle_input_bytes(b"\r");
+    assert!(empty.actions.is_empty());
+    click(&mut state, MouseButton::Left, guided_row);
+    state.handle_input_bytes(b"\x1b[A ");
+    let text = screen_text(&mut state);
+    assert!(text.contains("[x] pyshiftup"), "{text}");
+    assert!(text.contains("[x] guided"), "{text}");
+    assert!(text.contains("create 2 worktrees"), "{text}");
+    assert!(
+        text.contains("knowledge/pyshiftup/knowledge  +1 more"),
+        "{text}"
+    );
+
+    let submit = state.handle_input_bytes(b"\r");
+    let requests = create_requests(&submit);
+    assert_eq!(
+        requests
+            .iter()
+            .map(|(_, repo, sync)| (repo.as_str(), *sync))
+            .collect::<Vec<_>>(),
+        [("pyshiftup", true), ("guided", true)],
+        "one request per checked repo, in repo order"
+    );
+    assert!(screen_text(&mut state).contains("creating 2 worktrees"));
+
+    let (_, actions) = state.handle_endpoint_result(
+        "boot-1",
+        &requests[1].0,
+        Ok(created_in_tab("ws_guided:t1", &[])),
+    );
+    assert!(actions.is_empty(), "waits for every repo");
+    let (_, actions) = state.handle_endpoint_result(
+        "boot-1",
+        &requests[0].0,
+        Err(ClientShellEndpointError {
+            code: Some("sync_fetch_failed".into()),
+            message: "couldn't fetch origin: offline".into(),
+        }),
+    );
+    assert_eq!(focused_tab(&actions).as_deref(), Some("ws_guided:t1"));
+    assert!(matches!(
+        &state.overlay,
+        Some(ClientShellOverlay::SpaceWorktree(dialog))
+            if !dialog.creating && dialog.offer_without_sync
+                && dialog.checked == ["pyshiftup"]
+                && dialog.error.as_deref().is_some_and(|error|
+                    error.starts_with("pyshiftup: couldn't fetch origin") && error.contains("local main"))
+    ));
+
+    let retry = state.handle_input_bytes(b"\r");
+    let requests = create_requests(&retry);
+    assert_eq!(requests.len(), 1, "only the failed repo is retried");
+    assert_eq!(
+        (requests[0].1.as_str(), requests[0].2),
+        ("pyshiftup", false)
+    );
+    let (_, actions) = state.handle_endpoint_result(
+        "boot-1",
+        &requests[0].0,
+        Ok(created_in_tab("ws_py:t1", &[])),
+    );
+    assert!(state.overlay.is_none());
+    assert_eq!(focused_tab(&actions).as_deref(), Some("ws_py:t1"));
 }
 
 #[test]

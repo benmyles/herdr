@@ -508,13 +508,15 @@ pub(super) enum SpaceWorktreeField {
     Sync,
 }
 
-/// New worktree for a space, from one of the endpoint's configured repos.
+/// New worktrees for a space, one per checked repo, all with one name.
 #[derive(Debug)]
 pub(super) struct ClientSpaceWorktreeOverlay {
     pub(super) space_id: String,
     pub(super) space_name: String,
-    /// Selected repo by name, so it survives snapshot updates.
+    /// Highlighted repo by name, so it survives snapshot updates.
     pub(super) selected_repo: Option<String>,
+    /// Repos that get a worktree, by name.
+    pub(super) checked: Vec<String>,
     pub(super) name: TextEditor,
     pub(super) sync: bool,
     pub(super) field: SpaceWorktreeField,
@@ -522,6 +524,15 @@ pub(super) struct ClientSpaceWorktreeOverlay {
     /// Set after a failed fetch: offer creating from the local base instead.
     pub(super) offer_without_sync: bool,
     pub(super) creating: bool,
+    /// Repos whose create request has not answered yet.
+    pub(super) in_flight: Vec<String>,
+    /// Tabs of the worktrees created by this submit, by repo.
+    pub(super) created_tabs: Vec<(String, String)>,
+    /// Failures from this submit, one per repo.
+    pub(super) failures: Vec<String>,
+    pub(super) fetch_failed: bool,
+    /// Sync warnings from this submit, shown together once it settles.
+    pub(super) warnings: Vec<String>,
 }
 
 /// A checkout of one of the endpoint's repos, offered by "Add existing".
@@ -900,7 +911,9 @@ pub(super) enum PendingEndpointKind {
     },
     /// A space created from the sidebar; offer a worktree for it next.
     SpaceCreate,
-    SpaceWorktreeCreate,
+    SpaceWorktreeCreate {
+        repo: String,
+    },
     /// One repo's checkouts for the "Add existing" picker.
     SpaceWorktreeList {
         space_id: String,

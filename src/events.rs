@@ -29,20 +29,16 @@ pub struct ApiWorktreeAddRequest {
     pub respond_to: std::sync::mpsc::Sender<String>,
 }
 
-/// What runs once a space worktree exists: the repo's create command, then
-/// the start command typed into its first pane.
+/// What runs once a space worktree exists. Both commands are typed into the
+/// worktree's first pane, so their output stays in view: the repo's create
+/// command, then its start command once the create command succeeds.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WorktreeSetupPlan {
-    pub on_create: Option<crate::worktree::WorktreeHook>,
+    pub on_create: Option<String>,
     pub start_command: Option<String>,
-}
-
-/// A repo create command finished in the background.
-#[derive(Debug)]
-pub struct WorktreeSetupResult {
-    pub workspace_id: String,
-    pub operation: u64,
-    pub result: Result<(), String>,
+    /// What the commands know about the worktree (`HERDR_REPO`, ...), set
+    /// in the first pane's environment.
+    pub env: Vec<(&'static str, String)>,
 }
 
 #[derive(Debug)]
@@ -223,6 +219,4 @@ pub enum AppEvent {
     WorktreeRemoveFinished(Box<WorktreeRemoveResult>),
     /// Background worktree discovery completed for an API list/open request.
     WorktreeReadFinished(Box<WorktreeReadResult>),
-    /// A repo create command for a new space worktree finished.
-    WorktreeSetupFinished(Box<WorktreeSetupResult>),
 }

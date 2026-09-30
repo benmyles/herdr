@@ -124,20 +124,10 @@ impl App {
         let space_name = self.state.spaces[space_idx].name.clone();
         let settings = &repo.settings;
         let setup = crate::events::WorktreeSetupPlan {
-            on_create: (!settings.on_create.is_empty()).then(|| crate::worktree::WorktreeHook {
-                command: settings.on_create.clone(),
-                cwd: checkout_path.clone(),
-                env: crate::worktree::hook_env(&repo, &checkout_path, &branch, &space_name),
-                log_path: crate::worktree::hook_log_path(
-                    &self.worktree_hook_logs,
-                    &space_name,
-                    &repo.name,
-                    &name,
-                    "create",
-                ),
-            }),
+            on_create: (!settings.on_create.is_empty()).then(|| settings.on_create.clone()),
             start_command: (!settings.start_command.is_empty())
                 .then(|| settings.start_command.clone()),
+            env: crate::worktree::hook_env(&repo, &checkout_path, &branch, &space_name),
         };
         let plan = crate::worktree::SpaceWorktreePlan {
             repo_root: git_space.repo_root.clone(),
@@ -224,6 +214,15 @@ impl App {
             .clone()
             .filter(|space_id| self.state.space_index(space_id).is_some())
             .unwrap_or_else(|| crate::space::OTHER_SPACE_ID.to_owned());
+        // A reused checkout was set up when it was first created.
+        let setup = api
+            .setup
+            .filter(|_| report.branch_source != BranchSource::ExistingCheckout);
+        let launch_env = setup
+            .iter()
+            .flat_map(|setup| &setup.env)
+            .map(|(key, value)| ((*key).to_owned(), value.clone()))
+            .collect();
         let (ws_idx, created) = match self.open_workspace_idx_for_checkout(&result.path) {
             Some(ws_idx) => {
                 if api.focus {
@@ -231,7 +230,11 @@ impl App {
                 }
                 (ws_idx, false)
             }
-            None => match self.create_workspace_with_options(result.path.clone(), api.focus) {
+            None => match self.create_workspace_with_launch_env(
+                result.path.clone(),
+                api.focus,
+                launch_env,
+            ) {
                 Ok(ws_idx) => (ws_idx, true),
                 Err(err) => {
                     Self::send_api_response(
@@ -306,9 +309,9 @@ impl App {
         };
         if report.branch_source != BranchSource::ExistingCheckout {
             self.emit_worktree_created_event(ws_idx, worktree.clone());
-            if let Some(setup) = api.setup {
-                self.start_worktree_setup(ws_idx, setup);
-            }
+        }
+        if let Some(setup) = setup {
+            self.start_worktree_setup(ws_idx, setup);
         }
         let tab_idx = self.state.workspaces[ws_idx].active_tab;
         let (Some(tab), Some(root_pane)) = (

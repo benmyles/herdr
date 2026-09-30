@@ -96,13 +96,9 @@ pub(super) fn snapshot_with_completions(
                     }),
                 agent_status: workspace.agent_status,
                 space_id: Some(state.space_id.clone()),
-                setup: app.worktree_setup(&state.id).map(|setup| {
-                    protocol::ClientShellWorktreeSetup {
-                        running: setup.running,
-                        failure: setup.failure.clone(),
-                        log_path: setup.log_path.display().to_string(),
-                    }
-                }),
+                // Create commands now run in the worktree's first pane, where
+                // their output shows; older servers ran them out of sight.
+                setup: None,
             }
         })
         .collect();

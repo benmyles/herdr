@@ -882,7 +882,8 @@ mod tests {
         std::fs::write(repo.join(".env"), "TOKEN=1\n").unwrap();
         let worktree_root = unique_temp_path("space-worktree-settings-root");
         let mut app = test_app();
-        app.worktree_hook_logs = worktree_root.join("logs");
+        // The create command is typed into the worktree's first pane.
+        app.state.default_shell = "/bin/sh".into();
         app.state.worktree_directory = worktree_root.clone();
         app.state.worktree_path_template = crate::worktree::resolve_space_path_template(
             crate::worktree::DEFAULT_SPACE_PATH_TEMPLATE,
@@ -899,6 +900,7 @@ mod tests {
                 branch_prefix: "ben/".into(),
                 copy_files: vec![".env*".into()],
                 on_create: "echo \"$HERDR_SPACE $HERDR_BRANCH $HERDR_REPO\" > created.txt".into(),
+                start_command: "touch started.txt".into(),
                 ..Default::default()
             },
         }];
@@ -919,9 +921,10 @@ mod tests {
         assert!(app.handle_deferred_worktree_api_request(request, respond_to, false));
         let checkout = worktree_root.join("knowledge/pyshiftup/kb");
         let created = checkout.join("created.txt");
+        let started = checkout.join("started.txt");
         let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
         let mut response = None;
-        while response.is_none() || !created.exists() {
+        while response.is_none() || !started.exists() {
             assert!(std::time::Instant::now() < deadline, "setup never finished");
             if let Ok(reply) = response_rx.try_recv() {
                 response = Some(reply);
@@ -946,9 +949,6 @@ mod tests {
             std::fs::read_to_string(&created).unwrap().trim(),
             "knowledge ben/kb pyshiftup"
         );
-        assert!(worktree_root
-            .join("logs/knowledge/pyshiftup/kb-create.log")
-            .exists());
 
         for (_, runtime) in app.terminal_runtimes.drain() {
             runtime.shutdown();

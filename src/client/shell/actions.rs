@@ -551,7 +551,7 @@ impl ClientShellState {
             // These dialogs show the server's rejection inline.
             let shown_inline = matches!(
                 pending.kind,
-                PendingEndpointKind::SpaceWorktreeCreate
+                PendingEndpointKind::SpaceWorktreeCreate { .. }
                     | PendingEndpointKind::SpaceWorktreeList { .. }
                     | PendingEndpointKind::SpaceWorktreeOpen
                     | PendingEndpointKind::RepoSave
@@ -866,7 +866,7 @@ impl ClientShellState {
                 );
             }
             kind @ (PendingEndpointKind::SpaceCreate
-            | PendingEndpointKind::SpaceWorktreeCreate
+            | PendingEndpointKind::SpaceWorktreeCreate { .. }
             | PendingEndpointKind::RepoSave
             | PendingEndpointKind::RepoRemove) => {
                 let mut outcome = ClientShellInput::default();

@@ -106,6 +106,53 @@ pub(super) fn selected_repo_index(
         .unwrap_or(0)
 }
 
+/// Checked repos, in the endpoint's repo order.
+pub(super) fn checked_repos<'a>(
+    dialog: &ClientSpaceWorktreeOverlay,
+    repos: &'a [crate::protocol::ClientShellRepo],
+) -> Vec<&'a crate::protocol::ClientShellRepo> {
+    repos
+        .iter()
+        .filter(|repo| dialog.checked.contains(&repo.name))
+        .collect()
+}
+
+/// The repo the branch and checkout preview describe: the highlighted repo
+/// when it is checked, else the first checked one.
+pub(super) fn preview_repo_index(
+    dialog: &ClientSpaceWorktreeOverlay,
+    repos: &[crate::protocol::ClientShellRepo],
+) -> usize {
+    let selected = selected_repo_index(dialog, repos);
+    if repos
+        .get(selected)
+        .is_some_and(|repo| dialog.checked.contains(&repo.name))
+    {
+        return selected;
+    }
+    repos
+        .iter()
+        .position(|repo| dialog.checked.contains(&repo.name))
+        .unwrap_or(selected)
+}
+
+/// The local base branch the checked repos start from without sync: its
+/// name when they share one.
+pub(super) fn local_base_label(
+    dialog: &ClientSpaceWorktreeOverlay,
+    repos: &[crate::protocol::ClientShellRepo],
+) -> String {
+    let mut bases = checked_repos(dialog, repos)
+        .into_iter()
+        .map(|repo| repo.base_branch.as_str())
+        .collect::<Vec<_>>();
+    bases.dedup();
+    match bases[..] {
+        [base] => base.to_owned(),
+        _ => "base branches".to_owned(),
+    }
+}
+
 fn optional(text: &str) -> Option<String> {
     let text = text.trim();
     (!text.is_empty()).then(|| text.to_owned())
@@ -174,6 +221,7 @@ impl ClientShellState {
             })
             .is_some_and(|space| space.built_in);
         let selected_repo = selected_repo.or_else(|| self.default_repo_for_space(&space_id));
+        let checked = selected_repo.iter().cloned().collect();
         self.overlay = Some(ClientShellOverlay::SpaceWorktree(
             ClientSpaceWorktreeOverlay {
                 name: TextEditor::new(
@@ -187,11 +235,17 @@ impl ClientShellState {
                 space_id,
                 space_name,
                 selected_repo,
+                checked,
                 sync: true,
                 field: SpaceWorktreeField::Name,
                 error: None,
                 offer_without_sync: false,
                 creating: false,
+                in_flight: Vec::new(),
+                created_tabs: Vec::new(),
+                failures: Vec::new(),
+                fetch_failed: false,
+                warnings: Vec::new(),
             },
         ));
     }
@@ -237,7 +291,8 @@ impl ClientShellState {
         dialog.offer_without_sync = false;
     }
 
-    fn select_space_worktree_repo(&mut self, index: usize) {
+    /// Highlights the repo at `index` and flips whether it gets a worktree.
+    fn toggle_space_worktree_repo(&mut self, index: usize) {
         let name = self
             .endpoint_repos()
             .get(index)
@@ -246,10 +301,25 @@ impl ClientShellState {
             (name, self.overlay.as_mut())
         {
             if !dialog.creating {
+                if dialog.checked.contains(&name) {
+                    dialog.checked.retain(|checked| *checked != name);
+                } else {
+                    dialog.checked.push(name.clone());
+                }
                 dialog.selected_repo = Some(name);
                 dialog.error = None;
                 dialog.offer_without_sync = false;
             }
+        }
+    }
+
+    fn toggle_highlighted_space_worktree_repo(&mut self) {
+        let Some(ClientShellOverlay::SpaceWorktree(dialog)) = self.overlay.as_ref() else {
+            return;
+        };
+        let repos = self.endpoint_repos();
+        if !repos.is_empty() {
+            self.toggle_space_worktree_repo(selected_repo_index(dialog, repos));
         }
     }
 
@@ -262,14 +332,23 @@ impl ClientShellState {
             return;
         }
         let repos = self.endpoint_repos();
-        let Some(repo) = repos.get(selected_repo_index(dialog, repos)).cloned() else {
+        if repos.is_empty() {
             let space_id = dialog.space_id.clone();
             self.open_repo_editor(None, ClientRepoEditReturn::SpaceWorktree { space_id });
             return;
-        };
+        }
+        let targets = checked_repos(dialog, repos)
+            .into_iter()
+            .map(|repo| (repo.name.clone(), repo.remote.is_some()))
+            .collect::<Vec<_>>();
         let Some(ClientShellOverlay::SpaceWorktree(dialog)) = self.overlay.as_mut() else {
             return;
         };
+        if targets.is_empty() {
+            dialog.error =
+                Some("check at least one repo (space checks the highlighted one)".into());
+            return;
+        }
         let name = dialog.name.trim().to_owned();
         if name.is_empty() {
             dialog.error = Some("name is required".to_owned());
@@ -282,26 +361,147 @@ impl ClientShellState {
             return;
         }
         dialog.name.trim_and_accept();
-        dialog.selected_repo = Some(repo.name.clone());
-        dialog.creating = true;
         dialog.error = None;
-        let method = crate::api::schema::Method::SpaceWorktreeCreate(
-            crate::api::schema::SpaceWorktreeCreateParams {
-                space_id: dialog.space_id.clone(),
-                repo: repo.name,
-                name,
-                sync: dialog.sync && repo.remote.is_some(),
-                focus: false,
-            },
-        );
-        if !self.push_endpoint_method_with_kind(
-            method,
-            PendingEndpointKind::SpaceWorktreeCreate,
-            outcome,
-        ) {
-            if let Some(ClientShellOverlay::SpaceWorktree(dialog)) = self.overlay.as_mut() {
-                dialog.creating = false;
+        dialog.failures.clear();
+        dialog.fetch_failed = false;
+        dialog.warnings.clear();
+        dialog.created_tabs.clear();
+        let space_id = dialog.space_id.clone();
+        let sync = dialog.sync;
+        let mut sent = Vec::new();
+        for (repo, has_remote) in targets {
+            let method = crate::api::schema::Method::SpaceWorktreeCreate(
+                crate::api::schema::SpaceWorktreeCreateParams {
+                    space_id: space_id.clone(),
+                    repo: repo.clone(),
+                    name: name.clone(),
+                    sync: sync && has_remote,
+                    focus: false,
+                },
+            );
+            let kind = PendingEndpointKind::SpaceWorktreeCreate { repo: repo.clone() };
+            if self.push_endpoint_method_with_kind(method, kind, outcome) {
+                sent.push(repo);
             }
+        }
+        if let Some(ClientShellOverlay::SpaceWorktree(dialog)) = self.overlay.as_mut() {
+            dialog.creating = !sent.is_empty();
+            dialog.in_flight = sent;
+        }
+    }
+
+    /// Records one repo's create answer. Once every checked repo has
+    /// answered, the dialog closes, or stays open on the failed repos.
+    fn space_worktree_answered(
+        &mut self,
+        repo: String,
+        result: Result<crate::api::schema::SpaceWorktreeCreatedInfo, ClientShellEndpointError>,
+        outcome: &mut ClientShellInput,
+    ) {
+        let Some(ClientShellOverlay::SpaceWorktree(dialog)) =
+            self.overlay.as_mut().filter(|overlay| {
+                matches!(overlay, ClientShellOverlay::SpaceWorktree(dialog)
+                    if dialog.in_flight.contains(&repo))
+            })
+        else {
+            // The dialog is gone; still show where the worktree went.
+            if let Ok(info) = result {
+                if !info.sync.warnings.is_empty() {
+                    self.push_endpoint_notice(
+                        ClientEndpointNoticeKind::Warning,
+                        "space.worktree.create",
+                        "Worktree created",
+                        info.sync.warnings.join("\n"),
+                    );
+                }
+                self.push_endpoint_method(
+                    crate::api::schema::Method::TabFocus(crate::api::schema::TabTarget {
+                        tab_id: info.tab.tab_id,
+                    }),
+                    outcome,
+                );
+            }
+            return;
+        };
+        // Every repo of this submit has answered or is still in flight.
+        let several =
+            dialog.in_flight.len() + dialog.created_tabs.len() + dialog.failures.len() > 1;
+        dialog.in_flight.retain(|pending| *pending != repo);
+        match result {
+            Ok(info) => {
+                // Done: a retry covers only the repos that failed.
+                dialog.checked.retain(|checked| *checked != repo);
+                dialog
+                    .warnings
+                    .extend(info.sync.warnings.into_iter().map(|warning| {
+                        if several {
+                            format!("{repo}: {warning}")
+                        } else {
+                            warning
+                        }
+                    }));
+                dialog.created_tabs.push((repo, info.tab.tab_id));
+            }
+            Err(error) => {
+                dialog.fetch_failed |= error.code.as_deref() == Some("sync_fetch_failed");
+                let message = error.message.trim_end_matches('.').to_owned();
+                dialog.failures.push(if several {
+                    format!("{repo}: {message}")
+                } else {
+                    message
+                });
+            }
+        }
+        if !dialog.in_flight.is_empty() {
+            return;
+        }
+        dialog.creating = false;
+        let created_tabs = std::mem::take(&mut dialog.created_tabs);
+        let warnings = std::mem::take(&mut dialog.warnings);
+        if dialog.failures.is_empty() {
+            self.overlay = None;
+        } else {
+            let failures = dialog.failures.join("; ");
+            let repos = self
+                .snapshot
+                .as_deref()
+                .map(|snapshot| snapshot.repos.as_slice())
+                .unwrap_or_default();
+            let base = local_base_label(dialog, repos);
+            if dialog.fetch_failed {
+                dialog.sync = false;
+                dialog.offer_without_sync = true;
+                dialog.error = Some(format!(
+                    "{failures}. Sync is now off; ↵ creates from local {base}."
+                ));
+            } else {
+                dialog.error = Some(failures);
+            }
+        }
+        if !warnings.is_empty() {
+            self.push_endpoint_notice(
+                ClientEndpointNoticeKind::Warning,
+                "space.worktree.create",
+                if created_tabs.len() > 1 {
+                    "Worktrees created"
+                } else {
+                    "Worktree created"
+                },
+                warnings.join("\n"),
+            );
+        }
+        // Focus the first repo's new worktree, in repo order.
+        let order = |repo: &str| {
+            self.endpoint_repos()
+                .iter()
+                .position(|candidate| candidate.name == repo)
+                .unwrap_or(usize::MAX)
+        };
+        if let Some((_, tab_id)) = created_tabs.into_iter().min_by_key(|(repo, _)| order(repo)) {
+            self.push_endpoint_method(
+                crate::api::schema::Method::TabFocus(crate::api::schema::TabTarget { tab_id }),
+                outcome,
+            );
         }
     }
 
@@ -547,6 +747,8 @@ impl ClientShellState {
                                 dialog.offer_without_sync = false;
                                 dialog.error = None;
                             }
+                            // Names can't hold spaces, so space checks repos.
+                            KeyCode::Char(' ') => self.toggle_highlighted_space_worktree_repo(),
                             // Typing on the checkbox goes to the name.
                             _ if dialog.name.handle_key(key) == Some(true) => {
                                 dialog.field = SpaceWorktreeField::Name;
@@ -598,7 +800,7 @@ impl ClientShellState {
     ) {
         outcome.repaint = true;
         match hit {
-            ClientOverlayHit::SpaceWorktreeRepo(index) => self.select_space_worktree_repo(index),
+            ClientOverlayHit::SpaceWorktreeRepo(index) => self.toggle_space_worktree_repo(index),
             ClientOverlayHit::SpaceWorktreeName => {
                 if let Some(ClientShellOverlay::SpaceWorktree(dialog)) = self.overlay.as_mut() {
                     dialog.field = SpaceWorktreeField::Name;
@@ -697,53 +899,21 @@ impl ClientShellState {
                 }
             }
             (
-                PendingEndpointKind::SpaceWorktreeCreate,
+                PendingEndpointKind::SpaceWorktreeCreate { repo },
                 Ok(ResponseResult::SpaceWorktreeCreated(info)),
-            ) => {
-                if matches!(self.overlay, Some(ClientShellOverlay::SpaceWorktree(_))) {
-                    self.overlay = None;
-                }
-                if !info.sync.warnings.is_empty() {
-                    self.push_endpoint_notice(
-                        ClientEndpointNoticeKind::Warning,
-                        "space.worktree.create",
-                        "Worktree created",
-                        info.sync.warnings.join("\n"),
-                    );
-                }
-                self.push_endpoint_method(
-                    crate::api::schema::Method::TabFocus(crate::api::schema::TabTarget {
-                        tab_id: info.tab.tab_id,
+            ) => self.space_worktree_answered(repo, Ok(*info), outcome),
+            (PendingEndpointKind::SpaceWorktreeCreate { repo }, Err(error)) => {
+                self.space_worktree_answered(repo, Err(error), outcome)
+            }
+            (PendingEndpointKind::SpaceWorktreeCreate { repo }, Ok(_)) => self
+                .space_worktree_answered(
+                    repo,
+                    Err(ClientShellEndpointError {
+                        code: None,
+                        message: "endpoint returned an unexpected result".into(),
                     }),
                     outcome,
-                );
-            }
-            (PendingEndpointKind::SpaceWorktreeCreate, Err(error)) => {
-                let base = self.snapshot.as_deref().and_then(|snapshot| {
-                    let Some(ClientShellOverlay::SpaceWorktree(dialog)) = self.overlay.as_ref()
-                    else {
-                        return None;
-                    };
-                    snapshot
-                        .repos
-                        .get(selected_repo_index(dialog, &snapshot.repos))
-                        .map(|repo| repo.base_branch.clone())
-                });
-                if let Some(ClientShellOverlay::SpaceWorktree(dialog)) = self.overlay.as_mut() {
-                    dialog.creating = false;
-                    if error.code.as_deref() == Some("sync_fetch_failed") {
-                        dialog.sync = false;
-                        dialog.offer_without_sync = true;
-                        dialog.error = Some(format!(
-                            "{}. Sync is now off; ↵ creates the worktree from local {}.",
-                            error.message.trim_end_matches('.'),
-                            base.unwrap_or_else(|| "base".to_owned())
-                        ));
-                    } else {
-                        dialog.error = Some(error.message);
-                    }
-                }
-            }
+                ),
             (PendingEndpointKind::RepoSave, Ok(ResponseResult::RepoInfo { repo })) => {
                 let Some(ClientShellOverlay::RepoEdit(edit)) = self.overlay.as_mut() else {
                     return true;
@@ -789,7 +959,6 @@ impl ClientShellState {
             }
             (
                 PendingEndpointKind::SpaceCreate
-                | PendingEndpointKind::SpaceWorktreeCreate
                 | PendingEndpointKind::RepoSave
                 | PendingEndpointKind::RepoRemove,
                 Ok(_),

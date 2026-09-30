@@ -180,11 +180,6 @@ impl App {
             return self.handle_api_worktree_remove_finished(*result);
         }
 
-        if let AppEvent::WorktreeSetupFinished(result) = ev {
-            self.handle_worktree_setup_finished(*result);
-            return Vec::new();
-        }
-
         let mut worktree_restore_updates = Vec::new();
         if let AppEvent::PaneDied { pane_id, .. } = &ev {
             if self

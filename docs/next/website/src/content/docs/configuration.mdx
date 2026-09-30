@@ -95,13 +95,13 @@ new_cwd = "follow"
 
 ## Worktrees
 
-Spaces organize workspaces by what you are working on, such as a feature that spans several repos. Each machine keeps a list of repos in settings → repos: a name, the main checkout, the base branch, and the remote. `New worktree…` on a space header picks one of those repos and a name (the space name by default) and:
+Spaces organize workspaces by what you are working on, such as a feature that spans several repos. Each machine keeps a list of repos in settings → repos: a name, the main checkout, the base branch, and the remote. `New worktree…` on a space header, or its `+ worktree` row, takes a name (the space name by default; a random three-word name in `other`) and one or more checked repos. Space checks the highlighted repo, and clicking a repo checks it. For each checked repo, Herdr:
 
 1. fetches the remote and fast-forwards the base branch, when "sync first" is on (the default). The main checkout is only fast-forwarded when it is clean and on the base branch; otherwise the local branch is left alone and a warning is shown;
 2. creates the branch with the worktree name as-is, from `<remote>/<base>` (or the local base branch when sync is off), or checks out the branch if it already exists locally or on the remote;
 3. opens the checkout as a workspace in that space.
 
-If the fetch fails, for example when offline, the dialog offers to create the worktree from the local base branch instead.
+If the fetch fails, for example when offline, the dialog offers to create the worktree from the local base branch instead. When some repos fail, the dialog stays open with only those repos checked, so `↵` retries just them.
 
 Checkouts are placed according to a path template:
 
@@ -119,11 +119,11 @@ Each repo can also set what happens around its new worktrees, under **new worktr
 
 - **branch prefix** — prepended to the worktree name to form the branch, e.g. `ben/` makes `ben/knowledge`. The checkout folder keeps the plain name.
 - **copy files** — space-separated paths copied from the main checkout into each new worktree, such as `.env .env.local` or `config/local`. `*` and `?` match within one path component, so `.env*` works. Files the worktree already has are left alone.
-- **on create** — a shell command run in each new worktree after Git creates it, e.g. `pnpm install`. It runs in the background through your login shell; the worktree's sidebar row shows `setup…` while it runs and `setup ✗` if it fails, with a notice pointing at its log.
+- **on create** — a shell command typed into the new worktree's first pane after Git creates it, e.g. `pnpm install`, so its output is in front of you.
 - **on remove** — a shell command run in a worktree just before Herdr removes it, e.g. `docker compose down`. If it fails, the removal still happens and Herdr shows the error. When Git asks to force-remove a checkout with changes, the command runs once, on the forced removal.
-- **start** — a command typed into the new worktree's first pane, e.g. `claude`. With an `on create` command it waits until that command succeeds, and is skipped if it fails.
+- **start** — a command typed into the new worktree's first pane, e.g. `claude`. With an `on create` command it is typed on the same line and only runs if that command succeeds (`<on create> && <start>`, or `<on create>; if ($?) { <start> }` in PowerShell).
 
-Commands run with the worktree as their working directory and receive `HERDR_WORKTREE`, `HERDR_BRANCH`, `HERDR_BASE_BRANCH`, `HERDR_REPO`, `HERDR_REPO_ROOT` (also as `HERDR_MAIN_REPO`), and `HERDR_SPACE`. Their output goes to `worktree-hooks/<space>/<repo>/<name>-create.log` (or `-remove.log`) in Herdr's state directory. Settings are stored with the repo in `repos.toml`:
+Commands run with the worktree as their working directory and receive `HERDR_WORKTREE`, `HERDR_BRANCH`, `HERDR_BASE_BRANCH`, `HERDR_REPO`, `HERDR_REPO_ROOT` (also as `HERDR_MAIN_REPO`), and `HERDR_SPACE`; the first pane's shell keeps these variables. The on remove command's output goes to `worktree-hooks/<space>/<repo>/<name>-remove.log` in Herdr's state directory. Settings are stored with the repo in `repos.toml`:
 
 ```toml
 [[repo]]

@@ -2007,6 +2007,12 @@ fn uses_windows_powershell_pane_shell_for_target(
         && is_powershell_shell(&pane_shell(shell_config.default_shell))
 }
 
+/// True when new panes start PowerShell, on any platform. Commands typed
+/// into a pane follow the pane shell's syntax.
+pub(crate) fn pane_shell_is_powershell(configured_shell: &str) -> bool {
+    is_powershell_shell(&pane_shell(configured_shell))
+}
+
 fn is_powershell_shell(shell: &str) -> bool {
     // Split on both separators by hand: `Path::file_name` only treats `\` as
     // a separator on Windows hosts, and this predicate must evaluate Windows

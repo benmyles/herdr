@@ -475,6 +475,7 @@ fn render_repos(
         list,
         repos,
         settings.selected.min(repos.len() - 1),
+        None,
         palette,
     ));
 }

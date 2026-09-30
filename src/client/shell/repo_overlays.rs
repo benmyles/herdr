@@ -76,12 +76,14 @@ pub(super) fn repo_branch_summary(repo: &crate::protocol::ClientShellRepo) -> St
     }
 }
 
-/// One repo per row: name, root, and base/remote on the right.
+/// One repo per row: name, root, and base/remote on the right. With
+/// `checked`, each row starts with a checkbox for whether it is in `checked`.
 pub(super) fn render_repo_rows(
     b: &mut Buffer,
     area: Rect,
     repos: &[crate::protocol::ClientShellRepo],
     selected: usize,
+    checked: Option<&[String]>,
     p: &Palette,
 ) -> Vec<(Rect, usize)> {
     let visible = usize::from(area.height).clamp(1, MAX_VISIBLE_REPOS);
@@ -120,17 +122,34 @@ pub(super) fn render_repo_rows(
         b.set_style(rect, style);
         let marker = if is_selected { " ▸ " } else { "   " };
         put_text(b, rect.x, rect.y, rect.width, marker, style);
+        let mut name_x = rect.x + 3;
+        if let Some(checked) = checked {
+            let checkbox = if checked.contains(&repo.name) {
+                "[x] "
+            } else {
+                "[ ] "
+            };
+            put_text(
+                b,
+                name_x,
+                rect.y,
+                rect.width.saturating_sub(3),
+                checkbox,
+                style,
+            );
+            name_x += 4;
+        }
         put_text(
             b,
-            rect.x + 3,
+            name_x,
             rect.y,
-            name_width.min(rect.width.saturating_sub(3)),
+            name_width.min(rect.right().saturating_sub(name_x)),
             &repo.name,
             style,
         );
         let summary = repo_branch_summary(repo);
         let summary_width = display_width(&summary) + 1;
-        let root_x = rect.x + 3 + name_width + 2;
+        let root_x = name_x + name_width + 2;
         let root_width = rect
             .right()
             .saturating_sub(root_x)
@@ -217,7 +236,7 @@ pub(super) fn render_space_worktree_overlay(
         inner.x,
         inner.y + 2,
         inner.width,
-        " repo",
+        " repos  (space checks)",
         label_style(p),
     );
     let add_label = " + add repo ";
@@ -238,7 +257,7 @@ pub(super) fn render_space_worktree_overlay(
     hits.push((add, ClientOverlayHit::SpaceWorktreeAddRepo));
     let list = Rect::new(inner.x, inner.y + 3, inner.width, list_height);
     let selected = super::super::space_worktrees::selected_repo_index(dialog, repos);
-    for (rect, index) in render_repo_rows(b, list, repos, selected, p) {
+    for (rect, index) in render_repo_rows(b, list, repos, selected, Some(&dialog.checked), p) {
         hits.push((rect, ClientOverlayHit::SpaceWorktreeRepo(index)));
     }
 
@@ -260,17 +279,22 @@ pub(super) fn render_space_worktree_overlay(
     );
     hits.push((input, ClientOverlayHit::SpaceWorktreeName));
 
-    let repo = &repos[selected];
+    let repo = &repos[super::super::space_worktrees::preview_repo_index(dialog, repos)];
+    let checked = super::super::space_worktrees::checked_repos(dialog, repos);
     y += 2;
-    let sync_available = repo.remote.is_some();
+    let mut synced = checked
+        .iter()
+        .filter_map(|repo| Some((repo.base_branch.as_str(), repo.remote.as_deref()?)))
+        .collect::<Vec<_>>();
+    synced.dedup();
+    let sync_available = !synced.is_empty();
     let sync_on = dialog.sync && sync_available;
-    let sync_text = match repo.remote.as_deref() {
-        Some(remote) => format!(
-            " [{}] sync {} with {remote} first",
-            if sync_on { "x" } else { " " },
-            repo.base_branch
-        ),
-        None => " [ ] sync (this repo has no remote)".to_owned(),
+    let mark = if sync_on { "x" } else { " " };
+    let sync_text = match synced[..] {
+        [] if checked.len() > 1 => " [ ] sync (no checked repo has a remote)".to_owned(),
+        [] => " [ ] sync (this repo has no remote)".to_owned(),
+        [(base, remote)] => format!(" [{mark}] sync {base} with {remote} first"),
+        _ => format!(" [{mark}] sync each repo's base branch with its remote first"),
     };
     let sync_rect = Rect::new(inner.x, y, display_width(&sync_text) + 1, 1);
     let sync_focused = dialog.field == SpaceWorktreeField::Sync;
@@ -304,7 +328,7 @@ pub(super) fn render_space_worktree_overlay(
         &dialog.space_name,
         repo,
         name,
-        sync_on,
+        sync_on && repo.remote.is_some(),
     );
     let value_style = Style::default().fg(p.subtext0).bg(p.panel_bg);
     put_text(b, inner.x, y, 11, " branch", label_style(p));
@@ -321,29 +345,35 @@ pub(super) fn render_space_worktree_overlay(
         },
     );
     put_text(b, inner.x, y + 1, 11, " checkout", label_style(p));
+    let more = match checked.len() {
+        0 | 1 => String::new(),
+        count => format!("  +{} more", count - 1),
+    };
     let checkout_width = inner.width.saturating_sub(12);
+    let path_width = checkout_width.saturating_sub(display_width(&more));
     put_text(
         b,
         inner.x + 11,
         y + 1,
         checkout_width,
-        &tail_fit(&preview.checkout, checkout_width),
+        &format!("{}{more}", tail_fit(&preview.checkout, path_width)),
         value_style,
     );
 
     let status_y = y + 3;
     if dialog.creating {
-        let text = if sync_on {
-            " syncing and creating…"
-        } else {
-            " creating…"
+        let text = match (sync_on, dialog.in_flight.len()) {
+            (true, 0 | 1) => " syncing and creating…".to_owned(),
+            (false, 0 | 1) => " creating…".to_owned(),
+            (true, count) => format!(" syncing and creating {count} worktrees…"),
+            (false, count) => format!(" creating {count} worktrees…"),
         };
         put_text(
             b,
             inner.x,
             status_y,
             inner.width,
-            text,
+            &text,
             Style::default().fg(p.accent).bg(p.panel_bg),
         );
     } else if let Some(error) = dialog.error.as_deref() {
@@ -370,7 +400,12 @@ pub(super) fn render_space_worktree_overlay(
         }
     }
     let primary_label = if dialog.offer_without_sync {
-        format!(" ↵ create from local {} ", repo.base_branch)
+        format!(
+            " ↵ create from local {} ",
+            super::super::space_worktrees::local_base_label(dialog, repos)
+        )
+    } else if checked.len() > 1 {
+        format!(" ↵ create {} worktrees ", checked.len())
     } else {
         " ↵ create and open ".to_owned()
     };
