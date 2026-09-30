@@ -1,0 +1,94 @@
+docs/next/website/src/content/docs/integrations.mdx
+  s_d0f98f56b5eed8::t_0a977311dd0d2e 150-151,164
+  s_d0f98f56b5eed8::t_18e694c0f74bd9 165
+src/integration/tests.rs
+  s_d0f98f56b5eed8::t_ff452609e448cc 1397-1399,1428-1429,1466-1469,1481-1484
+  s_d0f98f56b5eed8::t_7c7e7a67ce349b 1018,1021,1023-1025,1395-1396,1412-1427,1430-1465,1470-1480,1485-1494
+  s_d0f98f56b5eed8::t_da5bb850fb07af 1495
+src/client/shell/context_menu.rs
+  s_d0f98f56b5eed8::t_c818970e04c979 14,25-34,178-181,189,524-546,551-557
+  s_d0f98f56b5eed8::t_37d38a12495ef7 558-559
+src/integration/claude_settings.rs
+  s_d0f98f56b5eed8::t_1b6f4c3dbd2fa3 11,97-218
+  s_d0f98f56b5eed8::t_0eea823478d036 219
+src/client/shell/tests/agents_worktrees_notifications.rs
+  s_d0f98f56b5eed8::t_db378ef4ce9a74 119,1426,1434,1534,1547,2263
+  s_d0f98f56b5eed8::t_457a6540458b48 2235
+src/app/api/panes.rs
+  s_d0f98f56b5eed8::t_528d3609d16149 1499-1510
+src/api/schema/spaces.rs
+  s_d0f98f56b5eed8::t_528d3609d16149 22-29,77-80
+src/client/shell/tests/endpoints.rs
+  s_d0f98f56b5eed8::t_db378ef4ce9a74 626,634,848,856
+src/integration/registry.rs
+  s_d0f98f56b5eed8::t_af6b68cd3d4f34 405-425,521-524
+  s_d0f98f56b5eed8::t_ef42c97350f59a 525-527
+src/client/shell/tests/workspace_navigation.rs
+  s_d0f98f56b5eed8::t_db378ef4ce9a74 28,36
+src/app/api.rs
+  s_d0f98f56b5eed8::t_528d3609d16149 1050-1052,1192-1194
+src/client/shell/state.rs
+  s_d0f98f56b5eed8::t_c818970e04c979 767-768,788-789
+src/app/mod.rs
+  s_d0f98f56b5eed8::t_e3b21b8b0643c1 7
+src/api/schema/response.rs
+  s_d0f98f56b5eed8::t_528d3609d16149 70-75
+src/api/mod.rs
+  s_d0f98f56b5eed8::t_528d3609d16149 35
+src/server/client_shell.rs
+  s_d0f98f56b5eed8::t_db378ef4ce9a74 308
+src/cli/agent_context.rs
+  s_d0f98f56b5eed8::t_f0d64d60a4e5ef 1-121
+src/app/agent_context.rs
+  s_d0f98f56b5eed8::t_26c4e566b27470 151-159
+  s_d0f98f56b5eed8::t_d8ad435319d50e 160,165-168,174-178
+  s_d0f98f56b5eed8::t_cef50da2ac56be 1-150,161-164,169-173,179-194
+src/protocol/wire.rs
+  s_d0f98f56b5eed8::t_db378ef4ce9a74 1034-1037
+src/cli.rs
+  s_d0f98f56b5eed8::t_f0d64d60a4e5ef 26,129
+docs/next/website/src/content/docs/configuration.mdx
+  s_d0f98f56b5eed8::t_0a977311dd0d2e 143-149
+  s_d0f98f56b5eed8::t_f886bd0ccfbf2f 150
+src/cli/spec.rs
+  s_d0f98f56b5eed8::t_f0d64d60a4e5ef 45,322-329
+  s_d0f98f56b5eed8::t_b7ed8e83a8886e 330-332
+docs/next/api/herdr-api.schema.json
+  s_d0f98f56b5eed8::t_39726cdfd93c59 4063-4078,5420-5435,6460-6476,10041-10059,11394-11398
+src/app/api/spaces.rs
+  s_d0f98f56b5eed8::t_f0d64d60a4e5ef 3-4
+  s_d0f98f56b5eed8::t_528d3609d16149 50,144-156
+  s_d0f98f56b5eed8::t_9e9fe27cdfc613 157-159
+src/app/spaces.rs
+  s_d0f98f56b5eed8::t_48c629226ccb9e 185-206
+src/space.rs
+  s_d0f98f56b5eed8::t_48c629226ccb9e 36-48,58,68
+src/api/schema.rs
+  s_d0f98f56b5eed8::t_528d3609d16149 102-103,232-235
+src/server/client_commands.rs
+  s_d0f98f56b5eed8::t_528d3609d16149 49
+  s_d0f98f56b5eed8::t_201b17abe85f09 335-337
+  s_d0f98f56b5eed8::t_2a90e9201f337b 334
+src/integration/command.rs
+  s_d0f98f56b5eed8::t_1b6f4c3dbd2fa3 10-28
+src/integration/targets.rs
+  s_d0f98f56b5eed8::t_af6b68cd3d4f34 8-10,16,20,153,208-214,598,646-647
+src/api/server.rs
+  s_d0f98f56b5eed8::t_528d3609d16149 533,598
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1b7363a0361cc73154ad19ca9249563878159f7c",
+  "prompts": {},
+  "sessions": {
+    "s_d0f98f56b5eed8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ecef884f-7023-4736-87d9-0920da9e531d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
