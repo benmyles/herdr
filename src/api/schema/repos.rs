@@ -20,6 +20,44 @@ pub struct RepoInfo {
     pub base_branch: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote: Option<String>,
+    /// Absent from servers without repo settings.
+    #[serde(default, skip_serializing_if = "RepoSettings::is_empty")]
+    pub settings: RepoSettings,
+}
+
+/// What Herdr does around each worktree it creates from a repo.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct RepoSettings {
+    /// Prepended to a worktree's name to form its branch, e.g. `ben/`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub branch_prefix: String,
+    /// Files copied from the main checkout into each new worktree, relative
+    /// to the root. `*` and `?` match within one path component, e.g. `.env*`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub copy_files: Vec<String>,
+    /// Shell command run in each new worktree after it is created.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub on_create: String,
+    /// Shell command run in a worktree before Herdr removes it.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub on_remove: String,
+    /// Typed into a new worktree's first pane once `on_create` succeeds,
+    /// e.g. `claude`.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub start_command: String,
+}
+
+impl RepoSettings {
+    pub fn is_empty(&self) -> bool {
+        self == &Self::default()
+    }
+}
+
+/// Replaces every setting of a repo.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct RepoSettingsSetParams {
+    pub repo: String,
+    pub settings: RepoSettings,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]

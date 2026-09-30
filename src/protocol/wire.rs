@@ -975,6 +975,48 @@ pub struct ClientShellRepo {
     pub base_branch: String,
     #[serde(default)]
     pub remote: Option<String>,
+    /// Empty from servers without repo settings.
+    #[serde(default)]
+    pub settings: ClientShellRepoSettings,
+}
+
+/// `RepoSettings` for the snapshot, whose binary codec needs every field.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClientShellRepoSettings {
+    #[serde(default)]
+    pub branch_prefix: String,
+    #[serde(default)]
+    pub copy_files: Vec<String>,
+    #[serde(default)]
+    pub on_create: String,
+    #[serde(default)]
+    pub on_remove: String,
+    #[serde(default)]
+    pub start_command: String,
+}
+
+impl From<crate::api::schema::RepoSettings> for ClientShellRepoSettings {
+    fn from(settings: crate::api::schema::RepoSettings) -> Self {
+        Self {
+            branch_prefix: settings.branch_prefix,
+            copy_files: settings.copy_files,
+            on_create: settings.on_create,
+            on_remove: settings.on_remove,
+            start_command: settings.start_command,
+        }
+    }
+}
+
+impl From<ClientShellRepoSettings> for crate::api::schema::RepoSettings {
+    fn from(settings: ClientShellRepoSettings) -> Self {
+        Self {
+            branch_prefix: settings.branch_prefix,
+            copy_files: settings.copy_files,
+            on_create: settings.on_create,
+            on_remove: settings.on_remove,
+            start_command: settings.start_command,
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1085,6 +1127,19 @@ pub struct ClientShellWorkspace {
     /// Space this workspace is filed under.
     #[serde(default)]
     pub space_id: Option<String>,
+    /// The repo's create command for this new worktree, while it runs or
+    /// after it failed.
+    #[serde(default)]
+    pub setup: Option<ClientShellWorktreeSetup>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClientShellWorktreeSetup {
+    pub running: bool,
+    /// The last line the command printed when it failed.
+    #[serde(default)]
+    pub failure: Option<String>,
+    pub log_path: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1138,7 +1193,7 @@ pub struct ClientShellAgent {
     pub focused: bool,
     /// Unix time in milliseconds of the agent's last state change, on the
     /// endpoint's clock. Absent from servers that do not track it.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub state_changed_at_ms: Option<u64>,
 }
 
@@ -2895,6 +2950,11 @@ mod tests {
                 focused: true,
                 agent_status: crate::api::schema::AgentStatus::Idle,
                 space_id: None,
+                setup: Some(ClientShellWorktreeSetup {
+                    running: false,
+                    failure: Some("npm ERR! missing script".into()),
+                    log_path: "/tmp/setup.log".into(),
+                }),
             }],
             tabs: vec![ClientShellTab {
                 tab_id: "w1:t1".into(),
@@ -2916,7 +2976,23 @@ mod tests {
                 focused: true,
                 right_click_passthrough: false,
             }],
-            agents: Vec::new(),
+            agents: vec![ClientShellAgent {
+                pane_id: "w1:p1".into(),
+                workspace_id: "w1".into(),
+                tab_id: "w1:t1".into(),
+                name: None,
+                display_agent: None,
+                agent: Some("claude".into()),
+                title: None,
+                terminal_title: None,
+                terminal_title_stripped: None,
+                agent_status: crate::api::schema::AgentStatus::Idle,
+                state_change_seq: 3,
+                state_labels: Vec::new(),
+                tokens: Vec::new(),
+                focused: false,
+                state_changed_at_ms: Some(1_700_000_000_000),
+            }],
             commands: vec![ClientShellCommand {
                 command_id: "cmd_0123456789abcdef0123456789abcdef".into(),
                 binding_label: "prefix+z".into(),
@@ -2925,7 +3001,16 @@ mod tests {
                 description: Some("deploy".into()),
             }],
             spaces: Vec::new(),
-            repos: Vec::new(),
+            repos: vec![ClientShellRepo {
+                name: "alpha".into(),
+                root: "~/code/alpha".into(),
+                base_branch: "main".into(),
+                remote: None,
+                settings: ClientShellRepoSettings {
+                    on_create: "npm ci".into(),
+                    ..ClientShellRepoSettings::default()
+                },
+            }],
             worktree_path_template: String::new(),
         }));
         let encoded = bincode::serde::encode_to_vec(&msg, bincode::config::standard()).unwrap();

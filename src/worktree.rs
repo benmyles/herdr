@@ -1,8 +1,10 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
+mod hooks;
 mod space_create;
 
+pub(crate) use hooks::{hook_env, hook_log_path, WorktreeHook};
 pub(crate) use space_create::{
     create_space_worktree, BranchSource, SpaceWorktreePlan, SpaceWorktreeReport,
 };
@@ -269,7 +271,6 @@ pub(crate) fn worktree_dirty_remove_message(path: &Path) -> String {
     )
 }
 
-#[cfg(any(windows, test))]
 pub(crate) fn checkout_has_dirty_files(
     path: &Path,
     trust_repository: bool,

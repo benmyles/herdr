@@ -732,6 +732,7 @@ mod tests {
             root: repo.display().to_string(),
             base_branch: "main".into(),
             remote: None,
+            settings: Default::default(),
         }];
         // The test shell exits at once; skip draining so its exit can't
         // close the workspace between the two opens.
@@ -794,6 +795,7 @@ mod tests {
             root: repo.display().to_string(),
             base_branch: "HEAD".into(),
             remote: None,
+            settings: Default::default(),
         }];
 
         // Opened workspaces emit PTY events too, so drain until the reply.
@@ -868,6 +870,90 @@ mod tests {
             runtime.shutdown();
         }
         let remove = crate::worktree::build_worktree_remove_command(&repo, &expected, true, false);
+        crate::worktree::run_worktree_command(&remove).unwrap();
+        let _ = std::fs::remove_dir_all(worktree_root);
+        let _ = std::fs::remove_dir_all(repo);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn space_worktree_create_applies_repo_settings() {
+        let repo = create_committed_repo("space-worktree-settings-repo");
+        std::fs::write(repo.join(".env"), "TOKEN=1\n").unwrap();
+        let worktree_root = unique_temp_path("space-worktree-settings-root");
+        let mut app = test_app();
+        app.worktree_hook_logs = worktree_root.join("logs");
+        app.state.worktree_directory = worktree_root.clone();
+        app.state.worktree_path_template = crate::worktree::resolve_space_path_template(
+            crate::worktree::DEFAULT_SPACE_PATH_TEMPLATE,
+            &worktree_root,
+        );
+        app.state.normalize_spaces();
+        let space_id = app.state.create_space("knowledge").unwrap();
+        app.state.repos = vec![crate::repos::Repo {
+            name: "pyshiftup".into(),
+            root: repo.display().to_string(),
+            base_branch: crate::workspace::git_branch(&repo).expect("repo branch"),
+            remote: None,
+            settings: crate::api::schema::RepoSettings {
+                branch_prefix: "ben/".into(),
+                copy_files: vec![".env*".into()],
+                on_create: "echo \"$HERDR_SPACE $HERDR_BRANCH $HERDR_REPO\" > created.txt".into(),
+                ..Default::default()
+            },
+        }];
+
+        let (respond_to, response_rx) = response_channel();
+        let request = Request {
+            id: "req".into(),
+            method: crate::api::schema::Method::SpaceWorktreeCreate(
+                crate::api::schema::SpaceWorktreeCreateParams {
+                    space_id,
+                    repo: "pyshiftup".into(),
+                    name: "kb".into(),
+                    sync: false,
+                    focus: false,
+                },
+            ),
+        };
+        assert!(app.handle_deferred_worktree_api_request(request, respond_to, false));
+        let checkout = worktree_root.join("knowledge/pyshiftup/kb");
+        let created = checkout.join("created.txt");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        let mut response = None;
+        while response.is_none() || !created.exists() {
+            assert!(std::time::Instant::now() < deadline, "setup never finished");
+            if let Ok(reply) = response_rx.try_recv() {
+                response = Some(reply);
+            }
+            match app.event_rx.try_recv() {
+                Ok(event) => app.handle_internal_event(event),
+                Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+            }
+        }
+        let response = response.unwrap();
+        let success: SuccessResponse =
+            serde_json::from_str(&response).unwrap_or_else(|err| panic!("{response}: {err}"));
+        let ResponseResult::SpaceWorktreeCreated(info) = success.result else {
+            panic!("expected space_worktree_created, got {response}");
+        };
+        assert_eq!(info.worktree.branch.as_deref(), Some("ben/kb"));
+        assert_eq!(
+            std::fs::read_to_string(checkout.join(".env")).unwrap(),
+            "TOKEN=1\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(&created).unwrap().trim(),
+            "knowledge ben/kb pyshiftup"
+        );
+        assert!(worktree_root
+            .join("logs/knowledge/pyshiftup/kb-create.log")
+            .exists());
+
+        for (_, runtime) in app.terminal_runtimes.drain() {
+            runtime.shutdown();
+        }
+        let remove = crate::worktree::build_worktree_remove_command(&repo, &checkout, true, false);
         crate::worktree::run_worktree_command(&remove).unwrap();
         let _ = std::fs::remove_dir_all(worktree_root);
         let _ = std::fs::remove_dir_all(repo);
@@ -1208,6 +1294,7 @@ mod tests {
                 label: None,
                 focus: false,
                 space_id: None,
+                setup: None,
                 respond_to,
             }),
             result: Ok(()),
@@ -2653,6 +2740,7 @@ mod tests {
                 respond_to,
             }),
             result: Err("simulated remove failure".into()),
+            hook_warning: None,
         });
         assert!(pane_updates.is_empty());
 
@@ -2740,6 +2828,7 @@ mod tests {
                 respond_to,
             }),
             result: Ok(()),
+            hook_warning: None,
         });
 
         let response = response_rx
@@ -2810,6 +2899,7 @@ mod tests {
                 respond_to,
             }),
             result: Ok(()),
+            hook_warning: None,
         });
 
         let response = response_rx

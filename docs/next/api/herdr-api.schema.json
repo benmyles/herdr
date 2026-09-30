@@ -3888,6 +3888,51 @@
           ],
           "type": "object"
         },
+        "RepoSettings": {
+          "description": "What Herdr does around each worktree it creates from a repo.",
+          "properties": {
+            "branch_prefix": {
+              "description": "Prepended to a worktree's name to form its branch, e.g. `ben/`.",
+              "type": "string"
+            },
+            "copy_files": {
+              "description": "Files copied from the main checkout into each new worktree, relative\nto the root. `*` and `?` match within one path component, e.g. `.env*`.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "on_create": {
+              "description": "Shell command run in each new worktree after it is created.",
+              "type": "string"
+            },
+            "on_remove": {
+              "description": "Shell command run in a worktree before Herdr removes it.",
+              "type": "string"
+            },
+            "start_command": {
+              "description": "Typed into a new worktree's first pane once `on_create` succeeds,\ne.g. `claude`.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "RepoSettingsSetParams": {
+          "description": "Replaces every setting of a repo.",
+          "properties": {
+            "repo": {
+              "type": "string"
+            },
+            "settings": {
+              "$ref": "#/schemas/request/$defs/RepoSettings"
+            }
+          },
+          "required": [
+            "repo",
+            "settings"
+          ],
+          "type": "object"
+        },
         "RepoTarget": {
           "properties": {
             "repo": {
@@ -5385,6 +5430,22 @@
             },
             "params": {
               "$ref": "#/schemas/request/$defs/RepoTarget"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "repo.settings.set",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/RepoSettingsSetParams"
             }
           },
           "required": [
@@ -9684,6 +9745,10 @@
             "root_path": {
               "description": "`root` resolved to an absolute path on the endpoint.",
               "type": "string"
+            },
+            "settings": {
+              "$ref": "#/schemas/success_response/$defs/RepoSettings",
+              "description": "Absent from servers without repo settings."
             }
           },
           "required": [
@@ -9692,6 +9757,35 @@
             "root_path",
             "base_branch"
           ],
+          "type": "object"
+        },
+        "RepoSettings": {
+          "description": "What Herdr does around each worktree it creates from a repo.",
+          "properties": {
+            "branch_prefix": {
+              "description": "Prepended to a worktree's name to form its branch, e.g. `ben/`.",
+              "type": "string"
+            },
+            "copy_files": {
+              "description": "Files copied from the main checkout into each new worktree, relative\nto the root. `*` and `?` match within one path component, e.g. `.env*`.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "on_create": {
+              "description": "Shell command run in each new worktree after it is created.",
+              "type": "string"
+            },
+            "on_remove": {
+              "description": "Shell command run in a worktree before Herdr removes it.",
+              "type": "string"
+            },
+            "start_command": {
+              "description": "Typed into a new worktree's first pane once `on_create` succeeds,\ne.g. `claude`.",
+              "type": "string"
+            }
+          },
           "type": "object"
         },
         "ResponseResult": {
@@ -9981,6 +10075,13 @@
                 "type": {
                   "const": "worktree_removed",
                   "type": "string"
+                },
+                "warnings": {
+                  "description": "Problems that did not stop the removal, such as a failed repo\nremove command.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
                 },
                 "workspace_id": {
                   "type": "string"

@@ -18,6 +18,8 @@ pub(crate) struct SpaceWorktreePlan {
     pub base_branch: String,
     pub remote: Option<String>,
     pub sync: bool,
+    /// Copied from the main checkout into a newly created worktree.
+    pub copy_files: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -180,6 +182,11 @@ pub(crate) fn create_space_worktree(
     git.run(&args)
         .map_err(|err| SpaceWorktreeFailure::new("worktree_create_failed", err))?;
     report.branch_source = source;
+    report.warnings.extend(super::hooks::copy_repo_files(
+        &plan.repo_root,
+        &plan.checkout_path,
+        &plan.copy_files,
+    ));
     Ok(report)
 }
 
@@ -488,6 +495,7 @@ mod tests {
             base_branch: "main".into(),
             remote: Some("origin".into()),
             sync,
+            copy_files: Vec::new(),
         }
     }
 

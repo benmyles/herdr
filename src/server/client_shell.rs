@@ -96,6 +96,13 @@ pub(super) fn snapshot_with_completions(
                     }),
                 agent_status: workspace.agent_status,
                 space_id: Some(state.space_id.clone()),
+                setup: app.worktree_setup(&state.id).map(|setup| {
+                    protocol::ClientShellWorktreeSetup {
+                        running: setup.running,
+                        failure: setup.failure.clone(),
+                        log_path: setup.log_path.display().to_string(),
+                    }
+                }),
             }
         })
         .collect();
@@ -310,6 +317,7 @@ pub(super) fn snapshot_with_completions(
                 root: repo.root.clone(),
                 base_branch: repo.base_branch.clone(),
                 remote: repo.remote.clone(),
+                settings: repo.settings.clone().into(),
             })
             .collect(),
         worktree_path_template: app.state.worktree_path_template.clone(),

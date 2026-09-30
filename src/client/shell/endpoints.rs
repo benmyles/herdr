@@ -614,10 +614,20 @@ impl ClientShellState {
                 .iter()
                 .any(|agent| &agent.pane_id == pane_id)
         });
+        let setup_failures = newly_failed_setups(previous, &snapshot);
         let endpoint = &mut self.endpoints[index];
         endpoint.agent_recency = recency;
         endpoint.snapshot_generation = generation;
         endpoint.snapshot = Some(snapshot);
+        for failure in setup_failures {
+            self.push_endpoint_notice(
+                ClientEndpointNoticeKind::Warning,
+                "worktree.setup",
+                "Worktree setup failed",
+                failure,
+            );
+        }
+        let endpoint = &mut self.endpoints[index];
         let pending_matches =
             endpoint
                 .pending_agent_view_projection
@@ -743,4 +753,34 @@ pub(super) fn local_endpoint() -> ClientShellEndpoint {
         agent_view_projection_supported: false,
         methods: None,
     }
+}
+
+/// One notice body per workspace whose repo create command failed since
+/// `previous`.
+fn newly_failed_setups(
+    previous: Option<&ClientShellSnapshot>,
+    snapshot: &ClientShellSnapshot,
+) -> Vec<String> {
+    let failed_before = |workspace_id: &str| {
+        previous.is_some_and(|previous| {
+            previous.boot_id == snapshot.boot_id
+                && previous.workspaces.iter().any(|workspace| {
+                    workspace.workspace_id == workspace_id
+                        && workspace
+                            .setup
+                            .as_ref()
+                            .is_some_and(|setup| setup.failure.is_some())
+                })
+        })
+    };
+    snapshot
+        .workspaces
+        .iter()
+        .filter_map(|workspace| {
+            let setup = workspace.setup.as_ref()?;
+            let failure = setup.failure.as_deref()?;
+            (!failed_before(&workspace.workspace_id))
+                .then(|| format!("{}: {failure}\nlog: {}", workspace.label, setup.log_path))
+        })
+        .collect()
 }

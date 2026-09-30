@@ -180,6 +180,11 @@ impl App {
             return self.handle_api_worktree_remove_finished(*result);
         }
 
+        if let AppEvent::WorktreeSetupFinished(result) = ev {
+            self.handle_worktree_setup_finished(*result);
+            return Vec::new();
+        }
+
         let mut worktree_restore_updates = Vec::new();
         if let AppEvent::PaneDied { pane_id, .. } = &ev {
             if self
@@ -1051,6 +1056,9 @@ impl App {
             Method::RepoList(params) => return self.handle_repo_list(request.id, params),
             Method::RepoAdd(params) => return self.handle_repo_add(request.id, params),
             Method::RepoUpdate(params) => return self.handle_repo_update(request.id, params),
+            Method::RepoSettingsSet(params) => {
+                return self.handle_repo_settings_set(request.id, params)
+            }
             Method::RepoRemove(target) => return self.handle_repo_remove(request.id, target),
             Method::WorkspaceList(_) => return self.handle_workspace_list(request.id),
             Method::WorkspaceGet(target) => return self.handle_workspace_get(request.id, target),

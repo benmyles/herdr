@@ -104,6 +104,8 @@ pub(super) fn render_mobile_notification_banner(
     )
 }
 
+const MAX_NOTICE_BODY_LINES: usize = 4;
+
 pub(super) fn render_notification_card(
     buffer: &mut Buffer,
     area: Rect,
@@ -117,13 +119,21 @@ pub(super) fn render_notification_card(
     if area.is_empty() {
         return Rect::default();
     }
-    let content_width = unicode_width::UnicodeWidthStr::width(title)
-        .max(unicode_width::UnicodeWidthStr::width(body))
+    // Bodies may hold a few lines, e.g. a failure and where its log is.
+    let body_lines = body
+        .lines()
+        .filter(|line| !line.trim().is_empty())
+        .take(MAX_NOTICE_BODY_LINES)
+        .collect::<Vec<_>>();
+    let content_width = body_lines
+        .iter()
+        .map(|line| unicode_width::UnicodeWidthStr::width(*line))
+        .fold(unicode_width::UnicodeWidthStr::width(title), usize::max)
         .saturating_add(6);
     let width = u16::try_from(content_width)
         .unwrap_or(u16::MAX)
         .min(area.width);
-    let height: u16 = if body.is_empty() { 3 } else { 4 }.min(area.height);
+    let height = (3 + body_lines.len() as u16).min(area.height);
     let x = match position {
         crate::config::ToastHerdrPosition::TopLeft
         | crate::config::ToastHerdrPosition::BottomLeft => area.x,
@@ -159,15 +169,19 @@ pub(super) fn render_notification_card(
         ),
     ]))
     .render(Rect::new(inner.x, inner.y, inner.width, 1), buffer);
-    if !body.is_empty() && inner.height > 1 {
+    for (index, line) in body_lines.iter().enumerate() {
+        let y = inner.y + 1 + index as u16;
+        if y >= inner.bottom() {
+            break;
+        }
         Paragraph::new(Line::from(Span::styled(
-            body,
+            *line,
             Style::default().fg(palette.overlay0),
         )))
         .render(
             Rect::new(
                 inner.x.saturating_add(2),
-                inner.y + 1,
+                y,
                 inner.width.saturating_sub(2),
                 1,
             ),

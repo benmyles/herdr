@@ -24,7 +24,25 @@ pub struct ApiWorktreeAddRequest {
     pub focus: bool,
     /// Set for `space.worktree.create`: the space that receives the checkout.
     pub space_id: Option<String>,
+    /// Repo commands for a newly created space worktree.
+    pub setup: Option<WorktreeSetupPlan>,
     pub respond_to: std::sync::mpsc::Sender<String>,
+}
+
+/// What runs once a space worktree exists: the repo's create command, then
+/// the start command typed into its first pane.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct WorktreeSetupPlan {
+    pub on_create: Option<crate::worktree::WorktreeHook>,
+    pub start_command: Option<String>,
+}
+
+/// A repo create command finished in the background.
+#[derive(Debug)]
+pub struct WorktreeSetupResult {
+    pub workspace_id: String,
+    pub operation: u64,
+    pub result: Result<(), String>,
 }
 
 #[derive(Debug)]
@@ -55,6 +73,8 @@ pub struct WorktreeRemoveResult {
     pub forced: bool,
     pub api_request: Option<ApiWorktreeRemoveRequest>,
     pub result: Result<(), String>,
+    /// Set when the repo's remove command failed; removal went ahead.
+    pub hook_warning: Option<String>,
 }
 
 #[derive(Debug)]
@@ -203,4 +223,6 @@ pub enum AppEvent {
     WorktreeRemoveFinished(Box<WorktreeRemoveResult>),
     /// Background worktree discovery completed for an API list/open request.
     WorktreeReadFinished(Box<WorktreeReadResult>),
+    /// A repo create command for a new space worktree finished.
+    WorktreeSetupFinished(Box<WorktreeSetupResult>),
 }

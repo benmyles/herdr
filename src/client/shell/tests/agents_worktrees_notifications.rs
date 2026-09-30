@@ -109,6 +109,7 @@ fn space_members_render_labels_branches_and_collapsed_status() {
         focused: false,
         agent_status: AgentStatus::Idle,
         space_id: Some("space_repo".into()),
+        setup: None,
     });
     snapshot.spaces = vec![crate::protocol::ClientShellSpace {
         space_id: "space_repo".into(),
@@ -1716,6 +1717,7 @@ fn shell_repo(name: &str) -> crate::protocol::ClientShellRepo {
         root: format!("~/code/{name}"),
         base_branch: "main".into(),
         remote: Some("origin".into()),
+        settings: Default::default(),
     }
 }
 
@@ -1903,6 +1905,7 @@ fn space_worktree_dialog_without_repos_leads_to_adding_one() {
                 root_path: "/home/me/code/new-repo".into(),
                 base_branch: "main".into(),
                 remote: None,
+                settings: Default::default(),
             },
         }),
     );
@@ -1986,6 +1989,94 @@ fn settings_repos_tab_lists_adds_edits_and_removes() {
         ),
         "escape returns to settings"
     );
+}
+
+#[test]
+fn repo_editor_saves_worktree_settings_after_the_repo() {
+    let mut state = repo_state();
+    let mut snapshot = repo_snapshot();
+    snapshot.repos[0].settings.on_create = "npm ci".into();
+    state.set_snapshot(Box::new(snapshot));
+    state.open_repo_editor(Some("pyshiftup"), ClientRepoEditReturn::Settings);
+    let text = screen_text(&mut state);
+    assert!(text.contains("new worktrees"), "{text}");
+    assert!(text.contains("npm ci"), "{text}");
+    let Some(ClientShellOverlay::RepoEdit(edit)) = &state.overlay else {
+        panic!("editor open");
+    };
+    assert_eq!(edit.field_count(), 9);
+
+    // Only settings changed: one repo.settings.set.
+    for _ in 0..8 {
+        state.handle_input_bytes(b"\t");
+    }
+    state.handle_input_bytes(b"claude");
+    let save = state.handle_input_bytes(b"\r");
+    let [ClientShellAction::Endpoint { request, .. }] = &save.actions[..] else {
+        panic!("expected repo.settings.set, got {:?}", save.actions);
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::RepoSettingsSet(params)
+            if params.repo == "pyshiftup"
+                && params.settings.on_create == "npm ci"
+                && params.settings.start_command == "claude"
+    ));
+
+    // Adding a repo with settings: repo.add first, then its settings.
+    state.overlay = None;
+    state.open_repo_editor(None, ClientRepoEditReturn::Settings);
+    state.handle_input_bytes(b"~/code/new-repo");
+    for _ in 0..4 {
+        state.handle_input_bytes(b"\t");
+    }
+    state.handle_input_bytes(b"ben/");
+    let save = state.handle_input_bytes(b"\r");
+    let [ClientShellAction::Endpoint { request, .. }] = &save.actions[..] else {
+        panic!("expected repo.add, got {:?}", save.actions);
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::RepoAdd(_)
+    ));
+    let (_, actions) = state.handle_endpoint_result(
+        "boot-1",
+        &request.id,
+        Ok(crate::api::schema::ResponseResult::RepoInfo {
+            repo: crate::api::schema::RepoInfo {
+                name: "new-repo".into(),
+                root: "~/code/new-repo".into(),
+                root_path: "/home/me/code/new-repo".into(),
+                base_branch: "main".into(),
+                remote: None,
+                settings: Default::default(),
+            },
+        }),
+    );
+    let [ClientShellAction::Endpoint { request, .. }] = &actions[..] else {
+        panic!("expected repo.settings.set, got {actions:?}");
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::RepoSettingsSet(params)
+            if params.repo == "new-repo" && params.settings.branch_prefix == "ben/"
+    ));
+    assert!(matches!(
+        &state.overlay,
+        Some(ClientShellOverlay::RepoEdit(edit))
+            if edit.saving && edit.original_name.as_deref() == Some("new-repo")
+    ));
+
+    // Servers without repo settings keep the four repo fields.
+    state.overlay = None;
+    state.set_endpoint_methods(Some(vec!["repo.update".into(), "repo.add".into()]));
+    state.open_repo_editor(Some("pyshiftup"), ClientRepoEditReturn::Settings);
+    let Some(ClientShellOverlay::RepoEdit(edit)) = &state.overlay else {
+        panic!("editor open");
+    };
+    assert_eq!(edit.field_count(), 4);
+    let text = screen_text(&mut state);
+    assert!(!text.contains("branch prefix"), "{text}");
 }
 
 #[test]

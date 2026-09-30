@@ -525,6 +525,7 @@ pub(crate) fn api_method_name(method: &Method) -> &'static str {
         Method::RepoList(_) => "repo.list",
         Method::RepoAdd(_) => "repo.add",
         Method::RepoUpdate(_) => "repo.update",
+        Method::RepoSettingsSet(_) => "repo.settings.set",
         Method::RepoRemove(_) => "repo.remove",
         Method::WorkspaceCreate(_) => "workspace.create",
         Method::WorkspaceList(_) => "workspace.list",

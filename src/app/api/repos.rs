@@ -1,5 +1,6 @@
 use crate::api::schema::{
-    EmptyParams, RepoAddParams, RepoInfo, RepoTarget, RepoUpdateParams, ResponseResult,
+    EmptyParams, RepoAddParams, RepoInfo, RepoSettingsSetParams, RepoTarget, RepoUpdateParams,
+    ResponseResult,
 };
 use crate::app::App;
 use crate::repos::{Repo, RepoError};
@@ -73,6 +74,7 @@ impl App {
             root: crate::repos::display_root(&inspected.root),
             base_branch,
             remote: inspected.remote,
+            settings: Default::default(),
         };
         let info = repo.info();
         let mut repos = self.state.repos.clone();
@@ -111,6 +113,26 @@ impl App {
         repos[index] = repo;
         self.commit_repos(repos)?;
         Ok(info)
+    }
+
+    pub(super) fn handle_repo_settings_set(
+        &mut self,
+        id: String,
+        params: RepoSettingsSetParams,
+    ) -> String {
+        let result = crate::repos::position(&self.state.repos, &params.repo)
+            .ok_or_else(|| RepoError::not_found(&params.repo))
+            .and_then(|index| {
+                let mut repos = self.state.repos.clone();
+                repos[index].settings = crate::repos::validated_settings(params.settings)?;
+                let info = repos[index].info();
+                self.commit_repos(repos)?;
+                Ok(info)
+            });
+        match result {
+            Ok(repo) => encode_success(id, ResponseResult::RepoInfo { repo }),
+            Err(error) => repo_error(id, error),
+        }
     }
 
     pub(super) fn handle_repo_remove(&mut self, id: String, target: RepoTarget) -> String {

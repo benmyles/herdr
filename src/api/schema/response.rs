@@ -98,6 +98,10 @@ pub enum ResponseResult {
         workspace_id: String,
         path: String,
         forced: bool,
+        /// Problems that did not stop the removal, such as a failed repo
+        /// remove command.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        warnings: Vec<String>,
     },
     TabInfo {
         tab: TabInfo,

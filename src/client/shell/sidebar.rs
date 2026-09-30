@@ -847,7 +847,7 @@ pub(in crate::client::shell) fn workspace_rows(
     // space header above already names the feature.
     let _ = indented;
     let token_values = workspace.tokens.iter().cloned().collect::<HashMap<_, _>>();
-    crate::ui::sidebar_space_rows(
+    let mut rows = crate::ui::sidebar_space_rows(
         config,
         crate::ui::SpaceTokenContext {
             workspace: &workspace.label,
@@ -857,7 +857,34 @@ pub(in crate::client::shell) fn workspace_rows(
             tokens: &token_values,
             suppress_git_details: false,
         },
-    )
+    );
+    // The repo's create command reports first on the worktree's last row,
+    // ahead of the branch, which is what yields to a narrow sidebar.
+    if let (Some(setup), Some(row)) = (workspace.setup.as_ref(), rows.last_mut()) {
+        let (text, color) = if setup.running {
+            (
+                "setup…",
+                crate::config::SidebarTokenColor::rgb(0xc7, 0x8a, 0x1f),
+            )
+        } else {
+            (
+                "setup ✗",
+                crate::config::SidebarTokenColor::rgb(0xc0, 0x4a, 0x4a),
+            )
+        };
+        row.insert(
+            0,
+            crate::ui::ResolvedToken {
+                kind: crate::ui::ResolvedTokenKind::Custom(text.to_owned()),
+                style: crate::config::SidebarTokenStyle {
+                    fg: Some(color),
+                    bold: None,
+                    dim: Some(false),
+                },
+            },
+        );
+    }
+    rows
 }
 
 /// Secondary sidebar text keeps its space hue but recedes toward the sidebar

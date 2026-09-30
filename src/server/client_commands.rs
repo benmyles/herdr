@@ -41,6 +41,7 @@ const CLIENT_SHELL_METHODS: &[&str] = &[
     "repo.add",
     "repo.list",
     "repo.remove",
+    "repo.settings.set",
     "repo.update",
     "server.reload_config",
     "space.assign",
@@ -368,6 +369,10 @@ mod tests {
         assert_eq!(
             actual.remove("repo.remove").as_deref(),
             Some("50b8428105fb42df870426ec2cd2a8d7506a739d5cedb54892caebaae5684657")
+        );
+        assert_eq!(
+            actual.remove("repo.settings.set").as_deref(),
+            Some("9790c85ee6922d580c3b39b2ce9e275c4855605bc9f528c4946a96e13c9ddef7")
         );
         assert_eq!(
             actual.remove("repo.update").as_deref(),

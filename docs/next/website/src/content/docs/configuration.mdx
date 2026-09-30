@@ -115,6 +115,29 @@ Every level is always present, so a space with a single repo still gets `~/workt
 
 Repos are stored in `repos.toml` next to `config.toml` on each machine, so remote machines keep their own list.
 
+Each repo can also set what happens around its new worktrees, under **new worktrees** in the repo editor:
+
+- **branch prefix** — prepended to the worktree name to form the branch, e.g. `ben/` makes `ben/knowledge`. The checkout folder keeps the plain name.
+- **copy files** — space-separated paths copied from the main checkout into each new worktree, such as `.env .env.local` or `config/local`. `*` and `?` match within one path component, so `.env*` works. Files the worktree already has are left alone.
+- **on create** — a shell command run in each new worktree after Git creates it, e.g. `pnpm install`. It runs in the background through your login shell; the worktree's sidebar row shows `setup…` while it runs and `setup ✗` if it fails, with a notice pointing at its log.
+- **on remove** — a shell command run in a worktree just before Herdr removes it, e.g. `docker compose down`. If it fails, the removal still happens and Herdr shows the error. When Git asks to force-remove a checkout with changes, the command runs once, on the forced removal.
+- **start** — a command typed into the new worktree's first pane, e.g. `claude`. With an `on create` command it waits until that command succeeds, and is skipped if it fails.
+
+Commands run with the worktree as their working directory and receive `HERDR_WORKTREE`, `HERDR_BRANCH`, `HERDR_BASE_BRANCH`, `HERDR_REPO`, `HERDR_REPO_ROOT` (also as `HERDR_MAIN_REPO`), and `HERDR_SPACE`. Their output goes to `worktree-hooks/<space>/<repo>/<name>-create.log` (or `-remove.log`) in Herdr's state directory. Settings are stored with the repo in `repos.toml`:
+
+```toml
+[[repo]]
+name = "pyshiftup"
+root = "~/src/pyshiftup"
+base = "main"
+remote = "origin"
+branch_prefix = "ben/"
+copy_files = [".env*"]
+on_create = "uv sync && just db-setup"
+on_remove = "just db-teardown"
+start_command = "claude"
+```
+
 To delete a worktree checkout, use `Delete worktree checkout...` on its workspace. Herdr runs `git worktree remove`, first asking Git to remove safely. If Git refuses because the checkout has modified or untracked files, Herdr asks again before running the forced remove. Branches are not deleted.
 
 ## Remote attach

@@ -27,6 +27,7 @@ mod terminal_targets;
 mod terminal_titles;
 mod theme_sync;
 mod window_title;
+mod worktree_setup;
 mod worktrees;
 
 use std::collections::HashMap;
@@ -121,6 +122,10 @@ pub struct App {
     pub(crate) git_identity_refresh_requested: bool,
     pub(crate) git_status_cache: HashMap<std::path::PathBuf, crate::workspace::GitStatusCacheEntry>,
     pub(crate) pending_api_worktree_creates: HashMap<std::path::PathBuf, u64>,
+    /// Repo create commands for new space worktrees, by workspace id.
+    pub(crate) worktree_setups: HashMap<String, worktree_setup::WorktreeSetup>,
+    /// Where repo worktree commands log their output.
+    pub(crate) worktree_hook_logs: std::path::PathBuf,
     /// Where repos are persisted; `None` keeps them in memory (tests).
     pub(crate) repos_path: Option<std::path::PathBuf>,
     pub(crate) worktree_read_slots: std::sync::Arc<tokio::sync::Semaphore>,
@@ -599,6 +604,8 @@ impl App {
             git_identity_refresh_requested: false,
             git_status_cache: HashMap::new(),
             pending_api_worktree_creates: HashMap::new(),
+            worktree_setups: HashMap::new(),
+            worktree_hook_logs: crate::config::state_dir().join("worktree-hooks"),
             repos_path,
             worktree_read_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(8)),
             pending_api_worktree_removes: HashMap::new(),

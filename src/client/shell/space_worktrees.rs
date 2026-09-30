@@ -41,8 +41,14 @@ pub(super) fn space_worktree_preview(
         (true, Some(remote)) => format!("{remote}/{}", repo.base_branch),
         _ => repo.base_branch.clone(),
     };
+    let branch = format!("{}{name}", repo.settings.branch_prefix);
+    let setup = if repo.settings.on_create.is_empty() {
+        ""
+    } else {
+        ", then its setup command runs"
+    };
     SpaceWorktreePreview {
-        branch: format!("{name}  (new from {start} unless it already exists)"),
+        branch: format!("{branch}  (new from {start} unless it already exists{setup})"),
         checkout: if template.is_empty() {
             "chosen by the server".to_owned()
         } else {
@@ -273,15 +279,30 @@ impl ClientShellState {
                 .find(|repo| repo.name == name)
                 .cloned()
         });
-        let fields = match repo.as_ref() {
-            Some(repo) => [
-                TextEditor::new(&repo.root, false),
-                TextEditor::new(&repo.name, false),
-                TextEditor::new(&repo.base_branch, false),
-                TextEditor::new(repo.remote.as_deref().unwrap_or_default(), false),
-            ],
-            None => Default::default(),
+        let fields: Box<[TextEditor; 9]> = match repo.as_ref() {
+            Some(repo) => {
+                let settings = &repo.settings;
+                Box::new([
+                    TextEditor::new(&repo.root, false),
+                    TextEditor::new(&repo.name, false),
+                    TextEditor::new(&repo.base_branch, false),
+                    TextEditor::new(repo.remote.as_deref().unwrap_or_default(), false),
+                    TextEditor::new(&settings.branch_prefix, false),
+                    TextEditor::new(&settings.copy_files.join(" "), false),
+                    TextEditor::new(&settings.on_create, false),
+                    TextEditor::new(&settings.on_remove, false),
+                    TextEditor::new(&settings.start_command, false),
+                ])
+            }
+            None => Box::default(),
         };
+        let settings_supported =
+            self.supports_endpoint_method(&crate::api::schema::Method::RepoSettingsSet(
+                crate::api::schema::RepoSettingsSetParams {
+                    repo: String::new(),
+                    settings: Default::default(),
+                },
+            ));
         self.overlay = Some(ClientShellOverlay::RepoEdit(ClientRepoEditOverlay {
             original_name: repo.map(|repo| repo.name),
             fields,
@@ -289,6 +310,8 @@ impl ClientShellState {
             error: None,
             saving: false,
             return_to,
+            settings_supported,
+            pending_settings: None,
         }));
     }
 
@@ -335,7 +358,8 @@ impl ClientShellState {
         if edit.saving {
             return;
         }
-        let [root, name, base, remote] = &edit.fields;
+        let [root, name, base, remote, ..] = &*edit.fields;
+        let settings = edit.settings_supported.then(|| edit.settings());
         let method = match edit.original_name.as_deref() {
             None => {
                 let Some(root) = optional(root) else {
@@ -343,6 +367,7 @@ impl ClientShellState {
                     edit.field = 0;
                     return;
                 };
+                edit.pending_settings = settings.filter(|settings| !settings.is_empty());
                 Method::RepoAdd(RepoAddParams {
                     root,
                     name: optional(name),
@@ -358,13 +383,38 @@ impl ClientShellState {
                 let changed = |value: &str, current: &str| {
                     (value.trim() != current).then(|| value.trim().to_owned())
                 };
-                Method::RepoUpdate(RepoUpdateParams {
+                let update = RepoUpdateParams {
                     repo: original.to_owned(),
                     name: changed(name, &repo.name).filter(|name| !name.is_empty()),
                     root: changed(root, &repo.root).filter(|root| !root.is_empty()),
                     base_branch: changed(base, &repo.base_branch).filter(|base| !base.is_empty()),
                     remote: changed(remote, repo.remote.as_deref().unwrap_or_default()),
-                })
+                };
+                let current_settings =
+                    crate::api::schema::RepoSettings::from(repo.settings.clone());
+                let settings = settings.filter(|settings| settings != &current_settings);
+                let core_changed = update
+                    != RepoUpdateParams {
+                        repo: original.to_owned(),
+                        ..RepoUpdateParams::default()
+                    };
+                match (core_changed, settings) {
+                    (true, settings) => {
+                        edit.pending_settings = settings;
+                        Method::RepoUpdate(update)
+                    }
+                    (false, Some(settings)) => {
+                        Method::RepoSettingsSet(crate::api::schema::RepoSettingsSetParams {
+                            repo: original.to_owned(),
+                            settings,
+                        })
+                    }
+                    (false, None) => {
+                        let saved = Some(original.to_owned());
+                        self.close_repo_editor(saved, outcome);
+                        return;
+                    }
+                }
             }
         };
         edit.saving = true;
@@ -484,7 +534,7 @@ impl ClientShellState {
                         let Some(ClientShellOverlay::RepoEdit(edit)) = self.overlay.as_mut() else {
                             return true;
                         };
-                        let count = edit.fields.len();
+                        let count = edit.field_count();
                         match code {
                             KeyCode::Tab | KeyCode::Down => edit.field = (edit.field + 1) % count,
                             KeyCode::BackTab | KeyCode::Up => {
@@ -546,7 +596,7 @@ impl ClientShellState {
             }
             ClientOverlayHit::RepoEditField(index) => {
                 if let Some(ClientShellOverlay::RepoEdit(edit)) = self.overlay.as_mut() {
-                    edit.field = index.min(edit.fields.len() - 1);
+                    edit.field = index.min(edit.field_count() - 1);
                 }
             }
             ClientOverlayHit::SettingsAddRepo => {
@@ -658,19 +708,40 @@ impl ClientShellState {
                 }
             }
             (PendingEndpointKind::RepoSave, Ok(ResponseResult::RepoInfo { repo })) => {
-                if matches!(
-                    self.overlay,
-                    Some(ClientShellOverlay::RepoEdit(ClientRepoEditOverlay {
-                        saving: true,
-                        ..
-                    }))
-                ) {
-                    self.close_repo_editor(Some(repo.name), outcome);
+                let Some(ClientShellOverlay::RepoEdit(edit)) = self.overlay.as_mut() else {
+                    return true;
+                };
+                if !edit.saving {
+                    return true;
+                }
+                // The repo exists now: a retry after a settings error updates it.
+                edit.original_name = Some(repo.name.clone());
+                match edit.pending_settings.take() {
+                    Some(settings) => {
+                        let method = crate::api::schema::Method::RepoSettingsSet(
+                            crate::api::schema::RepoSettingsSetParams {
+                                repo: repo.name,
+                                settings,
+                            },
+                        );
+                        if !self.push_endpoint_method_with_kind(
+                            method,
+                            PendingEndpointKind::RepoSave,
+                            outcome,
+                        ) {
+                            if let Some(ClientShellOverlay::RepoEdit(edit)) = self.overlay.as_mut()
+                            {
+                                edit.saving = false;
+                            }
+                        }
+                    }
+                    None => self.close_repo_editor(Some(repo.name), outcome),
                 }
             }
             (PendingEndpointKind::RepoSave, Err(error)) => {
                 if let Some(ClientShellOverlay::RepoEdit(edit)) = self.overlay.as_mut() {
                     edit.saving = false;
+                    edit.pending_settings = None;
                     edit.error = Some(error.message);
                 }
             }
@@ -920,6 +991,7 @@ mod tests {
             root: "~/code/pyshiftup".into(),
             base_branch: "main".into(),
             remote: remote.map(str::to_owned),
+            settings: Default::default(),
         }
     }
 

@@ -499,12 +499,23 @@ impl ClientShellState {
                 );
                 true
             }
-            (PendingEndpointKind::WorktreeOpen, Ok(ResponseResult::WorktreeOpened { .. }))
-            | (
+            (PendingEndpointKind::WorktreeOpen, Ok(ResponseResult::WorktreeOpened { .. })) => {
+                self.overlay = None;
+                true
+            }
+            (
                 PendingEndpointKind::WorktreeRemove { .. },
-                Ok(ResponseResult::WorktreeRemoved { .. }),
+                Ok(ResponseResult::WorktreeRemoved { warnings, .. }),
             ) => {
                 self.overlay = None;
+                if !warnings.is_empty() {
+                    self.push_endpoint_notice(
+                        ClientEndpointNoticeKind::Warning,
+                        "worktree.remove",
+                        "Worktree removed",
+                        warnings.join("\n"),
+                    );
+                }
                 true
             }
             (PendingEndpointKind::WorktreeCreate, Err(error)) => {

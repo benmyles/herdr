@@ -40,7 +40,7 @@ pub(crate) use self::scrollbar::{
 pub(crate) use self::sidebar::{
     agent_panel_entries_from, expanded_sidebar_sections, resolved_token_spans,
     sidebar_section_divider_rect, sidebar_space_rows, AgentPanelEntry, ResolvedToken,
-    SpaceTokenContext,
+    ResolvedTokenKind, SpaceTokenContext,
 };
 #[cfg(test)]
 pub(crate) use self::space_colors::space_color;

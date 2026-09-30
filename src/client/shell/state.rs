@@ -568,19 +568,57 @@ pub(super) enum ClientRepoEditReturn {
     SpaceWorktree { space_id: String },
 }
 
-pub(super) const REPO_EDIT_FIELDS: [&str; 4] = ["root", "name", "base branch", "remote"];
+pub(super) const REPO_EDIT_FIELDS: [&str; 9] = [
+    "root",
+    "name",
+    "base branch",
+    "remote",
+    "branch prefix",
+    "copy files",
+    "on create",
+    "on remove",
+    "start",
+];
+/// Fields before the worktree settings; older servers show only these.
+pub(super) const REPO_EDIT_BASIC_FIELDS: usize = 4;
 
 /// Adds or edits one of the endpoint's repos.
 #[derive(Debug)]
 pub(super) struct ClientRepoEditOverlay {
     /// Repo being edited; `None` adds a new one.
     pub(super) original_name: Option<String>,
-    /// root, name, base branch, remote; see `REPO_EDIT_FIELDS`.
-    pub(super) fields: [TextEditor; 4],
+    /// See `REPO_EDIT_FIELDS`. Boxed to keep overlays small.
+    pub(super) fields: Box<[TextEditor; 9]>,
     pub(super) field: usize,
     pub(super) error: Option<String>,
     pub(super) saving: bool,
     pub(super) return_to: ClientRepoEditReturn,
+    /// The endpoint can store worktree settings (`repo.settings.set`).
+    pub(super) settings_supported: bool,
+    /// Settings to store once the repo itself is saved.
+    pub(super) pending_settings: Option<crate::api::schema::RepoSettings>,
+}
+
+impl ClientRepoEditOverlay {
+    pub(super) fn field_count(&self) -> usize {
+        if self.settings_supported {
+            REPO_EDIT_FIELDS.len()
+        } else {
+            REPO_EDIT_BASIC_FIELDS
+        }
+    }
+
+    /// The worktree settings as typed.
+    pub(super) fn settings(&self) -> crate::api::schema::RepoSettings {
+        let text = |index: usize| self.fields[index].trim().to_owned();
+        crate::api::schema::RepoSettings {
+            branch_prefix: text(4),
+            copy_files: text(5).split_whitespace().map(str::to_owned).collect(),
+            on_create: text(6),
+            on_remove: text(7),
+            start_command: text(8),
+        }
+    }
 }
 
 /// Clickable parts of the space worktree, repo, and settings repo overlays.

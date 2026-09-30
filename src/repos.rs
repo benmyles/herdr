@@ -23,6 +23,8 @@ pub struct Repo {
     pub base_branch: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub remote: Option<String>,
+    #[serde(flatten)]
+    pub settings: crate::api::schema::RepoSettings,
 }
 
 impl Repo {
@@ -37,7 +39,13 @@ impl Repo {
             root_path: self.root_path().display().to_string(),
             base_branch: self.base_branch.clone(),
             remote: self.remote.clone(),
+            settings: self.settings.clone(),
         }
+    }
+
+    /// The branch for a worktree named `name`.
+    pub(crate) fn branch_for(&self, name: &str) -> String {
+        format!("{}{name}", self.settings.branch_prefix)
     }
 }
 
@@ -177,6 +185,68 @@ pub(crate) fn validated_branch(name: &str, what: &str) -> Result<String, RepoErr
     Ok(name.to_owned())
 }
 
+const MAX_COMMAND_CHARS: usize = 4096;
+const MAX_COPY_FILES: usize = 32;
+
+/// Trims every setting and rejects values Herdr could not use safely.
+pub(crate) fn validated_settings(
+    settings: crate::api::schema::RepoSettings,
+) -> Result<crate::api::schema::RepoSettings, RepoError> {
+    let branch_prefix = settings.branch_prefix.trim().to_owned();
+    if !branch_prefix.is_empty() {
+        // A prefix must still make a valid branch once a name follows it.
+        validated_branch(&format!("{branch_prefix}x"), "branch prefix").map_err(|_| {
+            RepoError::new(
+                "invalid_branch_prefix",
+                format!("'{branch_prefix}' is not a valid branch prefix"),
+            )
+        })?;
+    }
+    let copy_files = settings
+        .copy_files
+        .iter()
+        .flat_map(|entry| entry.split_whitespace())
+        .map(str::to_owned)
+        .collect::<Vec<_>>();
+    if copy_files.len() > MAX_COPY_FILES {
+        return Err(RepoError::new(
+            "invalid_copy_files",
+            format!("copy at most {MAX_COPY_FILES} file patterns"),
+        ));
+    }
+    for pattern in &copy_files {
+        let path = Path::new(pattern);
+        let escapes = pattern.starts_with('~')
+            || path.is_absolute()
+            || path
+                .components()
+                .any(|component| !matches!(component, std::path::Component::Normal(_)));
+        if escapes {
+            return Err(RepoError::new(
+                "invalid_copy_files",
+                format!("copy files must be paths inside the repo, not {pattern}"),
+            ));
+        }
+    }
+    let command = |value: &str, what: &str| {
+        let value = value.trim();
+        if value.chars().count() > MAX_COMMAND_CHARS || value.contains('\0') {
+            return Err(RepoError::new(
+                "invalid_repo_command",
+                format!("the {what} command is too long or contains a NUL byte"),
+            ));
+        }
+        Ok(value.to_owned())
+    };
+    Ok(crate::api::schema::RepoSettings {
+        branch_prefix,
+        copy_files,
+        on_create: command(&settings.on_create, "create")?,
+        on_remove: command(&settings.on_remove, "remove")?,
+        start_command: command(&settings.start_command, "start")?,
+    })
+}
+
 /// What a path looks like as a repo root, with defaults for the fields the
 /// user left blank.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -305,7 +375,69 @@ mod tests {
             root: format!("~/code/{name}"),
             base_branch: "main".into(),
             remote: Some("origin".into()),
+            settings: Default::default(),
         }
+    }
+
+    #[test]
+    fn settings_round_trip_beside_the_repo_fields() {
+        let dir = std::env::temp_dir().join(format!(
+            "herdr-repo-settings-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        let path = dir.join(REPOS_FILE_NAME);
+        let mut configured = repo("pyshiftup");
+        configured.settings = crate::api::schema::RepoSettings {
+            branch_prefix: "ben/".into(),
+            copy_files: vec![".env*".into()],
+            on_create: "just setup".into(),
+            on_remove: "just teardown".into(),
+            start_command: "claude".into(),
+        };
+        let repos = vec![configured.clone(), repo("plain")];
+        save(&path, &repos).expect("save repos");
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("on_create = \"just setup\""), "{text}");
+        assert!(!text.contains("start_command = \"\""), "{text}");
+        assert_eq!(load(&path), repos);
+        assert_eq!(configured.branch_for("kb"), "ben/kb");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn settings_validation_trims_and_rejects_escaping_paths() {
+        use crate::api::schema::RepoSettings;
+        let settings = validated_settings(RepoSettings {
+            branch_prefix: " ben/ ".into(),
+            copy_files: vec![".env .env.local".into(), "config/dev.toml".into()],
+            on_create: "  npm ci  ".into(),
+            ..RepoSettings::default()
+        })
+        .expect("valid settings");
+        assert_eq!(settings.branch_prefix, "ben/");
+        assert_eq!(
+            settings.copy_files,
+            [".env", ".env.local", "config/dev.toml"]
+        );
+        assert_eq!(settings.on_create, "npm ci");
+        for bad in ["../secrets", "/etc/passwd", "~/.ssh/id_rsa", "a/../../b"] {
+            let err = validated_settings(RepoSettings {
+                copy_files: vec![bad.into()],
+                ..RepoSettings::default()
+            })
+            .expect_err(bad);
+            assert_eq!(err.code, "invalid_copy_files");
+        }
+        let err = validated_settings(RepoSettings {
+            branch_prefix: "bad prefix".into(),
+            ..RepoSettings::default()
+        })
+        .expect_err("space in prefix");
+        assert_eq!(err.code, "invalid_branch_prefix");
     }
 
     #[test]

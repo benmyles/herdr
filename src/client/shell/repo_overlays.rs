@@ -400,7 +400,8 @@ pub(super) fn render_repo_edit_overlay(
     edit: &ClientRepoEditOverlay,
     p: &Palette,
 ) -> Option<OverlayRender> {
-    let popup = popup(b.area, 76, 14)?;
+    let settings = edit.settings_supported;
+    let popup = popup(b.area, 76, if settings { 22 } else { 14 })?;
     let inner = panel(b, popup, p.accent, p.panel_bg)?;
     let title = match edit.original_name.as_deref() {
         Some(name) => format!("edit repo {name}"),
@@ -408,21 +409,62 @@ pub(super) fn render_repo_edit_overlay(
     };
     put_text(b, inner.x, inner.y, inner.width, &title, title_style(p));
     let adding = edit.original_name.is_none();
-    let placeholders = if adding {
-        [
-            "path to the main checkout, e.g. ~/code/project",
-            "auto: the folder name",
-            "auto: the remote's default branch",
-            "auto: origin",
-        ]
-    } else {
-        ["", "", "", "none"]
-    };
-    let label_width = 14u16;
+    let placeholders = [
+        if adding {
+            "path to the main checkout, e.g. ~/code/project"
+        } else {
+            ""
+        },
+        if adding { "auto: the folder name" } else { "" },
+        if adding {
+            "auto: the remote's default branch"
+        } else {
+            ""
+        },
+        if adding { "auto: origin" } else { "none" },
+        "none, e.g. ben/",
+        "none, e.g. .env .env.local",
+        "shell command run in each new worktree",
+        "shell command run before a worktree is removed",
+        "typed into the new pane when ready, e.g. claude",
+    ];
+    let label_width = 15u16;
     let mut hits = Vec::new();
     let mut cursor = None;
-    for (index, label) in REPO_EDIT_FIELDS.iter().enumerate() {
-        let y = inner.y + 2 + index as u16;
+    // The worktree settings sit under their own heading, below the repo.
+    let row_of = |index: usize| {
+        inner.y
+            + 2
+            + index as u16
+            + if index >= REPO_EDIT_BASIC_FIELDS {
+                2
+            } else {
+                0
+            }
+    };
+    if settings {
+        let heading_y = row_of(REPO_EDIT_BASIC_FIELDS) - 1;
+        put_text(
+            b,
+            inner.x,
+            heading_y,
+            inner.width,
+            " new worktrees",
+            Style::default()
+                .fg(p.text)
+                .bg(p.panel_bg)
+                .add_modifier(Modifier::BOLD),
+        );
+        put_right_text(
+            b,
+            Rect::new(inner.x, heading_y, inner.width, 1),
+            heading_y,
+            "commands get $HERDR_WORKTREE, $HERDR_BRANCH… ",
+            label_style(p),
+        );
+    }
+    for (index, label) in REPO_EDIT_FIELDS.iter().enumerate().take(edit.field_count()) {
+        let y = row_of(index);
         put_text(
             b,
             inner.x,
@@ -465,14 +507,15 @@ pub(super) fn render_repo_edit_overlay(
         hits.push((field, ClientOverlayHit::RepoEditField(index)));
     }
     let hint = if adding {
-        " blank fields are detected from the repo"
+        " blank repo fields are detected from the repo"
     } else {
         " changes apply to new worktrees"
     };
+    let hint_y = row_of(edit.field_count() - 1) + 2;
     put_text(
         b,
         inner.x,
-        inner.y + 7,
+        hint_y,
         inner.width,
         hint,
         Style::default().fg(p.overlay1).bg(p.panel_bg),
@@ -481,7 +524,7 @@ pub(super) fn render_repo_edit_overlay(
         put_text(
             b,
             inner.x,
-            inner.y + 9,
+            hint_y + 2,
             inner.width,
             " saving…",
             Style::default().fg(p.accent).bg(p.panel_bg),
@@ -495,7 +538,7 @@ pub(super) fn render_repo_edit_overlay(
             put_text(
                 b,
                 inner.x + 1,
-                inner.y + 9 + offset as u16,
+                hint_y + 2 + offset as u16,
                 inner.width.saturating_sub(1),
                 line,
                 Style::default().fg(p.red).bg(p.panel_bg),

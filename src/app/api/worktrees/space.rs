@@ -120,13 +120,33 @@ impl App {
         self.pending_api_worktree_creates
             .insert(checkout_key.clone(), operation_id);
 
+        let branch = repo.branch_for(&name);
+        let space_name = self.state.spaces[space_idx].name.clone();
+        let settings = &repo.settings;
+        let setup = crate::events::WorktreeSetupPlan {
+            on_create: (!settings.on_create.is_empty()).then(|| crate::worktree::WorktreeHook {
+                command: settings.on_create.clone(),
+                cwd: checkout_path.clone(),
+                env: crate::worktree::hook_env(&repo, &checkout_path, &branch, &space_name),
+                log_path: crate::worktree::hook_log_path(
+                    &self.worktree_hook_logs,
+                    &space_name,
+                    &repo.name,
+                    &name,
+                    "create",
+                ),
+            }),
+            start_command: (!settings.start_command.is_empty())
+                .then(|| settings.start_command.clone()),
+        };
         let plan = crate::worktree::SpaceWorktreePlan {
             repo_root: git_space.repo_root.clone(),
             checkout_path: checkout_path.clone(),
-            branch: name,
+            branch,
             base_branch: repo.base_branch.clone(),
             remote: repo.remote.clone(),
             sync: params.sync,
+            copy_files: repo.settings.copy_files.clone(),
         };
         let api_request = ApiWorktreeAddRequest {
             id,
@@ -141,6 +161,7 @@ impl App {
             label: Some(repo.name),
             focus: params.focus,
             space_id: Some(params.space_id),
+            setup: Some(setup),
             respond_to,
         };
         let event_tx = self.event_tx.clone();
@@ -285,6 +306,9 @@ impl App {
         };
         if report.branch_source != BranchSource::ExistingCheckout {
             self.emit_worktree_created_event(ws_idx, worktree.clone());
+            if let Some(setup) = api.setup {
+                self.start_worktree_setup(ws_idx, setup);
+            }
         }
         let tab_idx = self.state.workspaces[ws_idx].active_tab;
         let (Some(tab), Some(root_pane)) = (
@@ -317,7 +341,10 @@ impl App {
 
 impl App {
     /// The configured repo a checkout belongs to, matched by Git common dir.
-    fn configured_repo_for_key(&self, key: &str) -> Option<&crate::repos::Repo> {
+    pub(in crate::app::api) fn configured_repo_for_key(
+        &self,
+        key: &str,
+    ) -> Option<&crate::repos::Repo> {
         self.state.repos.iter().find(|repo| {
             crate::workspace::git_space_metadata(&repo.root_path())
                 .is_some_and(|space| space.key == key)

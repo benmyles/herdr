@@ -109,6 +109,8 @@ pub enum Method {
     RepoUpdate(RepoUpdateParams),
     #[serde(rename = "repo.remove")]
     RepoRemove(RepoTarget),
+    #[serde(rename = "repo.settings.set")]
+    RepoSettingsSet(RepoSettingsSetParams),
     #[serde(rename = "workspace.create")]
     WorkspaceCreate(WorkspaceCreateParams),
     #[serde(rename = "workspace.list")]

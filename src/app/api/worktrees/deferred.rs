@@ -44,7 +44,7 @@ impl App {
         let _ = respond_to.send(response);
     }
 
-    pub(super) fn next_api_worktree_operation_id(&mut self) -> u64 {
+    pub(crate) fn next_api_worktree_operation_id(&mut self) -> u64 {
         let id = self.next_api_worktree_operation_id;
         self.next_api_worktree_operation_id = self.next_api_worktree_operation_id.saturating_add(1);
         id
@@ -193,6 +193,7 @@ impl App {
             label: params.label,
             focus: params.focus,
             space_id: None,
+            setup: None,
             respond_to,
         };
         let path = checkout_path;
@@ -348,12 +349,29 @@ impl App {
             shutdown_panes,
             respond_to,
         };
+        let remove_hook = self.repo_remove_hook(ws_idx, &space);
         let repo_root = space.repo_root;
         let path = space.checkout_path;
         let force = params.force;
         let trust_repository = params.trust_repository;
         let event_tx = self.event_tx.clone();
         std::thread::spawn(move || {
+            // Git refuses a dirty checkout without force; the command runs on
+            // the forced retry instead of twice.
+            let hook_warning = remove_hook
+                .filter(|_| {
+                    force
+                        || !crate::worktree::checkout_has_dirty_files(&path, trust_repository)
+                            .unwrap_or(false)
+                })
+                .and_then(|hook| {
+                    hook.run().err().map(|message| {
+                        format!(
+                            "the repo's remove command failed: {message}\nlog: {}",
+                            hook.log_path.display()
+                        )
+                    })
+                });
             let result = crate::worktree::run_worktree_remove_command_with_recovery(
                 &command,
                 &repo_root,
@@ -370,9 +388,51 @@ impl App {
                     forced: force,
                     api_request: Some(api_request),
                     result,
+                    hook_warning,
                 },
             )));
         });
+    }
+
+    /// The configured repo's remove command for the worktree open in `ws_idx`.
+    fn repo_remove_hook(
+        &self,
+        ws_idx: usize,
+        space: &crate::workspace::WorktreeSpaceMembership,
+    ) -> Option<crate::worktree::WorktreeHook> {
+        let repo = self.configured_repo_for_key(&space.key)?;
+        let command = repo.settings.on_remove.trim();
+        if command.is_empty() {
+            return None;
+        }
+        let workspace = self.state.workspaces.get(ws_idx)?;
+        let space_name = self
+            .state
+            .space(&workspace.space_id)
+            .map(|space| space.name.clone())
+            .unwrap_or_default();
+        let name = space
+            .checkout_path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        Some(crate::worktree::WorktreeHook {
+            command: command.to_owned(),
+            cwd: space.checkout_path.clone(),
+            env: crate::worktree::hook_env(
+                repo,
+                &space.checkout_path,
+                workspace.branch().as_deref().unwrap_or_default(),
+                &space_name,
+            ),
+            log_path: crate::worktree::hook_log_path(
+                &self.worktree_hook_logs,
+                &space_name,
+                &repo.name,
+                &name,
+                "remove",
+            ),
+        })
     }
 
     pub(crate) fn handle_api_worktree_add_finished(
@@ -609,6 +669,7 @@ impl App {
                 workspace_id,
                 path: result.path.display().to_string(),
                 forced: result.forced,
+                warnings: result.hook_warning.into_iter().collect(),
             },
         );
         Self::send_api_response(api.respond_to, response);
