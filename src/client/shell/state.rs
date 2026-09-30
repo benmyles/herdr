@@ -25,6 +25,7 @@ pub(crate) struct ClientShellConfig {
     pub(super) agents: crate::config::AgentsSidebarConfig,
     pub(super) agent_panel_sort: crate::config::AgentPanelSortConfig,
     pub(super) status_indicators: crate::config::StatusIndicatorStyle,
+    pub(super) agent_marks: super::agent_marks::AgentMarks,
     pub(super) sound_enabled: bool,
     pub(super) toast_delivery: crate::config::ToastDelivery,
     pub(super) toast_delay_seconds: u64,
@@ -1097,6 +1098,12 @@ pub(crate) struct ClientShellState {
     pub(super) last_tab_bar_width: Option<u16>,
     pub(super) last_composed_size: Option<(u16, u16)>,
     pub(super) last_composed_at: Option<std::time::Instant>,
+    /// Start of the agent mark animation.
+    pub(super) agent_clock_epoch: std::time::Instant,
+    /// Repaint key of the last composed agent marks.
+    pub(super) agent_repaint_key: Option<(u64, u64)>,
+    /// Whether the last composed frame drew an animated agent mark.
+    pub(super) agent_marks_animating: bool,
     pub(super) selection_repaint_deadline: Option<std::time::Instant>,
     pub(super) hits: ShellHitMap,
     pub(super) endpoints: Vec<ClientShellEndpoint>,
@@ -1264,6 +1271,9 @@ impl ClientShellState {
             last_tab_bar_width: None,
             last_composed_size: None,
             last_composed_at: None,
+            agent_clock_epoch: std::time::Instant::now(),
+            agent_repaint_key: None,
+            agent_marks_animating: false,
             selection_repaint_deadline: None,
             hits: ShellHitMap::default(),
             endpoints: vec![local_endpoint()],
@@ -2078,6 +2088,22 @@ impl ClientShellState {
             return true;
         }
         false
+    }
+
+    pub(super) fn agent_clock(&self, now: std::time::Instant) -> super::agent_marks::AgentClock {
+        super::agent_marks::AgentClock {
+            frame: super::agent_marks::AnimationFrame::at(self.agent_clock_epoch, now),
+            now: std::time::SystemTime::now(),
+        }
+    }
+
+    /// Repaints when an animated agent mark steps or an idle age turns over.
+    pub(crate) fn tick_agent_marks(&mut self, now: std::time::Instant) -> bool {
+        let Some(previous) = self.agent_repaint_key else {
+            return false;
+        };
+        let animating = self.agent_marks_animating && self.config.agent_marks.animate;
+        previous != self.agent_clock(now).repaint_key(animating)
     }
 
     pub(crate) fn timer_delay(&self, now: std::time::Instant) -> std::time::Duration {

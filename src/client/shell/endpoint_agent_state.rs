@@ -9,6 +9,10 @@ pub(super) struct EndpointAgentPresentation {
     acknowledged: HashMap<String, u64>,
     completed: HashMap<String, u64>,
     working: HashSet<String>,
+    /// Agents that asked a question and have not worked since. Detection can
+    /// drop back to idle while the question is still open, so the question
+    /// holds until the agent works again or someone looks at the pane.
+    blocked: HashSet<String>,
     pending_completions: Option<(
         Option<u64>,
         crate::protocol::endpoint::EndpointAgentCompletions,
@@ -50,6 +54,7 @@ impl EndpointAgentPresentation {
             self.acknowledged.clear();
             self.completed.clear();
             self.working.clear();
+            self.blocked.clear();
             self.acknowledged.extend(
                 snapshot
                     .agents
@@ -67,6 +72,8 @@ impl EndpointAgentPresentation {
         self.completed
             .retain(|pane_id, _| pane_ids.contains(pane_id.as_str()));
         self.working
+            .retain(|pane_id| pane_ids.contains(pane_id.as_str()));
+        self.blocked
             .retain(|pane_id| pane_ids.contains(pane_id.as_str()));
         let completions = self
             .pending_completions
@@ -110,16 +117,39 @@ impl EndpointAgentPresentation {
                     self.completed.remove(&agent.pane_id);
                 }
             }
-            agent.agent_status = self.projected_status(agent);
+            agent.agent_status = if self.hold_blocked(agent) {
+                AgentStatus::Blocked
+            } else {
+                self.projected_status(agent)
+            };
         }
         project_aggregate_status(snapshot);
     }
 
+    fn hold_blocked(&mut self, agent: &ClientShellAgent) -> bool {
+        match agent.agent_status {
+            AgentStatus::Blocked => {
+                self.blocked.insert(agent.pane_id.clone());
+                false
+            }
+            AgentStatus::Idle | AgentStatus::Done if !agent.focused => {
+                self.blocked.contains(&agent.pane_id)
+            }
+            _ => {
+                self.blocked.remove(&agent.pane_id);
+                false
+            }
+        }
+    }
+
+    /// Marks agents on `surface` as seen. The live agent grid shows every
+    /// agent at once, so there only the selected tile counts as seen.
     pub(super) fn acknowledge_surface(
         &mut self,
         snapshot: &mut ClientShellSnapshot,
         surface: &PaneSurfaceFrame,
         outer_focused: Option<bool>,
+        focused_only: bool,
     ) -> bool {
         if outer_focused == Some(false)
             || self.boot_id.as_deref() != Some(surface.boot_id.as_str())
@@ -130,7 +160,11 @@ impl EndpointAgentPresentation {
         }
 
         let mut changed = false;
-        for pane in &surface.panes {
+        for pane in surface
+            .panes
+            .iter()
+            .filter(|pane| !focused_only || pane.focused)
+        {
             let Some(agent) = snapshot
                 .agents
                 .iter()
@@ -223,6 +257,7 @@ mod tests {
             state_labels: Vec::new(),
             tokens: Vec::new(),
             focused: true,
+            state_changed_at_ms: None,
         }
     }
 
@@ -423,6 +458,49 @@ mod tests {
     }
 
     #[test]
+    fn a_question_holds_until_the_agent_works_or_is_focused() {
+        let mut presentation = EndpointAgentPresentation::default();
+        let mut blocked = snapshot(AgentStatus::Blocked, 4, 1);
+        blocked.agents[0].focused = false;
+        presentation.project_snapshot(&mut blocked);
+        let mut idle = snapshot(AgentStatus::Idle, 5, 2);
+        idle.agents[0].focused = false;
+        presentation.project_snapshot(&mut idle);
+        assert_eq!(idle.agents[0].agent_status, AgentStatus::Blocked);
+
+        let mut working = snapshot(AgentStatus::Working, 6, 3);
+        working.agents[0].focused = false;
+        presentation.project_snapshot(&mut working);
+        let mut idle = snapshot(AgentStatus::Idle, 7, 4);
+        idle.agents[0].focused = false;
+        presentation.project_snapshot(&mut idle);
+        assert_ne!(idle.agents[0].agent_status, AgentStatus::Blocked);
+
+        let mut blocked = snapshot(AgentStatus::Blocked, 8, 5);
+        presentation.project_snapshot(&mut blocked);
+        let mut focused_idle = snapshot(AgentStatus::Idle, 9, 6);
+        presentation.project_snapshot(&mut focused_idle);
+        assert_ne!(focused_idle.agents[0].agent_status, AgentStatus::Blocked);
+    }
+
+    #[test]
+    fn agent_grid_acknowledges_only_the_selected_tile() {
+        let mut presentation = EndpointAgentPresentation::default();
+        let mut initial = snapshot(AgentStatus::Working, 4, 1);
+        presentation.project_snapshot(&mut initial);
+        let mut completed = snapshot(AgentStatus::Idle, 5, 2);
+        presentation.project_snapshot(&mut completed);
+        let mut grid = surface(2);
+        grid.panes[0].focused = false;
+
+        assert!(!presentation.acknowledge_surface(&mut completed, &grid, Some(true), true));
+        assert_eq!(completed.agents[0].agent_status, AgentStatus::Done);
+        grid.panes[0].focused = true;
+        assert!(presentation.acknowledge_surface(&mut completed, &grid, Some(true), true));
+        assert_eq!(completed.agents[0].agent_status, AgentStatus::Idle);
+    }
+
+    #[test]
     fn coherent_presented_surface_acknowledges_completion() {
         let mut presentation = EndpointAgentPresentation::default();
         let mut initial = snapshot(AgentStatus::Working, 4, 1);
@@ -430,7 +508,7 @@ mod tests {
         let mut completed = snapshot(AgentStatus::Idle, 5, 2);
         presentation.project_snapshot(&mut completed);
 
-        assert!(presentation.acknowledge_surface(&mut completed, &surface(2), Some(true)));
+        assert!(presentation.acknowledge_surface(&mut completed, &surface(2), Some(true), false));
         assert_eq!(completed.agents[0].agent_status, AgentStatus::Idle);
     }
 
@@ -450,7 +528,8 @@ mod tests {
         assert!(viewing_client.acknowledge_surface(
             &mut completed_for_viewer,
             &surface(2),
-            Some(true)
+            Some(true),
+            false
         ));
 
         assert_eq!(
@@ -471,8 +550,8 @@ mod tests {
         let mut completed = snapshot(AgentStatus::Idle, 5, 2);
         presentation.project_snapshot(&mut completed);
 
-        assert!(!presentation.acknowledge_surface(&mut completed, &surface(1), Some(true)));
-        assert!(!presentation.acknowledge_surface(&mut completed, &surface(2), Some(false)));
+        assert!(!presentation.acknowledge_surface(&mut completed, &surface(1), Some(true), false));
+        assert!(!presentation.acknowledge_surface(&mut completed, &surface(2), Some(false), false));
         assert_eq!(completed.agents[0].agent_status, AgentStatus::Done);
     }
 }

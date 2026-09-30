@@ -26,7 +26,7 @@ pub(in crate::client::shell) fn workspace_active_background(
 
 fn space_workspaces(
     snapshot: &ClientShellSnapshot,
-) -> impl Iterator<Item = crate::ui::SpaceWorkspace<'_>> {
+) -> impl Iterator<Item = crate::ui::SpaceWorkspace> + '_ {
     snapshot
         .workspaces
         .iter()
@@ -39,12 +39,10 @@ fn space_workspaces(
                     .find(|space| space.space_id == space_id)
             }) {
                 Some(space) => crate::ui::SpaceWorkspace {
-                    space_id: space.space_id.as_str(),
                     color_slot: (!space.built_in).then_some(space.color),
                 },
                 // Servers without spaces: every workspace is its own space.
                 None => crate::ui::SpaceWorkspace {
-                    space_id: workspace.workspace_id.as_str(),
                     color_slot: Some(index),
                 },
             }
@@ -65,15 +63,6 @@ pub(in crate::client::shell) fn space_presentation(
     palette: &Palette,
 ) -> crate::ui::SpacePresentation {
     crate::ui::SpacePresentation::new(palette, space_workspaces(snapshot))
-}
-
-/// Workspace indices with each space's members adjacent, primary checkout first.
-pub(in crate::client::shell) fn space_workspace_order(
-    snapshot: &ClientShellSnapshot,
-) -> Vec<usize> {
-    crate::ui::SpaceLayout::new(space_workspaces(snapshot))
-        .workspace_order()
-        .to_vec()
 }
 
 pub(in crate::client::shell) fn collapsed_sidebar_sections(
@@ -518,12 +507,13 @@ pub(crate) fn render_sidebar(
         }
     }
 
-    super::render_agent_panel(
+    *state.agent_marks_animating |= super::render_agent_panel(
         buffer,
         detail_area,
         snapshot,
         config,
         state.agent_grid,
+        state.agent_clock,
         state.agent_scroll,
         hits,
     );

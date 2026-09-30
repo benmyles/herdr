@@ -159,6 +159,18 @@ pub(super) fn snapshot_with_completions(
             state_labels.sort_by(|left, right| left.0.cmp(&right.0));
             let mut tokens = agent.tokens.into_iter().collect::<Vec<_>>();
             tokens.sort_by(|left, right| left.0.cmp(&right.0));
+            let state_changed_at_ms = app
+                .parse_pane_id(&pane_id)
+                .and_then(|(workspace_index, pane_id)| {
+                    app.state
+                        .workspaces
+                        .get(workspace_index)?
+                        .terminal_id(pane_id)
+                })
+                .and_then(|terminal_id| app.state.terminals.get(terminal_id))
+                .and_then(|terminal| terminal.last_agent_state_change_at)
+                .and_then(|at| at.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|since_epoch| since_epoch.as_millis().min(u128::from(u64::MAX)) as u64);
             protocol::ClientShellAgent {
                 pane_id,
                 workspace_id: agent.workspace_id,
@@ -174,6 +186,7 @@ pub(super) fn snapshot_with_completions(
                 state_labels,
                 tokens,
                 focused,
+                state_changed_at_ms,
             }
         })
         .collect();

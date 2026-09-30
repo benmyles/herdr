@@ -55,6 +55,8 @@ impl ClientShellState {
                     == Some(ClientEndpointStatus::Online)
         });
         let agent_grid = self.agent_grid_toggle_state();
+        let agent_clock = self.agent_clock(std::time::Instant::now());
+        let mut agent_marks_animating = false;
         let mut render_state = render::ShellRenderState {
             machine_diagnostics: &self.machine_diagnostics,
             endpoints: &self.endpoints,
@@ -79,6 +81,8 @@ impl ClientShellState {
             dragged_workspace_id: None,
             workspace_drop_indicator_row: None,
             agent_grid,
+            agent_clock,
+            agent_marks_animating: &mut agent_marks_animating,
         };
         if let Some(snapshot) = local_snapshot {
             render::render_sidebar(
@@ -99,6 +103,9 @@ impl ClientShellState {
                 &mut self.hits,
             );
         }
+        self.agent_marks_animating = agent_marks_animating;
+        self.agent_repaint_key =
+            Some(agent_clock.repaint_key(agent_marks_animating && self.config.agent_marks.animate));
         if !self.config.mouse_capture {
             self.hits = ShellHitMap::default();
         }
@@ -210,6 +217,8 @@ impl ClientShellState {
             _ => (None, None),
         };
         let agent_grid = self.agent_grid_toggle_state();
+        let agent_clock = self.agent_clock(std::time::Instant::now());
+        let mut agent_marks_animating = false;
         let mut buffer = Buffer::empty(Rect::new(0, 0, cols, rows));
         self.hits = render::render_shell(
             &mut buffer,
@@ -240,6 +249,8 @@ impl ClientShellState {
                 dragged_workspace_id,
                 workspace_drop_indicator_row,
                 agent_grid,
+                agent_clock,
+                agent_marks_animating: &mut agent_marks_animating,
             },
         );
         self.hits.panes = surface
@@ -351,6 +362,19 @@ impl ClientShellState {
             frame.cells[start..start + usize::from(bar.width)].to_vec()
         });
         blit_pane_surface(&mut frame, &surface.frame, layout.pane_surface);
+        if self.agent_grid_active() {
+            agent_marks_animating |= super::agent_grid::render_tile_titles(
+                &mut frame,
+                snapshot,
+                surface,
+                layout.pane_surface,
+                &self.config,
+                agent_clock,
+            );
+        }
+        self.agent_marks_animating = agent_marks_animating;
+        self.agent_repaint_key =
+            Some(agent_clock.repaint_key(agent_marks_animating && self.config.agent_marks.animate));
         restore_mode_bar(&mut frame, mode_bar, mode_bar_cells.as_deref());
         let mut occlusion = crate::kitty_graphics::surface::Occlusion::default();
         let has_selection = self

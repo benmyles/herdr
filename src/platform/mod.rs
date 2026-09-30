@@ -311,6 +311,33 @@ pub(crate) fn read_limited_reader(
     }
 }
 
+/// Whether a font file whose name starts with `prefix` (ASCII case-insensitive)
+/// is installed in one of the user's font directories or their direct
+/// subdirectories.
+pub(crate) fn font_file_installed(prefix: &str) -> bool {
+    fn matches(path: &std::path::Path, prefix: &str) -> bool {
+        path.file_name()
+            .and_then(|name| name.to_str())
+            .and_then(|name| name.get(..prefix.len()))
+            .is_some_and(|start| start.eq_ignore_ascii_case(prefix))
+    }
+    user_font_dirs().into_iter().any(|dir| {
+        let Ok(entries) = std::fs::read_dir(&dir) else {
+            return false;
+        };
+        entries.flatten().any(|entry| {
+            let path = entry.path();
+            if matches(&path, prefix) {
+                return true;
+            }
+            path.is_dir()
+                && std::fs::read_dir(&path).is_ok_and(|nested| {
+                    nested.flatten().any(|entry| matches(&entry.path(), prefix))
+                })
+        })
+    })
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct RemoteSshConfigPaths {
     pub(crate) user_config: Option<std::path::PathBuf>,

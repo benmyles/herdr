@@ -355,6 +355,28 @@ status_indicators = "symbols"
 
 The symbols are static, so this option does not enable spinner animation.
 
+### Agents panel and grid titles
+
+The agents panel groups agents by machine, space, and worktree, in sidebar order, with the most urgent agent first in each worktree: blocked, then done, working, idle, and unknown. With `agent_panel_sort = "priority"` it lists every agent in urgency order instead, with its worktree alongside. Each agent takes one line: the vendor icon, a state mark, and the session title the agent wrote into its terminal title (or the agent's name when that title only names the directory).
+
+The live agent grid titles every tile the same way, followed by the tile's space and worktree.
+
+- A braille spinner marks a working agent, in the vendor's color.
+- A pulsing red `?` marks an agent waiting on an answer. It stays until the agent works again or you focus it.
+- A green `✓` marks finished work you have not looked at yet. In the grid it stays until you select the tile.
+- Idle agents carry no mark; their title color fades from fresh to idle to stale, and the panel shows how long ago they last changed.
+- A violet `◌` marks an agent whose state is unknown.
+
+```toml
+[ui.agents]
+icons = "auto"       # "auto", "font", "text", or "none"
+fresh_minutes = 15
+stale_minutes = 120
+animate = true
+```
+
+`icons = "auto"` uses glyphs from the Herdr Agent Icons font when a font file named `HerdrAgentIcons*` is installed for the current user, and plain Unicode marks otherwise.
+
 ### Sidebar row layouts
 
 The expanded desktop sidebar renders each inner array in `rows` as one line. These are the complete default layouts:
@@ -374,6 +396,8 @@ rows = [
   ["branch", "git_status"],
 ]
 ```
+
+The agents panel draws its own lines (see above); `[ui.sidebar.agents]` rows are still accepted so existing configs load, but they no longer change the panel.
 
 Agent rows accept these built-in tokens:
 

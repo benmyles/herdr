@@ -578,9 +578,10 @@ impl ClientShellState {
             None
         };
         if let Some(surface) = presented_surface {
+            let grid = self.agent_grid_active();
             self.endpoints[index]
                 .agent_presentation
-                .acknowledge_surface(&mut snapshot, surface, self.outer_focused);
+                .acknowledge_surface(&mut snapshot, surface, self.outer_focused, grid);
         }
         let previous = self.endpoints[index].snapshot.as_deref();
         let mut next_recency = self
@@ -649,6 +650,7 @@ impl ClientShellState {
     }
 
     pub(crate) fn acknowledge_active_surface_agents(&mut self, surface: &PaneSurfaceFrame) -> bool {
+        let grid = self.agent_grid_active();
         let Some(index) = self
             .endpoints
             .iter()
@@ -661,9 +663,12 @@ impl ClientShellState {
             let Some(snapshot) = endpoint.snapshot.as_deref_mut() else {
                 return false;
             };
-            endpoint
-                .agent_presentation
-                .acknowledge_surface(snapshot, surface, self.outer_focused)
+            endpoint.agent_presentation.acknowledge_surface(
+                snapshot,
+                surface,
+                self.outer_focused,
+                grid,
+            )
         };
         if changed {
             self.snapshot = self.endpoints[index].snapshot.clone();

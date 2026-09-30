@@ -139,6 +139,9 @@ pub enum SpaceSidebarToken {
 }
 
 impl AgentSidebarToken {
+    // herdr-benmyles draws agent rows from agent marks (client/shell/agent_marks.rs);
+    // the configurable token rows stay so upstream merges and config parsing keep working.
+    #[allow(dead_code)]
     pub(crate) fn style_for_value(&self, value: &str) -> Option<SidebarTokenStyle> {
         match self {
             Self::Styled { style, rules, .. } => rules::matching_style(rules, *style, value),
@@ -430,6 +433,9 @@ pub struct AgentsSidebarConfig {
 }
 
 impl AgentsSidebarConfig {
+    // herdr-benmyles draws agent rows from agent marks (client/shell/agent_marks.rs);
+    // the configurable token rows stay so upstream merges and config parsing keep working.
+    #[allow(dead_code)]
     pub(crate) fn rows_for_agent(&self, agent: Option<Agent>) -> &AgentSidebarRows {
         agent
             .and_then(|agent| self.rows_by_agent.get(crate::detect::agent_label(agent)))

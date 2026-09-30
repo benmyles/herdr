@@ -1136,6 +1136,10 @@ pub struct ClientShellAgent {
     pub state_labels: Vec<(String, String)>,
     pub tokens: Vec<(String, String)>,
     pub focused: bool,
+    /// Unix time in milliseconds of the agent's last state change, on the
+    /// endpoint's clock. Absent from servers that do not track it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state_changed_at_ms: Option<u64>,
 }
 
 /// Origin-relative geometry for one pane in a rendered pane surface.

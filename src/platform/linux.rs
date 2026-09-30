@@ -1161,6 +1161,21 @@ fn process_session_id(pid: u32) -> Option<i32> {
     fields.get(3)?.parse().ok()
 }
 
+/// Directories where fonts available to the user's terminal are installed.
+pub(crate) fn user_font_dirs() -> Vec<std::path::PathBuf> {
+    let mut dirs = Vec::new();
+    if let Some(data) = std::env::var_os("XDG_DATA_HOME").map(std::path::PathBuf::from) {
+        dirs.push(data.join("fonts"));
+    }
+    if let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) {
+        dirs.push(home.join(".local/share/fonts"));
+        dirs.push(home.join(".fonts"));
+    }
+    dirs.push("/usr/local/share/fonts".into());
+    dirs.push("/usr/share/fonts".into());
+    dirs
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

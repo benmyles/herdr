@@ -1144,6 +1144,16 @@ pub fn process_exists(pid: u32) -> bool {
     }
 }
 
+/// Directories where fonts available to the user's terminal are installed.
+pub(crate) fn user_font_dirs() -> Vec<std::path::PathBuf> {
+    let mut dirs = Vec::new();
+    if let Some(home) = std::env::var_os("HOME").map(std::path::PathBuf::from) {
+        dirs.push(home.join("Library/Fonts"));
+    }
+    dirs.push("/Library/Fonts".into());
+    dirs
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

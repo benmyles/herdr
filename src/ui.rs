@@ -38,14 +38,14 @@ pub(crate) use self::scrollbar::{
     scrollbar_thumb_grab_offset,
 };
 pub(crate) use self::sidebar::{
-    agent_panel_entries_from, expanded_sidebar_sections, resolved_token_spans, sidebar_agent_rows,
-    sidebar_section_divider_rect, sidebar_space_rows, AgentPanelEntry, AgentTokenContext,
-    ResolvedToken, ResolvedTokenKind, SpaceTokenContext,
+    agent_panel_entries_from, expanded_sidebar_sections, resolved_token_spans,
+    sidebar_section_divider_rect, sidebar_space_rows, AgentPanelEntry, ResolvedToken,
+    SpaceTokenContext,
 };
 #[cfg(test)]
 pub(crate) use self::space_colors::space_color;
 pub(crate) use self::space_colors::{
-    mute_color, space_slot_color, SpaceLayout, SpacePresentation, SpaceWorkspace,
+    mute_color, space_slot_color, SpacePresentation, SpaceWorkspace,
 };
 use self::status::copy_feedback_rect;
 pub(crate) use self::status::{render_config_diagnostic_buffer, render_copy_feedback_buffer};

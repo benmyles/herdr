@@ -33,6 +33,7 @@ fn grid_snapshot() -> ClientShellSnapshot {
         state_labels: Vec::new(),
         tokens: Vec::new(),
         focused: false,
+        state_changed_at_ms: None,
     }];
     projected
 }
@@ -234,4 +235,88 @@ fn agents_visible_in_the_grid_do_not_raise_attention_toasts() {
         !notify(&mut state),
         "the grid already shows the blocked agent"
     );
+}
+
+#[test]
+fn grid_tiles_are_titled_from_their_own_agent() {
+    use ratatui::widgets::{Block, Widget};
+
+    let mut projected = grid_snapshot();
+    projected.panes.push(ClientShellPane {
+        pane_id: "pane_3".into(),
+        workspace_id: "ws_1".into(),
+        tab_id: "tab_2".into(),
+        label: None,
+        cwd: Some("/repo".into()),
+        foreground_cwd: Some("/repo".into()),
+        focused: false,
+        right_click_passthrough: false,
+    });
+    projected.agents[0].terminal_title_stripped = Some("fix the grid".into());
+    let mut blocked = projected.agents[0].clone();
+    blocked.pane_id = "pane_3".into();
+    blocked.agent = Some("codex".into());
+    blocked.agent_status = AgentStatus::Blocked;
+    // Codex titles a waiting pane with its attention bracket.
+    blocked.terminal_title_stripped = Some("[ ! ] Action needed".into());
+    projected.agents.push(blocked);
+
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(projected));
+    state.set_pane_surface(surface());
+    state.compose(106, 30).expect("shell frame");
+    state.show_test_agent_grid();
+
+    // The server draws bordered tiles; the codex tile comes first.
+    let mut tiles = Buffer::empty(Rect::new(0, 0, 60, 6));
+    Block::bordered()
+        .title(" stale ")
+        .render(Rect::new(0, 0, 30, 6), &mut tiles);
+    Block::bordered().render(Rect::new(30, 0, 30, 6), &mut tiles);
+    let tile = |pane_id: &str, x: u16, focused: bool| PaneSurfacePane {
+        pane_id: pane_id.into(),
+        content_revision: 0,
+        rect: SurfaceRect {
+            x,
+            y: 0,
+            width: 30,
+            height: 6,
+        },
+        inner_rect: SurfaceRect {
+            x: x + 1,
+            y: 1,
+            width: 28,
+            height: 4,
+        },
+        scrollbar_rect: None,
+        scroll: None,
+        focused,
+        mouse_reporting: false,
+        sgr_pixel_mouse: false,
+        alternate_screen_active: false,
+        pixel_width: 0,
+        pixel_height: 0,
+    };
+    let mut grid = surface();
+    grid.frame = FrameData::from_ratatui_buffer_with_hyperlinks(&tiles, None, &[]);
+    grid.panes = vec![tile("pane_3", 0, false), tile("pane_2", 30, true)];
+    state.set_pane_surface(grid);
+
+    let frame = state.compose(106, 30).expect("grid frame");
+    let origin = state.layout(106, 30).pane_surface;
+    let rows = frame_rows(&frame);
+    let title_row = rows[origin.y as usize].chars().collect::<Vec<_>>();
+    let tile_title = |x: u16| {
+        title_row[(origin.x + x) as usize..(origin.x + x + 30) as usize]
+            .iter()
+            .collect::<String>()
+    };
+    let codex = tile_title(0);
+    let claude = tile_title(30);
+    assert!(codex.starts_with("┌ Λ ? Action needed"), "{codex}");
+    assert!(!codex.contains("stale"), "{codex}");
+    assert!(claude.starts_with("┌ § "), "{claude}");
+    assert!(claude.contains("fix the grid"), "{claude}");
+    assert!(!claude.contains("Action"), "{claude}");
+    assert!(claude.trim_end().ends_with("─┐"), "{claude}");
 }

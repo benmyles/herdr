@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 
 mod actions;
 mod agent_grid;
+mod agent_marks;
 mod agent_sidebar;
 mod aggregate_navigation;
 mod machine_diagnostics;

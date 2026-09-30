@@ -1,50 +1,12 @@
-use std::collections::HashMap;
-
 use ratatui::style::Color;
 
 use crate::app::state::Palette;
 
 /// One workspace, in session order, as seen by space presentation.
-pub(crate) struct SpaceWorkspace<'a> {
-    /// Space the workspace is filed under. Servers without spaces pass the
-    /// workspace's own id, so every workspace is its own space.
-    pub(crate) space_id: &'a str,
+pub(crate) struct SpaceWorkspace {
     /// The space's color slot, or `None` for the neutral `other` space.
+    /// Servers without spaces give every workspace its own slot.
     pub(crate) color_slot: Option<usize>,
-}
-
-/// Space grouping for a session's workspaces, independent of any theme.
-/// Members of one space are emitted together in first-seen space order.
-pub(crate) struct SpaceLayout {
-    workspace_order: Vec<usize>,
-    workspace_slots: Vec<Option<usize>>,
-}
-
-impl SpaceLayout {
-    pub(crate) fn new<'a>(workspaces: impl IntoIterator<Item = SpaceWorkspace<'a>>) -> Self {
-        let mut group_indices = HashMap::<&'a str, usize>::new();
-        let mut groups = Vec::<Vec<usize>>::new();
-        let mut workspace_slots = Vec::new();
-
-        for (index, workspace) in workspaces.into_iter().enumerate() {
-            let group_index = *group_indices.entry(workspace.space_id).or_insert_with(|| {
-                groups.push(Vec::new());
-                groups.len() - 1
-            });
-            groups[group_index].push(index);
-            workspace_slots.push(workspace.color_slot);
-        }
-
-        Self {
-            workspace_order: groups.into_iter().flatten().collect(),
-            workspace_slots,
-        }
-    }
-
-    /// Workspace indices with the members of each space adjacent.
-    pub(crate) fn workspace_order(&self) -> &[usize] {
-        &self.workspace_order
-    }
 }
 
 /// Transient presentation metadata shared by both sidebar modes and the live
@@ -55,14 +17,13 @@ pub(crate) struct SpacePresentation {
 }
 
 impl SpacePresentation {
-    pub(crate) fn new<'a>(
+    pub(crate) fn new(
         palette: &Palette,
-        workspaces: impl IntoIterator<Item = SpaceWorkspace<'a>>,
+        workspaces: impl IntoIterator<Item = SpaceWorkspace>,
     ) -> Self {
-        let workspace_colors = SpaceLayout::new(workspaces)
-            .workspace_slots
-            .iter()
-            .map(|slot| space_slot_color(palette, *slot))
+        let workspace_colors = workspaces
+            .into_iter()
+            .map(|workspace| space_slot_color(palette, workspace.color_slot))
             .collect();
         Self { workspace_colors }
     }
@@ -139,11 +100,8 @@ fn color_variant(color: Color, round: usize) -> Color {
 mod tests {
     use super::*;
 
-    fn workspace(space_id: &str, color_slot: Option<usize>) -> SpaceWorkspace<'_> {
-        SpaceWorkspace {
-            space_id,
-            color_slot,
-        }
+    fn workspace(_space_id: &str, color_slot: Option<usize>) -> SpaceWorkspace {
+        SpaceWorkspace { color_slot }
     }
 
     #[test]
@@ -163,18 +121,6 @@ mod tests {
         assert_eq!(spaces.color(1), spaces.color(0));
         assert_eq!(spaces.color(2), space_color(&palette, 0));
         assert_eq!(spaces.color(3), palette.overlay1);
-    }
-
-    #[test]
-    fn layout_keeps_space_members_adjacent_in_first_seen_order() {
-        let layout = SpaceLayout::new([
-            workspace("a", Some(0)),
-            workspace("b", Some(1)),
-            workspace("a", Some(0)),
-            workspace("other", None),
-        ]);
-
-        assert_eq!(layout.workspace_order(), &[0, 2, 1, 3]);
     }
 
     #[test]

@@ -250,6 +250,9 @@ pub(super) struct ShellRenderState<'a> {
     pub(super) workspace_drop_indicator_row: Option<u16>,
     /// `None` when the endpoint cannot show the live agent grid.
     pub(super) agent_grid: Option<bool>,
+    pub(super) agent_clock: super::agent_marks::AgentClock,
+    /// Set when the agents panel drew an animated mark.
+    pub(super) agent_marks_animating: &'a mut bool,
 }
 
 pub(super) fn render_shell(

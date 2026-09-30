@@ -2925,6 +2925,18 @@ impl Drop for InputSourceRestore {
     }
 }
 
+/// Directories where fonts available to the user's terminal are installed.
+pub(crate) fn user_font_dirs() -> Vec<std::path::PathBuf> {
+    let mut dirs = Vec::new();
+    if let Some(local) = std::env::var_os("LOCALAPPDATA").map(std::path::PathBuf::from) {
+        dirs.push(local.join("Microsoft\\Windows\\Fonts"));
+    }
+    if let Some(windir) = std::env::var_os("WINDIR").map(std::path::PathBuf::from) {
+        dirs.push(windir.join("Fonts"));
+    }
+    dirs
+}
+
 #[cfg(test)]
 mod tests {
     use std::{

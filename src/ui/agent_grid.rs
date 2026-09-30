@@ -77,16 +77,32 @@ fn space_presentation(app: &AppState) -> super::SpacePresentation {
     super::SpacePresentation::new(&app.palette, space_workspaces(app))
 }
 
-fn space_workspaces(app: &AppState) -> impl Iterator<Item = super::SpaceWorkspace<'_>> {
+fn space_workspaces(app: &AppState) -> impl Iterator<Item = super::SpaceWorkspace> + '_ {
     app.workspaces
         .iter()
         .map(|workspace| super::SpaceWorkspace {
-            space_id: workspace.space_id.as_str(),
             color_slot: app
                 .space(&workspace.space_id)
                 .filter(|space| !space.is_other())
                 .map(|space| space.color),
         })
+}
+
+/// Workspace indices in sidebar order: each space's members in its order,
+/// then any workspace without a known space.
+fn sidebar_workspace_order(app: &AppState) -> Vec<usize> {
+    let mut listed = vec![false; app.workspaces.len()];
+    let mut order = Vec::with_capacity(app.workspaces.len());
+    for space in &app.spaces {
+        for (index, workspace) in app.workspaces.iter().enumerate() {
+            if !listed[index] && workspace.space_id == space.id {
+                listed[index] = true;
+                order.push(index);
+            }
+        }
+    }
+    order.extend((0..app.workspaces.len()).filter(|&index| !listed[index]));
+    order
 }
 
 /// Every live agent in space, workspace, tab, and pane order. The order does
@@ -96,9 +112,8 @@ pub(crate) fn live_agent_targets(
     terminal_runtimes: &TerminalRuntimeRegistry,
 ) -> Vec<AgentGridTarget> {
     let spaces = space_presentation(app);
-    let order = super::SpaceLayout::new(space_workspaces(app));
     let mut targets = Vec::new();
-    for &workspace_index in order.workspace_order() {
+    for workspace_index in sidebar_workspace_order(app) {
         let Some(workspace) = app.workspaces.get(workspace_index) else {
             continue;
         };
@@ -129,7 +144,9 @@ pub(crate) fn live_agent_targets(
                     .or_else(|| terminal.agent_name.clone())
                     .or_else(|| terminal.effective_agent_label().map(str::to_string))
                     .unwrap_or_else(|| "agent".to_string());
-                let context = workspace.display_name_for_cwd(&terminal.cwd);
+                // The workspace label matches the sidebar; a pane's cwd can
+                // point into another checkout and would mislabel the tile.
+                let context = workspace.cached_display_name();
                 let context = tab_label
                     .as_ref()
                     .map(|tab| format!("{context}/{tab}"))
@@ -699,7 +716,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn grid_titles_prefer_agent_identity_and_pane_cwd() {
+    async fn grid_titles_name_the_agent_and_its_workspace_not_the_pane_cwd() {
         let (mut app, _shell, first_agent, _second_agent) = cross_workspace_agent_app();
         let terminal_id = app.workspaces[0]
             .terminal_id(first_agent)
@@ -707,14 +724,15 @@ mod tests {
             .expect("first agent terminal");
         let terminal = app.terminals.get_mut(&terminal_id).expect("terminal");
         terminal.set_agent_name("planner".into());
+        // An agent that wandered into another checkout still belongs to its workspace.
         terminal.cwd = "/projects/pyshiftup".into();
-        app.workspaces[0].custom_name = None;
+        app.workspaces[0].custom_name = Some("alpha".into());
 
         let labels = grid(&app, None)
             .into_iter()
             .map(|tile| tile.label)
             .collect::<Vec<_>>();
-        assert_eq!(labels[0], "planner · pyshiftup/review");
+        assert_eq!(labels[0], "planner · alpha/review");
         assert!(labels[1].starts_with("claude · "), "{labels:?}");
     }
 

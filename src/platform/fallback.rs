@@ -252,3 +252,8 @@ pub fn read_clipboard_image() -> Option<ClipboardImage> {
 pub fn show_desktop_notification(_title: &str, _body: Option<&str>) -> std::io::Result<bool> {
     Ok(false)
 }
+
+/// Unsupported platform stub.
+pub(crate) fn user_font_dirs() -> Vec<std::path::PathBuf> {
+    Vec::new()
+}

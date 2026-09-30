@@ -9,6 +9,9 @@ pub(crate) struct ResolvedToken {
     pub style: SidebarTokenStyle,
 }
 
+// herdr-benmyles draws agent rows from agent marks (client/shell/agent_marks.rs);
+// the configurable token rows stay so upstream merges and config parsing keep working.
+#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ResolvedTokenKind {
     StateIcon,
@@ -52,6 +55,9 @@ impl ResolvedToken {
     }
 }
 
+// herdr-benmyles draws agent rows from agent marks (client/shell/agent_marks.rs);
+// the configurable token rows stay so upstream merges and config parsing keep working.
+#[allow(dead_code)]
 pub(crate) struct AgentTokenContext<'a> {
     pub(crate) machine: Option<&'a str>,
     pub(crate) workspace: &'a str,
@@ -64,6 +70,9 @@ pub(crate) struct AgentTokenContext<'a> {
     pub(crate) tokens: &'a std::collections::HashMap<String, String>,
 }
 
+// herdr-benmyles draws agent rows from agent marks (client/shell/agent_marks.rs);
+// the configurable token rows stay so upstream merges and config parsing keep working.
+#[allow(dead_code)]
 pub(crate) fn agent_rows(
     config: &AgentsSidebarConfig,
     context: AgentTokenContext<'_>,

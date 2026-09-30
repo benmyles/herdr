@@ -1,23 +1,16 @@
-use std::collections::HashMap;
-
 use ratatui::{
     buffer::Buffer,
     layout::Rect,
     style::{Modifier, Style},
-    text::Line,
-    widgets::{Paragraph, Widget},
 };
 
 use super::*;
 
-pub(super) struct AgentRow {
-    pub(super) pane_id: String,
-    pub(super) status: crate::api::schema::AgentStatus,
-    pub(super) focused: bool,
-    pub(super) rows: Vec<Vec<crate::ui::ResolvedToken>>,
-    pub(super) space_color: ratatui::style::Color,
-}
+use super::agent_marks::{AgentClock, MarkState};
+use crate::protocol::ClientShellAgent;
 
+/// Agents in panel order. Grouped: the sidebar's space and workspace order,
+/// then urgency within each workspace. Priority: urgency across everything.
 pub(super) fn ordered_agent_pane_ids(
     snapshot: &ClientShellSnapshot,
     sort: crate::config::AgentPanelSortConfig,
@@ -35,37 +28,304 @@ pub(super) fn ordered_agent_pane_ids(
             .cloned()
             .collect();
     }
-    let mut agents = snapshot.agents.iter().collect::<Vec<_>>();
-    // Group agents by space so worktree-linked workspaces stay adjacent, matching
-    // the space order used by the sidebar colors and the live agent grid.
-    let space_rank = super::sidebar::space_workspace_order(snapshot)
+    let mut agents = grouped_workspaces(snapshot)
         .into_iter()
-        .enumerate()
-        .filter_map(|(rank, index)| {
-            snapshot
-                .workspaces
-                .get(index)
-                .map(|workspace| (workspace.workspace_id.as_str(), rank))
-        })
-        .collect::<HashMap<_, _>>();
-    agents.sort_by_key(|agent| {
-        space_rank
-            .get(agent.workspace_id.as_str())
-            .copied()
-            .unwrap_or(usize::MAX)
-    });
+        .flat_map(|group| group.workspaces)
+        .flat_map(|index| workspace_agents(snapshot, index))
+        .collect::<Vec<_>>();
+    // Agents whose workspace the snapshot does not list still get a place.
+    agents.extend(snapshot.agents.iter().filter(|agent| {
+        !snapshot
+            .workspaces
+            .iter()
+            .any(|workspace| workspace.workspace_id == agent.workspace_id)
+    }));
     if sort == crate::config::AgentPanelSortConfig::Priority {
-        agents.sort_by_key(|agent| {
-            (
-                std::cmp::Reverse(status_priority(agent.agent_status)),
-                std::cmp::Reverse(agent.state_change_seq),
-            )
-        });
+        agents.sort_by_key(|agent| urgency(agent));
     }
     agents
         .into_iter()
         .map(|agent| agent.pane_id.clone())
         .collect()
+}
+
+/// Most urgent first; the latest change first among equals.
+fn urgency(agent: &ClientShellAgent) -> (std::cmp::Reverse<u8>, std::cmp::Reverse<u64>) {
+    (
+        std::cmp::Reverse(status_priority(agent.agent_status)),
+        std::cmp::Reverse(agent.state_change_seq),
+    )
+}
+
+/// One workspace's agents, most urgent first.
+fn workspace_agents(snapshot: &ClientShellSnapshot, index: usize) -> Vec<&ClientShellAgent> {
+    let Some(workspace) = snapshot.workspaces.get(index) else {
+        return Vec::new();
+    };
+    let mut agents = snapshot
+        .agents
+        .iter()
+        .filter(|agent| agent.workspace_id == workspace.workspace_id)
+        .collect::<Vec<_>>();
+    agents.sort_by_key(|agent| urgency(agent));
+    agents
+}
+
+/// A space and its workspaces in sidebar order. `space` is `None` for
+/// workspaces from servers without spaces.
+struct WorkspaceGroup {
+    space: Option<usize>,
+    workspaces: Vec<usize>,
+}
+
+fn grouped_workspaces(snapshot: &ClientShellSnapshot) -> Vec<WorkspaceGroup> {
+    let mut listed = vec![false; snapshot.workspaces.len()];
+    let mut groups = snapshot
+        .spaces
+        .iter()
+        .enumerate()
+        .map(|(space_index, space)| {
+            let workspaces = snapshot
+                .workspaces
+                .iter()
+                .enumerate()
+                .filter(|(_, workspace)| workspace.space_id.as_deref() == Some(&space.space_id))
+                .map(|(index, _)| index)
+                .collect::<Vec<_>>();
+            for &index in &workspaces {
+                listed[index] = true;
+            }
+            WorkspaceGroup {
+                space: Some(space_index),
+                workspaces,
+            }
+        })
+        .collect::<Vec<_>>();
+    groups.extend(
+        listed
+            .into_iter()
+            .enumerate()
+            .filter(|(_, listed)| !listed)
+            .map(|(index, _)| WorkspaceGroup {
+                space: None,
+                workspaces: vec![index],
+            }),
+    );
+    groups
+}
+
+/// The branch worth showing beside a worktree's label: not when it repeats
+/// the label, or the space name worktrees are named after by default.
+pub(super) fn distinct_branch<'a>(
+    workspace: &'a crate::protocol::ClientShellWorkspace,
+    space: Option<&crate::protocol::ClientShellSpace>,
+) -> Option<&'a str> {
+    let branch = workspace.branch.as_deref()?;
+    let space_name = space
+        .filter(|space| !space.built_in)
+        .map(|space| space.name.split_whitespace().collect::<Vec<_>>().join("-"));
+    (branch != workspace.label && !space_name.is_some_and(|name| name.eq_ignore_ascii_case(branch)))
+        .then_some(branch)
+}
+
+/// One endpoint whose agents the panel lists.
+pub(super) struct AgentPanelSource<'a> {
+    /// Set when agent hits must name their endpoint.
+    pub(super) endpoint_id: Option<&'a ClientEndpointId>,
+    /// Set when several machines share the panel.
+    pub(super) machine: Option<&'a str>,
+    pub(super) stale: bool,
+    /// Focus marks count only on the active endpoint.
+    pub(super) active: bool,
+    pub(super) snapshot: &'a ClientShellSnapshot,
+}
+
+pub(super) enum PanelLine {
+    Machine {
+        label: String,
+        stale: bool,
+    },
+    Space {
+        name: String,
+        color: ratatui::style::Color,
+        stale: bool,
+    },
+    Worktree {
+        label: String,
+        branch: Option<String>,
+        color: ratatui::style::Color,
+        stale: bool,
+    },
+    Agent(PanelAgent),
+}
+
+impl PanelLine {
+    fn agent(&self) -> Option<&PanelAgent> {
+        match self {
+            Self::Agent(agent) => Some(agent),
+            _ => None,
+        }
+    }
+}
+
+pub(super) struct PanelAgent {
+    pub(super) endpoint_id: Option<ClientEndpointId>,
+    pub(super) pane_id: String,
+    focused: bool,
+    stale: bool,
+    state: MarkState,
+    icon: Option<(char, Style)>,
+    lead_style: Style,
+    title: String,
+    title_style: Style,
+    context: Option<String>,
+    age: Option<String>,
+    indent: u16,
+}
+
+impl PanelAgent {
+    fn new(
+        source: &AgentPanelSource<'_>,
+        agent: &ClientShellAgent,
+        config: &ClientShellConfig,
+        clock: AgentClock,
+        indent: u16,
+        context: Option<String>,
+    ) -> Self {
+        let marks = &config.agent_marks;
+        let palette = &config.palette;
+        let state = marks.agent_state(agent, clock.now);
+        let cwd = source
+            .snapshot
+            .panes
+            .iter()
+            .find(|pane| pane.pane_id == agent.pane_id)
+            .and_then(|pane| pane.cwd.as_deref());
+        Self {
+            endpoint_id: source.endpoint_id.cloned(),
+            pane_id: agent.pane_id.clone(),
+            focused: agent.focused && source.active,
+            stale: source.stale,
+            state,
+            icon: marks
+                .icon(agent)
+                .map(|icon| (icon, state.icon_style(agent, palette))),
+            lead_style: state.lead_style(agent, palette),
+            title: super::agent_marks::session_title(agent, cwd),
+            title_style: state.title_style(agent, palette),
+            context,
+            age: state
+                .shows_age()
+                .then(|| super::agent_marks::age_label(agent.state_changed_at_ms, clock.now))
+                .flatten(),
+            indent,
+        }
+    }
+}
+
+/// Panel lines for `sources`: grouped by machine, space, and workspace, or
+/// one flat urgency-ordered list with each agent's workspace alongside.
+pub(super) fn panel_lines(
+    sources: &[AgentPanelSource<'_>],
+    order: Option<&[(usize, String)]>,
+    config: &ClientShellConfig,
+    clock: AgentClock,
+) -> Vec<PanelLine> {
+    if let Some(order) = order {
+        return order
+            .iter()
+            .filter_map(|(source_index, pane_id)| {
+                let source = sources.get(*source_index)?;
+                let agent = source
+                    .snapshot
+                    .agents
+                    .iter()
+                    .find(|agent| &agent.pane_id == pane_id)?;
+                let workspace = source
+                    .snapshot
+                    .workspaces
+                    .iter()
+                    .find(|workspace| workspace.workspace_id == agent.workspace_id)
+                    .map(|workspace| workspace.label.as_str());
+                let context = match (source.machine, workspace) {
+                    (Some(machine), Some(workspace)) => Some(format!("{machine} · {workspace}")),
+                    (Some(machine), None) => Some(machine.to_owned()),
+                    (None, workspace) => workspace.map(str::to_owned),
+                };
+                Some(PanelLine::Agent(PanelAgent::new(
+                    source, agent, config, clock, 1, context,
+                )))
+            })
+            .collect();
+    }
+    let mut lines = Vec::new();
+    for source in sources {
+        let snapshot = source.snapshot;
+        if snapshot.agents.is_empty() {
+            continue;
+        }
+        if let Some(machine) = source.machine {
+            lines.push(PanelLine::Machine {
+                label: machine.to_owned(),
+                stale: source.stale,
+            });
+        }
+        let spaces = super::sidebar::space_presentation(snapshot, &config.palette);
+        for group in grouped_workspaces(snapshot) {
+            let members = group
+                .workspaces
+                .iter()
+                .map(|&index| (index, workspace_agents(snapshot, index)))
+                .filter(|(_, agents)| !agents.is_empty())
+                .collect::<Vec<_>>();
+            if members.is_empty() {
+                continue;
+            }
+            let space = group.space.and_then(|index| snapshot.spaces.get(index));
+            if let Some(space) = space {
+                lines.push(PanelLine::Space {
+                    name: space.name.clone(),
+                    color: super::sidebar::space_header_color(space, &config.palette),
+                    stale: source.stale,
+                });
+            }
+            let depth = u16::from(space.is_some());
+            for (index, agents) in members {
+                let workspace = &snapshot.workspaces[index];
+                lines.push(PanelLine::Worktree {
+                    label: workspace.label.clone(),
+                    branch: distinct_branch(workspace, space).map(str::to_owned),
+                    color: spaces.color(index),
+                    stale: source.stale,
+                });
+                lines.extend(agents.into_iter().map(|agent| {
+                    PanelLine::Agent(PanelAgent::new(
+                        source,
+                        agent,
+                        config,
+                        clock,
+                        2 + depth,
+                        None,
+                    ))
+                }));
+            }
+        }
+        lines.extend(
+            snapshot
+                .agents
+                .iter()
+                .filter(|agent| {
+                    !snapshot
+                        .workspaces
+                        .iter()
+                        .any(|workspace| workspace.workspace_id == agent.workspace_id)
+                })
+                .map(|agent| {
+                    PanelLine::Agent(PanelAgent::new(source, agent, config, clock, 1, None))
+                }),
+        );
+    }
+    lines
 }
 
 pub(super) fn render_agent_panel(
@@ -74,9 +334,10 @@ pub(super) fn render_agent_panel(
     snapshot: &ClientShellSnapshot,
     config: &ClientShellConfig,
     agent_grid: Option<bool>,
+    clock: AgentClock,
     agent_scroll: &mut usize,
     hits: &mut ShellHitMap,
-) {
+) -> bool {
     if !render_agent_panel_header(
         buffer,
         area,
@@ -85,27 +346,70 @@ pub(super) fn render_agent_panel(
         agent_grid,
         hits,
     ) {
-        return;
+        return false;
     }
 
-    let rows = agent_rows(snapshot, config, None);
-    render_agent_list(
+    let sources = [AgentPanelSource {
+        endpoint_id: None,
+        machine: None,
+        stale: false,
+        active: true,
+        snapshot,
+    }];
+    let flat = (snapshot.agent_view_label.is_some()
+        || config.agent_panel_sort == crate::config::AgentPanelSortConfig::Priority)
+        .then(|| {
+            ordered_agent_pane_ids(snapshot, config.agent_panel_sort)
+                .into_iter()
+                .map(|pane_id| (0, pane_id))
+                .collect::<Vec<_>>()
+        });
+    let lines = panel_lines(&sources, flat.as_deref(), config, clock);
+    render_panel_lines(
         buffer,
         area,
-        &rows,
+        &lines,
         snapshot
             .agent_view_label
             .as_ref()
             .map(|_| " no matching agents"),
         config,
+        clock,
         agent_scroll,
         hits,
-        |row| row.rows.len(),
-        |buffer, rect, row, hits| {
-            hits.agents.push((rect, row.pane_id.clone()));
-            render_agent_row(buffer, rect, row, config);
-        },
     );
+    panel_lines_animate(&lines)
+}
+
+/// Scroll start that keeps the agent line for `pane_id` in view.
+pub(super) fn reveal_panel_agent(
+    lines: &[PanelLine],
+    endpoint_id: Option<&ClientEndpointId>,
+    pane_id: &str,
+    body_height: u16,
+    agent_scroll: usize,
+) -> Option<usize> {
+    let target = lines.iter().position(|line| {
+        line.agent().is_some_and(|agent| {
+            agent.pane_id == pane_id && agent.endpoint_id.as_ref() == endpoint_id
+        })
+    })?;
+    let heights = vec![1; lines.len()];
+    let gaps = vec![0; lines.len()];
+    Some(super::scroll::list_scroll_start_to_reveal(
+        &heights,
+        &gaps,
+        body_height,
+        agent_scroll,
+        target,
+    ))
+}
+
+/// Whether any line animates at `clock`'s rate.
+pub(super) fn panel_lines_animate(lines: &[PanelLine]) -> bool {
+    lines
+        .iter()
+        .any(|line| line.agent().is_some_and(|agent| agent.state.animated()))
 }
 
 pub(super) fn render_agent_panel_header(
@@ -190,16 +494,15 @@ pub(super) fn render_agent_panel_header(
     true
 }
 
-pub(super) fn render_agent_list<T>(
+pub(super) fn render_panel_lines(
     buffer: &mut Buffer,
     area: Rect,
-    rows: &[T],
+    lines: &[PanelLine],
     empty_message: Option<&str>,
     config: &ClientShellConfig,
+    clock: AgentClock,
     agent_scroll: &mut usize,
     hits: &mut ShellHitMap,
-    row_lines: impl Fn(&T) -> usize,
-    mut render_row: impl FnMut(&mut Buffer, Rect, &T, &mut ShellHitMap),
 ) {
     let body = Rect::new(
         area.x,
@@ -208,7 +511,7 @@ pub(super) fn render_agent_list<T>(
         area.height.saturating_sub(3),
     );
     hits.agent_body = body;
-    if body.is_empty() || rows.is_empty() {
+    if body.is_empty() || lines.is_empty() {
         *agent_scroll = 0;
         if let Some(message) = empty_message.filter(|_| !body.is_empty()) {
             put_text(
@@ -225,23 +528,9 @@ pub(super) fn render_agent_list<T>(
         return;
     }
 
-    let row_heights = rows
-        .iter()
-        .map(|row| row_lines(row).max(1).min(u16::MAX as usize) as u16)
-        .collect::<Vec<_>>();
-    let gaps = rows
-        .iter()
-        .enumerate()
-        .map(|(index, _)| {
-            if index + 1 < rows.len() {
-                config.agents.row_gap
-            } else {
-                0
-            }
-        })
-        .collect::<Vec<_>>();
-    let metrics =
-        super::scroll::list_scroll_metrics(&row_heights, &gaps, body.height, *agent_scroll);
+    let heights = vec![1; lines.len()];
+    let gaps = vec![0; lines.len()];
+    let metrics = super::scroll::list_scroll_metrics(&heights, &gaps, body.height, *agent_scroll);
     hits.agent_max_scroll = metrics.max_offset_from_bottom;
     hits.agent_scroll_metrics = Some(metrics);
     *agent_scroll = metrics
@@ -249,21 +538,23 @@ pub(super) fn render_agent_list<T>(
         .saturating_sub(metrics.offset_from_bottom);
     let show_scrollbar = metrics.max_offset_from_bottom > 0 && body.width > 1;
     let content_width = body.width.saturating_sub(u16::from(show_scrollbar));
-    let mut y = body.y;
-    for (index, row) in rows.iter().enumerate().skip(*agent_scroll) {
-        let height = row_heights[index].min(body.height);
-        if y.saturating_add(height) > body.bottom() {
-            break;
+    for (offset, line) in lines
+        .iter()
+        .skip(*agent_scroll)
+        .take(body.height as usize)
+        .enumerate()
+    {
+        let rect = Rect::new(body.x, body.y + offset as u16, content_width, 1);
+        render_panel_line(buffer, rect, line, config, clock);
+        if let PanelLine::Agent(agent) = line {
+            match &agent.endpoint_id {
+                Some(endpoint_id) => {
+                    hits.endpoint_agents
+                        .push((rect, endpoint_id.clone(), agent.pane_id.clone()))
+                }
+                None => hits.agents.push((rect, agent.pane_id.clone())),
+            }
         }
-        let rect = Rect::new(body.x, y, content_width, height);
-        render_row(buffer, rect, row, hits);
-        y = y
-            .saturating_add(height)
-            .saturating_add(if index + 1 < rows.len() {
-                config.agents.row_gap
-            } else {
-                0
-            });
     }
 
     if show_scrollbar {
@@ -273,142 +564,152 @@ pub(super) fn render_agent_list<T>(
     }
 }
 
-pub(super) fn agent_rows(
-    snapshot: &ClientShellSnapshot,
-    config: &ClientShellConfig,
-    machine: Option<&str>,
-) -> Vec<AgentRow> {
-    let spaces = super::sidebar::space_presentation(snapshot, &config.palette);
-    ordered_agent_pane_ids(snapshot, config.agent_panel_sort)
-        .into_iter()
-        .filter_map(|pane_id| agent_row(snapshot, &spaces, &pane_id, config, machine))
-        .collect()
-}
-
-pub(super) fn agent_row(
-    snapshot: &ClientShellSnapshot,
-    spaces: &crate::ui::SpacePresentation,
-    pane_id: &str,
-    config: &ClientShellConfig,
-    machine: Option<&str>,
-) -> Option<AgentRow> {
-    let agent = snapshot
-        .agents
-        .iter()
-        .find(|agent| agent.pane_id == pane_id)?;
-    let workspace_index = snapshot
-        .workspaces
-        .iter()
-        .position(|workspace| workspace.workspace_id == agent.workspace_id)?;
-    let workspace = &snapshot.workspaces[workspace_index];
-    let tab = snapshot.tabs.iter().find(|tab| tab.tab_id == agent.tab_id);
-    let pane = snapshot
-        .panes
-        .iter()
-        .find(|pane| pane.pane_id == agent.pane_id);
-    let tab_count = snapshot
-        .tabs
-        .iter()
-        .filter(|candidate| candidate.workspace_id == agent.workspace_id)
-        .count();
-    let tab_label = tab
-        .filter(|tab| tab_count > 1 || tab.custom_label)
-        .map(|tab| tab.label.as_str());
-    let agent_label = agent
-        .display_agent
-        .as_deref()
-        .or(agent.name.as_deref())
-        .or(agent.agent.as_deref())
-        .or(agent.title.as_deref());
-    let labels = agent
-        .state_labels
-        .iter()
-        .cloned()
-        .collect::<HashMap<_, _>>();
-    let tokens = agent.tokens.iter().cloned().collect::<HashMap<_, _>>();
-    let state_text = labels
-        .get(status_text(agent.agent_status))
-        .map(String::as_str)
-        .unwrap_or_else(|| sidebar_status_text(agent.agent_status));
-    let canonical_agent = agent
-        .agent
-        .as_deref()
-        .and_then(crate::detect::parse_agent_label);
-    let rows = crate::ui::sidebar_agent_rows(
-        &config.agents,
-        crate::ui::AgentTokenContext {
-            machine,
-            workspace: &workspace.label,
-            tab: tab_label,
-            pane: agent
-                .title
-                .as_deref()
-                .or_else(|| pane.and_then(|pane| pane.label.as_deref())),
-            agent_label,
-            terminal_title: agent.terminal_title.as_deref(),
-            terminal_title_stripped: agent.terminal_title_stripped.as_deref(),
-            canonical_agent,
-            tokens: &tokens,
-        },
-        state_text,
-    );
-    Some(AgentRow {
-        pane_id: agent.pane_id.clone(),
-        status: agent.agent_status,
-        focused: agent.focused,
-        rows,
-        space_color: spaces.color(workspace_index),
-    })
-}
-
-pub(super) fn render_agent_row(
+fn render_panel_line(
     buffer: &mut Buffer,
     rect: Rect,
-    row: &AgentRow,
+    line: &PanelLine,
     config: &ClientShellConfig,
+    clock: AgentClock,
 ) {
     let palette = &config.palette;
-    let row_style = if row.focused {
-        Style::default().bg(palette.active_row_bg)
-    } else {
-        Style::default()
+    let stale_style = Style::default()
+        .fg(palette.overlay0)
+        .add_modifier(Modifier::DIM);
+    let pick = |style: Style, stale: bool| if stale { stale_style } else { style };
+    match line {
+        PanelLine::Machine { label, stale } => {
+            put_str(
+                buffer,
+                rect,
+                rect.x + 1,
+                label,
+                pick(
+                    Style::default()
+                        .fg(palette.overlay1)
+                        .add_modifier(Modifier::BOLD),
+                    *stale,
+                ),
+            );
+        }
+        PanelLine::Space { name, color, stale } => {
+            put_str(
+                buffer,
+                rect,
+                rect.x + 1,
+                name,
+                pick(
+                    Style::default().fg(*color).add_modifier(Modifier::BOLD),
+                    *stale,
+                ),
+            );
+        }
+        PanelLine::Worktree {
+            label,
+            branch,
+            color,
+            stale,
+        } => {
+            let x = put_str(
+                buffer,
+                rect,
+                rect.x + 2,
+                label,
+                pick(
+                    Style::default().fg(super::sidebar::muted_space_color(*color, palette)),
+                    *stale,
+                ),
+            );
+            if let Some(branch) = branch {
+                put_str(
+                    buffer,
+                    rect,
+                    x,
+                    &format!(" · {branch}"),
+                    pick(Style::default().fg(palette.overlay0), *stale),
+                );
+            }
+        }
+        PanelLine::Agent(agent) => render_panel_agent(buffer, rect, agent, config, clock),
+    }
+}
+
+fn render_panel_agent(
+    buffer: &mut Buffer,
+    rect: Rect,
+    agent: &PanelAgent,
+    config: &ClientShellConfig,
+    clock: AgentClock,
+) {
+    let palette = &config.palette;
+    if agent.focused {
+        buffer.set_style(rect, Style::default().bg(palette.active_row_bg));
+    }
+    let stale = |style: Style| {
+        if agent.stale {
+            Style::default()
+                .fg(palette.overlay0)
+                .add_modifier(Modifier::DIM)
+        } else {
+            style
+        }
     };
-    let name_style = Style::default()
-        .fg(row.space_color)
-        .add_modifier(Modifier::BOLD);
-    let status_style = Style::default().fg(status_color(row.status, palette));
-    let secondary =
-        Style::default().fg(super::sidebar::muted_space_color(row.space_color, palette));
-    let icon = (
-        status_icon(row.status, config.status_indicators),
-        Style::default().fg(status_color(row.status, palette)),
-    );
-    let rows = if row.rows.is_empty() {
-        vec![vec![crate::ui::ResolvedToken {
-            kind: crate::ui::ResolvedTokenKind::StateIcon,
-            style: Default::default(),
-        }]]
-    } else {
-        row.rows.clone()
-    };
-    for (index, tokens) in rows.iter().take(rect.height as usize).enumerate() {
-        let indent = if index == 0 { 1 } else { 3 };
-        let mut spans = vec![ratatui::text::Span::raw(" ".repeat(indent))];
-        spans.extend(crate::ui::resolved_token_spans(
-            tokens,
-            icon,
-            status_style,
-            name_style,
-            secondary,
-            secondary,
-            palette,
-            rect.width.saturating_sub(indent as u16) as usize,
-        ));
-        Paragraph::new(Line::from(spans)).style(row_style).render(
-            Rect::new(rect.x, rect.y + index as u16, rect.width, 1),
+    let age = agent
+        .age
+        .as_deref()
+        .filter(|age| rect.width as usize >= display_width(age) + agent.indent as usize + 8);
+    let right = age.map_or(rect.right(), |age| {
+        rect.right().saturating_sub(display_width(age) as u16 + 1)
+    });
+    let text_rect = Rect::new(rect.x, rect.y, right.saturating_sub(rect.x), 1);
+    let mut x = rect.x + agent.indent;
+    if let Some((icon, style)) = agent.icon {
+        x = put_str(buffer, text_rect, x, &format!("{icon} "), stale(style));
+    }
+    if let Some(lead) = config.agent_marks.lead(agent.state, clock.frame) {
+        x = put_str(
             buffer,
+            text_rect,
+            x,
+            &format!("{lead} "),
+            stale(agent.lead_style),
         );
     }
+    let title_style = if agent.focused {
+        agent.title_style.add_modifier(Modifier::BOLD)
+    } else {
+        agent.title_style
+    };
+    x = put_str(buffer, text_rect, x, &agent.title, stale(title_style));
+    if let Some(context) = &agent.context {
+        put_str(
+            buffer,
+            text_rect,
+            x,
+            &format!(" · {context}"),
+            stale(Style::default().fg(palette.overlay0)),
+        );
+    }
+    if let Some(age) = age {
+        put_str(
+            buffer,
+            rect,
+            right + 1,
+            age,
+            stale(Style::default().fg(palette.overlay0)),
+        );
+    }
+}
+
+/// Draws `text` from `x`, clipped to `rect`, ending with `…` when cut.
+/// Returns the column after the text.
+fn put_str(buffer: &mut Buffer, rect: Rect, x: u16, text: &str, style: Style) -> u16 {
+    let available = rect.right().saturating_sub(x) as usize;
+    if available == 0 || rect.height == 0 {
+        return x;
+    }
+    let text = crate::ui::truncate_end(text, available);
+    let (end, _) = buffer.set_stringn(x, rect.y, &text, available, style);
+    end
 }
 
 fn put_text(buffer: &mut Buffer, x: u16, y: u16, width: u16, text: &str, style: Style) {
@@ -421,14 +722,4 @@ fn put_text(buffer: &mut Buffer, x: u16, y: u16, width: u16, text: &str, style: 
 
 fn display_width(text: &str) -> usize {
     unicode_width::UnicodeWidthStr::width(text)
-}
-
-fn sidebar_status_text(status: crate::api::schema::AgentStatus) -> &'static str {
-    use crate::api::schema::AgentStatus;
-    match status {
-        AgentStatus::Blocked => "blocked",
-        AgentStatus::Done => "done",
-        AgentStatus::Working => "working",
-        AgentStatus::Idle | AgentStatus::Unknown => "idle",
-    }
 }

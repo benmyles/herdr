@@ -1056,6 +1056,14 @@ impl Workspace {
             .unwrap_or_else(|| "workspace".into())
     }
 
+    /// The label last resolved for the workspace identity, without touching
+    /// runtimes. Cheap enough for per-render use.
+    pub(crate) fn cached_display_name(&self) -> String {
+        self.custom_name
+            .clone()
+            .unwrap_or_else(|| self.cached_auto_label.clone())
+    }
+
     pub(crate) fn display_name_for_cwd(&self, cwd: &std::path::Path) -> String {
         if let Some(name) = &self.custom_name {
             return name.clone();

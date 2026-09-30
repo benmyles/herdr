@@ -1055,6 +1055,36 @@
           ]
         },
         {
+          "key": "ui.agents.icons",
+          "type": "enum",
+          "default": "\"auto\"",
+          "description": "Vendor icons in the agents panel and agent grid titles. auto uses the Herdr Agent Icons font when it is installed and plain Unicode marks otherwise.",
+          "values": [
+            "auto",
+            "font",
+            "text",
+            "none"
+          ]
+        },
+        {
+          "key": "ui.agents.fresh_minutes",
+          "type": "integer",
+          "default": "15",
+          "description": "Minutes an idle agent keeps its fresh color after it last changed state."
+        },
+        {
+          "key": "ui.agents.stale_minutes",
+          "type": "integer",
+          "default": "120",
+          "description": "Minutes after which an idle agent turns stale: dimmed and listed after its busier neighbors."
+        },
+        {
+          "key": "ui.agents.animate",
+          "type": "boolean",
+          "default": "true",
+          "description": "Animate the working spinner and the blocked pulse. Off keeps the marks still."
+        },
+        {
           "key": "ui.sidebar.agents.row_gap",
           "type": "integer",
           "default": "0",

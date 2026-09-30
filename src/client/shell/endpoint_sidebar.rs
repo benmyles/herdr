@@ -617,7 +617,7 @@ pub(super) fn render_expanded(
             }),
         );
     }
-    super::endpoint_agents::render_expanded(
+    *state.agent_marks_animating |= super::endpoint_agents::render_expanded(
         buffer,
         detail_area,
         active_snapshot.and_then(|snapshot| snapshot.agent_view_label.as_deref()),
@@ -625,6 +625,7 @@ pub(super) fn render_expanded(
         state.active_endpoint_id,
         config,
         state.agent_grid,
+        state.agent_clock,
         state.agent_scroll,
         hits,
     );

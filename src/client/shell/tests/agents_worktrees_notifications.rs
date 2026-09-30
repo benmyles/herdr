@@ -281,6 +281,7 @@ fn pane_cycle_last_and_agent_actions_resolve_to_stable_pane_ids() {
             state_labels: Vec::new(),
             tokens: Vec::new(),
             focused: true,
+            state_changed_at_ms: None,
         },
         ClientShellAgent {
             pane_id: "pane_2".into(),
@@ -297,6 +298,7 @@ fn pane_cycle_last_and_agent_actions_resolve_to_stable_pane_ids() {
             state_labels: Vec::new(),
             tokens: Vec::new(),
             focused: false,
+            state_changed_at_ms: None,
         },
     ];
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
@@ -342,14 +344,15 @@ fn pane_cycle_last_and_agent_actions_resolve_to_stable_pane_ids() {
     let [ClientShellAction::Endpoint { request, .. }] = &agent.actions[..] else {
         panic!("agent focus should use endpoint API");
     };
+    // Equally urgent agents list the latest change first: pane_2, then pane_1.
     assert!(matches!(
         &request.method,
-        crate::api::schema::Method::PaneFocus(target) if target.pane_id == "pane_2"
+        crate::api::schema::Method::PaneFocus(target) if target.pane_id == "pane_1"
     ));
 }
 
 #[test]
-fn agent_sidebar_honors_priority_symbols_tokens_and_stable_hits() {
+fn agent_panel_priority_orders_by_urgency_with_marks_and_stable_hits() {
     let mut projected = snapshot();
     let mut second_pane = projected.panes[0].clone();
     second_pane.pane_id = "pane_2".into();
@@ -371,6 +374,7 @@ fn agent_sidebar_honors_priority_symbols_tokens_and_stable_hits() {
             state_labels: Vec::new(),
             tokens: vec![("summary".into(), "review complete".into())],
             focused: true,
+            state_changed_at_ms: None,
         },
         ClientShellAgent {
             pane_id: "pane_2".into(),
@@ -387,25 +391,12 @@ fn agent_sidebar_honors_priority_symbols_tokens_and_stable_hits() {
             state_labels: vec![("blocked".into(), "needs input".into())],
             tokens: vec![("summary".into(), "waiting for Can".into())],
             focused: false,
+            state_changed_at_ms: None,
         },
     ];
     let mut config = Config::default();
     config.ui.agent_panel_sort = crate::config::AgentPanelSortConfig::Priority;
     config.ui.status_indicators = crate::config::StatusIndicatorStyle::Symbols;
-    config.ui.sidebar.agents.rows = vec![vec![crate::config::AgentSidebarToken::Agent]];
-    config.ui.sidebar.agents.rows_by_agent.insert(
-        "pi".into(),
-        vec![
-            vec![
-                crate::config::AgentSidebarToken::StateIcon,
-                crate::config::AgentSidebarToken::StateText,
-            ],
-            vec![
-                crate::config::AgentSidebarToken::Agent,
-                crate::config::AgentSidebarToken::Custom("summary".into()),
-            ],
-        ],
-    );
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&config));
     state.set_snapshot(Box::new(projected));
     state.set_pane_surface(surface());
@@ -421,9 +412,10 @@ fn agent_sidebar_honors_priority_symbols_tokens_and_stable_hits() {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    assert!(text.contains("× needs input"), "frame: {text}");
-    assert!(text.contains("pi two"), "frame: {text}");
-    assert!(text.contains("waiting for"), "frame: {text}");
+    // Vendor icon, pulsing question mark, then the session title; the most
+    // urgent agent leads, each with its workspace alongside.
+    assert!(text.contains("π ? second · "), "frame: {text}");
+    assert!(text.contains("π first · "), "frame: {text}");
     assert_eq!(
         state
             .hits
@@ -448,7 +440,7 @@ fn agent_sidebar_honors_priority_symbols_tokens_and_stable_hits() {
         crate::api::schema::Method::PaneFocus(target) if target.pane_id == "pane_2"
     ));
 
-    state.compose(106, 10).expect("short agent sidebar frame");
+    state.compose(106, 8).expect("short agent sidebar frame");
     assert_eq!(
         state
             .hits
@@ -464,9 +456,7 @@ fn agent_sidebar_honors_priority_symbols_tokens_and_stable_hits() {
         row: body.y,
         modifiers: KeyModifiers::empty(),
     })]);
-    state
-        .compose(106, 10)
-        .expect("scrolled agent sidebar frame");
+    state.compose(106, 8).expect("scrolled agent sidebar frame");
     assert_eq!(
         state
             .hits
@@ -510,6 +500,7 @@ fn muted_agent_sidebar_rows_do_not_stack_terminal_faint() {
         state_labels: Vec::new(),
         tokens: Vec::new(),
         focused: true,
+        state_changed_at_ms: None,
     }];
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     state.set_snapshot(Box::new(projected));
@@ -518,7 +509,7 @@ fn muted_agent_sidebar_rows_do_not_stack_terminal_faint() {
     let row = state.hits.agents.first().expect("agent row hit").0;
     let buffer = frame.to_ratatui_buffer().expect("agent sidebar buffer");
 
-    for (label, needle) in [("tab", "second"), ("agent", "reviewer"), ("separator", "·")] {
+    for (label, needle) in [("icon", "π"), ("agent", "reviewer")] {
         let (x, y) = cell_symbol_position(&frame, row, needle);
         let cell = buffer.cell((x, y)).expect("muted sidebar cell");
         assert!(
@@ -577,6 +568,7 @@ fn active_agent_view_controls_sidebar_order_and_focus_indices() {
             state_labels: Vec::new(),
             tokens: Vec::new(),
             focused: true,
+            state_changed_at_ms: None,
         },
         ClientShellAgent {
             pane_id: "pane_2".into(),
@@ -593,6 +585,7 @@ fn active_agent_view_controls_sidebar_order_and_focus_indices() {
             state_labels: Vec::new(),
             tokens: Vec::new(),
             focused: false,
+            state_changed_at_ms: None,
         },
         ClientShellAgent {
             pane_id: "pane_3".into(),
@@ -609,6 +602,7 @@ fn active_agent_view_controls_sidebar_order_and_focus_indices() {
             state_labels: Vec::new(),
             tokens: Vec::new(),
             focused: false,
+            state_changed_at_ms: None,
         },
     ];
     projected.agent_view_label = Some("review".into());
@@ -683,6 +677,7 @@ fn agent_sort_toggle_is_client_local_and_persists_per_endpoint() {
         state_labels: Vec::new(),
         tokens: Vec::new(),
         focused: true,
+        state_changed_at_ms: None,
     });
     let config =
         ClientShellConfig::from_config(&Config::default()).with_preferences_path(path.clone());
@@ -1248,6 +1243,7 @@ fn semantic_notifications_use_client_policy_and_stable_navigation_targets() {
         state_labels: Vec::new(),
         tokens: Vec::new(),
         focused: false,
+        state_changed_at_ms: None,
     });
     state.set_snapshot(Box::new(projected));
     state.set_pane_surface(surface());
@@ -1409,6 +1405,7 @@ fn space_color_snapshot() -> ClientShellSnapshot {
             state_labels: Vec::new(),
             tokens: Vec::new(),
             focused: false,
+            state_changed_at_ms: None,
         }
     }
 
@@ -1482,9 +1479,21 @@ fn expanded_sidebar_uses_matching_space_colors_and_grouped_agent_order() {
         ["ws_issue_pane", "ws_main_pane", "ws_notes_pane"],
         "grouped agents follow space order"
     );
-    assert_eq!(fg_at(agents[0].1, "issue"), issue);
-    assert_eq!(fg_at(agents[1].1, "main"), main);
-    assert_eq!(fg_at(agents[2].1, "notes"), notes);
+    // Each agent sits under its worktree header, drawn in its space color.
+    let header_fg =
+        |agent: Rect, needle: &str| fg_at(Rect::new(agent.x, agent.y - 1, agent.width, 1), needle);
+    let muted =
+        |color| crate::client::shell::sidebar::muted_space_color(color, &state.config.palette);
+    assert_eq!(header_fg(agents[0].1, "issue"), muted(issue));
+    assert_eq!(header_fg(agents[1].1, "main"), muted(main));
+    assert_eq!(header_fg(agents[2].1, "notes"), muted(notes));
+    let rows = frame_rows(&frame);
+    let space_header = agents[0].1.y as usize - 2;
+    assert!(
+        rows[space_header].contains("feature"),
+        "{}",
+        rows[space_header]
+    );
 }
 
 #[test]

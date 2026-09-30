@@ -108,6 +108,46 @@ enum LegacyAgentPanelScopeConfig {
     All,
 }
 
+/// Agent vendor icons in the agents panel and grid titles.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum AgentIconsConfig {
+    /// Font glyphs when the Herdr Agent Icons font is installed, else text.
+    #[default]
+    Auto,
+    /// Glyphs from the Herdr Agent Icons font.
+    Font,
+    /// Unicode stand-ins that render in any font.
+    Text,
+    /// No vendor icons.
+    None,
+}
+
+/// Agent marks shown in the agents panel and the live agent grid.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default)]
+pub struct AgentMarksConfig {
+    /// Vendor icons: "auto", "font", "text", or "none". Default: auto.
+    pub icons: AgentIconsConfig,
+    /// Minutes an idle agent stays fresh after its last change. Default: 15.
+    pub fresh_minutes: u64,
+    /// Minutes after which an idle agent turns stale, dims, and sinks. Default: 120.
+    pub stale_minutes: u64,
+    /// Animate the working spinner and blocked pulse. Default: true.
+    pub animate: bool,
+}
+
+impl Default for AgentMarksConfig {
+    fn default() -> Self {
+        Self {
+            icons: AgentIconsConfig::Auto,
+            fresh_minutes: 15,
+            stale_minutes: 120,
+            animate: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum StatusIndicatorStyle {
@@ -972,6 +1012,8 @@ pub struct UiConfig {
     _legacy_agent_panel_scope: Option<LegacyAgentPanelScopeConfig>,
     /// Agent status indicator style. Saved values are "dots" or "symbols". Default: "dots".
     pub status_indicators: StatusIndicatorStyle,
+    /// Agent marks: vendor icons, idle freshness, and animation.
+    pub agents: AgentMarksConfig,
     /// Expanded sidebar row composition.
     pub sidebar: SidebarConfig,
     /// Accent color for highlights, borders, and navigation UI.
@@ -1198,6 +1240,7 @@ impl Default for UiConfig {
             agent_panel_sort: AgentPanelSortConfig::Spaces,
             _legacy_agent_panel_scope: None,
             status_indicators: StatusIndicatorStyle::Dots,
+            agents: AgentMarksConfig::default(),
             sidebar: SidebarConfig::default(),
             accent: "cyan".into(),
             toast: ToastConfig::default(),
