@@ -528,11 +528,10 @@ impl HeadlessServer {
                 } else {
                     crate::kitty_graphics::HostCellSize::default()
                 };
-                let result = if self.client_shows_agent_grid(client_id) {
+                let result = if let Some(view) = self.client_agent_grid_view(client_id) {
                     crate::server::client_shell::render_agent_grid_surface(
                         &self.app,
-                        self.shell_focus_target(client_id)
-                            .map(|target| (target.workspace_index, target.pane_id)),
+                        view,
                         area,
                         render_cell_size,
                         &shell_graphics_delivery,

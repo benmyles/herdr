@@ -560,6 +560,7 @@ pub(crate) fn render_agent_grid_virtual(
     app_state: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,
     tiles: &[crate::ui::AgentGridTile],
+    filter: crate::api::schema::AgentGridFilter,
     area: Rect,
 ) -> RenderedAgentGrid {
     let cursor = crate::ui::agent_grid_cursor(app_state, terminal_runtimes, tiles);
@@ -568,7 +569,7 @@ pub(crate) fn render_agent_grid_virtual(
     let mut terminal = ratatui::Terminal::new(backend).expect("TestBackend::new should never fail");
     terminal
         .draw(|frame| {
-            crate::ui::render_agent_grid(app_state, terminal_runtimes, tiles, frame, area);
+            crate::ui::render_agent_grid(app_state, terminal_runtimes, tiles, filter, frame, area);
         })
         .expect("render to TestBackend should never fail");
     (terminal.backend().buffer().clone(), cursor, hyperlinks)

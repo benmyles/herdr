@@ -58,7 +58,7 @@ pub(super) fn render_expanded(
     endpoints: &[ClientShellEndpoint],
     active_endpoint_id: &ClientEndpointId,
     config: &ClientShellConfig,
-    agent_grid: Option<bool>,
+    agent_grid: Option<super::agent_grid::AgentGridHeading>,
     clock: AgentClock,
     agent_scroll: &mut usize,
     hits: &mut ShellHitMap,
@@ -76,7 +76,7 @@ pub(super) fn render_expanded(
     let lines = expanded_lines(
         endpoints,
         active_endpoint_id,
-        agent_grid == Some(true),
+        super::agent_grid::AgentGridHeading::shown_filter(agent_grid),
         config,
         clock,
     );
@@ -95,11 +95,12 @@ pub(super) fn render_expanded(
 
 /// Panel lines across every endpoint: grouped per machine, or one flat list
 /// when an agent view or the priority sort orders agents across machines.
-/// `agent_grid` is set while the active endpoint shows its live agent grid.
+/// `agent_grid` is the view of the active endpoint's live agent grid while
+/// it is shown.
 fn expanded_lines(
     endpoints: &[ClientShellEndpoint],
     active_endpoint_id: &ClientEndpointId,
-    agent_grid: bool,
+    agent_grid: Option<crate::api::schema::AgentGridFilter>,
     config: &ClientShellConfig,
     clock: AgentClock,
 ) -> Vec<super::agent_sidebar::PanelLine> {
@@ -113,7 +114,7 @@ fn expanded_lines(
             machine: many.then_some(endpoint.label),
             stale: endpoint.stale(),
             active: endpoint.endpoint_id == active_endpoint_id,
-            agent_grid: agent_grid && endpoint.endpoint_id == active_endpoint_id,
+            agent_grid: agent_grid.filter(|_| endpoint.endpoint_id == active_endpoint_id),
             snapshot: endpoint.snapshot,
         })
         .collect::<Vec<_>>();
@@ -155,7 +156,7 @@ impl ClientShellState {
         let lines = expanded_lines(
             &self.endpoints,
             &self.active_endpoint_id,
-            false,
+            None,
             &self.config,
             self.agent_clock(std::time::Instant::now()),
         );

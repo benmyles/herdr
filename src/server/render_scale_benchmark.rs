@@ -370,19 +370,21 @@ fn render_agent_grid_once(pipeline: &mut RenderPipeline) -> (Duration, Duration)
     let started = Instant::now();
     // Mirrors the per-frame geometry sync: lock every live agent, then size
     // its PTY to its tile before the grid surface renders.
+    let view = crate::ui::AgentGridView::default();
     black_box(
-        crate::ui::live_agent_targets(&pipeline.app.state, &pipeline.app.terminal_runtimes).len(),
+        crate::ui::live_agent_targets(&pipeline.app.state, &pipeline.app.terminal_runtimes, view)
+            .len(),
     );
     crate::ui::compute_agent_grid(
         &pipeline.app.state,
         &pipeline.app.terminal_runtimes,
         area,
-        None,
+        view,
         Some(cell_size),
     );
     let rendered = super::client_shell::render_agent_grid_surface(
         &pipeline.app,
-        None,
+        view,
         area,
         cell_size,
         &pipeline.graphics_delivery,

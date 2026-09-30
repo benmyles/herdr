@@ -137,9 +137,9 @@ pub(super) struct AgentPanelSource<'a> {
     pub(super) stale: bool,
     /// Focus marks count only on the active endpoint.
     pub(super) active: bool,
-    /// Set when this endpoint's live agent grid is shown; rows then mark the
-    /// agents it shows.
-    pub(super) agent_grid: bool,
+    /// The view of this endpoint's live agent grid while it is shown; rows
+    /// then mark the agents it shows.
+    pub(super) agent_grid: Option<crate::api::schema::AgentGridFilter>,
     pub(super) snapshot: &'a ClientShellSnapshot,
 }
 
@@ -227,9 +227,13 @@ impl PanelAgent {
                 .then(|| super::agent_marks::age_label(agent.state_changed_at_ms, clock.now))
                 .flatten(),
             indent,
-            in_agent_grid: source
-                .agent_grid
-                .then(|| !super::agent_grid::agent_grid_excludes(source.snapshot, &agent.pane_id)),
+            // The grid keeps its selected agent under every view.
+            in_agent_grid: source.agent_grid.map(|filter| {
+                super::agent_grid::agent_grid_filter_matches(source.snapshot, agent, filter)
+                    || (agent.focused
+                        && source.active
+                        && !super::agent_grid::agent_grid_excludes(source.snapshot, &agent.pane_id))
+            }),
         }
     }
 }
@@ -348,7 +352,7 @@ pub(super) fn render_agent_panel(
     area: Rect,
     snapshot: &ClientShellSnapshot,
     config: &ClientShellConfig,
-    agent_grid: Option<bool>,
+    agent_grid: Option<super::agent_grid::AgentGridHeading>,
     clock: AgentClock,
     agent_scroll: &mut usize,
     hits: &mut ShellHitMap,
@@ -369,7 +373,7 @@ pub(super) fn render_agent_panel(
         machine: None,
         stale: false,
         active: true,
-        agent_grid: agent_grid == Some(true),
+        agent_grid: super::agent_grid::AgentGridHeading::shown_filter(agent_grid),
         snapshot,
     }];
     let flat = (snapshot.agent_view_label.is_some()
@@ -433,7 +437,7 @@ pub(super) fn render_agent_panel_header(
     area: Rect,
     agent_view_label: Option<&str>,
     config: &ClientShellConfig,
-    agent_grid: Option<bool>,
+    agent_grid: Option<super::agent_grid::AgentGridHeading>,
     hits: &mut ShellHitMap,
 ) -> bool {
     if area.height == 0 {
@@ -462,6 +466,7 @@ pub(super) fn render_agent_panel_header(
         1,
     );
     // The heading toggles the live agent grid and never overlaps the sort control.
+    let shown = agent_grid.is_some_and(|heading| heading.shown);
     let title = " agents";
     let title_rect = Rect::new(
         area.x,
@@ -476,7 +481,7 @@ pub(super) fn render_agent_panel_header(
         title_rect.width,
         title,
         Style::default()
-            .fg(if agent_grid == Some(true) {
+            .fg(if shown {
                 config.palette.accent
             } else {
                 config.palette.overlay0
@@ -488,6 +493,48 @@ pub(super) fn render_agent_panel_header(
     } else {
         Rect::default()
     };
+    // The grid's view follows the heading and switches it; it shows the
+    // remembered view while the grid is closed.
+    hits.agent_grid_filter_toggle = Rect::default();
+    if let Some(filter) = agent_grid.and_then(|heading| heading.filter) {
+        let separator = " | ";
+        let label = match filter {
+            crate::api::schema::AgentGridFilter::All => "all",
+            crate::api::schema::AgentGridFilter::Active => "active",
+        };
+        let separator_x = title_rect.right();
+        let label_x = separator_x + display_width(separator) as u16;
+        let label_width = display_width(label) as u16;
+        // Keep a space before the sort control.
+        if label_x + label_width < sort_rect.x {
+            put_text(
+                buffer,
+                separator_x,
+                title_rect.y,
+                label_x - separator_x,
+                separator,
+                Style::default().fg(config.palette.surface_dim),
+            );
+            let label_rect = Rect::new(label_x, title_rect.y, label_width, 1);
+            put_text(
+                buffer,
+                label_rect.x,
+                label_rect.y,
+                label_rect.width,
+                label,
+                Style::default()
+                    .fg(if shown {
+                        config.palette.accent
+                    } else {
+                        config.palette.overlay0
+                    })
+                    .add_modifier(Modifier::BOLD),
+            );
+            if config.mouse_capture {
+                hits.agent_grid_filter_toggle = label_rect;
+            }
+        }
+    }
     hits.agent_sort_toggle = if config.mouse_capture && agent_view_label.is_none() {
         sort_rect
     } else {

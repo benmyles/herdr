@@ -61,6 +61,8 @@ pub(super) enum PaletteAction {
     },
     Settings(ClientSettingsSection),
     AgentGrid,
+    /// Switches the grid between every agent and the active ones.
+    AgentGridFilter,
     NewSpace,
     WhatsNew,
 }
@@ -496,19 +498,25 @@ impl ClientShellState {
         }
 
         // The grid needs its sidebar toggle, which a collapsed sidebar hides.
-        if let Some(shown) = self
+        if let Some(heading) = self
             .agent_grid_toggle_state()
             .filter(|_| !self.sidebar_collapsed)
         {
             entries.push(PaletteEntry {
                 kind: PaletteKind::View,
-                title: if shown {
+                title: if heading.shown {
                     "hide agent grid"
                 } else {
                     "show agent grid"
                 }
                 .to_owned(),
-                detail: "tile every live agent".to_owned(),
+                detail: match heading.filter {
+                    Some(crate::api::schema::AgentGridFilter::Active) => {
+                        "tile agents that are working or waiting on you"
+                    }
+                    _ => "tile every live agent",
+                }
+                .to_owned(),
                 hint: None,
                 status: None,
                 current: false,
@@ -517,6 +525,29 @@ impl ClientShellState {
                 usage_key: "view:agent grid".to_owned(),
                 boost: 0,
             });
+            if let Some(filter) = heading.filter {
+                let (title, detail) = match filter {
+                    crate::api::schema::AgentGridFilter::All => (
+                        "agent grid: active agents",
+                        "only agents working or waiting on you",
+                    ),
+                    crate::api::schema::AgentGridFilter::Active => {
+                        ("agent grid: all agents", "every live agent")
+                    }
+                };
+                entries.push(PaletteEntry {
+                    kind: PaletteKind::View,
+                    title: title.to_owned(),
+                    detail: detail.to_owned(),
+                    hint: None,
+                    status: None,
+                    current: false,
+                    stale: false,
+                    action: PaletteAction::AgentGridFilter,
+                    usage_key: "view:agent grid filter".to_owned(),
+                    boost: 0,
+                });
+            }
         }
 
         entries.extend(
@@ -688,6 +719,7 @@ impl ClientShellState {
                 self.select_settings_section(section, outcome);
             }
             PaletteAction::AgentGrid => self.toggle_agent_grid(outcome),
+            PaletteAction::AgentGridFilter => self.cycle_agent_grid_filter(outcome),
             PaletteAction::NewSpace => self.begin_new_space(None),
             PaletteAction::WhatsNew => self.open_release_notes(),
         }

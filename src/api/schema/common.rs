@@ -74,6 +74,28 @@ pub struct ClientShellAgentGridSetParams {
     pub active: bool,
 }
 
+/// Which live agents a client shell's grid shows. Agents left out of the grid
+/// stay out under every filter.
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentGridFilter {
+    /// Every live agent.
+    #[default]
+    All,
+    /// Agents working, waiting on the user, or in a state Herdr can't tell;
+    /// not agents that are idle or finished. The selected agent stays shown.
+    Active,
+}
+
+/// Sets which agents the requesting client shell's grid shows. The filter is
+/// per connection and starts at `all`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct ClientShellAgentGridFilterSetParams {
+    pub filter: AgentGridFilter,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SplitDirection {

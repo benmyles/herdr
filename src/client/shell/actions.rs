@@ -944,8 +944,9 @@ impl ClientShellState {
                 );
                 // The grid cycles through the agents it shows.
                 if self.agent_grid_active() {
+                    let filter = self.effective_agent_grid_filter();
                     agents.retain(|pane_id| {
-                        !super::agent_grid::agent_grid_excludes(snapshot, pane_id)
+                        super::agent_grid::agent_grid_has_tile(snapshot, pane_id, filter)
                     });
                 }
                 if agents.is_empty() {

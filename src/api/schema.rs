@@ -79,6 +79,8 @@ pub enum Method {
     ClientShellSurfaceSet(ClientShellSurfaceSetParams),
     #[serde(rename = "client_shell.agent_grid.set")]
     ClientShellAgentGridSet(ClientShellAgentGridSetParams),
+    #[serde(rename = "client_shell.agent_grid.filter.set")]
+    ClientShellAgentGridFilterSet(ClientShellAgentGridFilterSetParams),
     #[serde(rename = "session.snapshot")]
     SessionSnapshot(EmptyParams),
     #[serde(rename = "space.list")]

@@ -1,5 +1,25 @@
 use super::*;
 
+/// What the agents heading shows about the live agent grid.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) struct AgentGridHeading {
+    pub(super) shown: bool,
+    /// The view the grid shows or opens in; `None` when the endpoint can't
+    /// filter its grid.
+    pub(super) filter: Option<crate::api::schema::AgentGridFilter>,
+}
+
+impl AgentGridHeading {
+    /// The filter of the grid being shown, if one is.
+    pub(super) fn shown_filter(
+        heading: Option<Self>,
+    ) -> Option<crate::api::schema::AgentGridFilter> {
+        heading
+            .filter(|heading| heading.shown)
+            .map(|heading| heading.filter.unwrap_or_default())
+    }
+}
+
 /// Endpoint connection that showed the live agent grid. The server keeps grid
 /// state per connection, so a new boot or connection generation starts closed.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -29,11 +49,33 @@ impl ClientShellState {
         ))
     }
 
+    pub(super) fn agent_grid_filter_supported(&self) -> bool {
+        self.supports_endpoint_method(&crate::api::schema::Method::ClientShellAgentGridFilterSet(
+            crate::api::schema::ClientShellAgentGridFilterSetParams {
+                filter: crate::api::schema::AgentGridFilter::All,
+            },
+        ))
+    }
+
     /// Toggle state for the agents heading: `None` when the endpoint cannot
-    /// show a grid, otherwise whether the grid is shown.
-    pub(super) fn agent_grid_toggle_state(&self) -> Option<bool> {
-        self.agent_grid_supported()
-            .then(|| self.agent_grid_active())
+    /// show a grid.
+    pub(super) fn agent_grid_toggle_state(&self) -> Option<AgentGridHeading> {
+        self.agent_grid_supported().then(|| AgentGridHeading {
+            shown: self.agent_grid_active(),
+            filter: self
+                .agent_grid_filter_supported()
+                .then_some(self.agent_grid_filter),
+        })
+    }
+
+    /// The view the grid shows: the remembered one, or every agent on an
+    /// endpoint that can't filter.
+    pub(super) fn effective_agent_grid_filter(&self) -> crate::api::schema::AgentGridFilter {
+        if self.agent_grid_filter_supported() {
+            self.agent_grid_filter
+        } else {
+            crate::api::schema::AgentGridFilter::All
+        }
     }
 
     pub(super) fn toggle_agent_grid(&mut self, outcome: &mut ClientShellInput) {
@@ -42,6 +84,42 @@ impl ClientShellState {
         if active {
             self.focus_agent_for_grid(None, outcome);
         }
+    }
+
+    /// Switches the grid between every agent and the active ones, and opens
+    /// it in that view when it is closed. The choice is remembered.
+    pub(super) fn cycle_agent_grid_filter(&mut self, outcome: &mut ClientShellInput) {
+        use crate::api::schema::AgentGridFilter;
+
+        if !self.agent_grid_filter_supported() {
+            return;
+        }
+        self.agent_grid_filter = match self.agent_grid_filter {
+            AgentGridFilter::All => AgentGridFilter::Active,
+            AgentGridFilter::Active => AgentGridFilter::All,
+        };
+        self.persist_chrome_preferences(outcome);
+        outcome.repaint = true;
+        if !self.agent_grid_active() {
+            self.toggle_agent_grid(outcome);
+            return;
+        }
+        self.push_agent_grid_filter(outcome);
+        self.focus_agent_for_grid(None, outcome);
+    }
+
+    fn push_agent_grid_filter(&mut self, outcome: &mut ClientShellInput) {
+        if !self.agent_grid_filter_supported() {
+            return;
+        }
+        self.push_endpoint_method(
+            crate::api::schema::Method::ClientShellAgentGridFilterSet(
+                crate::api::schema::ClientShellAgentGridFilterSetParams {
+                    filter: self.agent_grid_filter,
+                },
+            ),
+            outcome,
+        );
     }
 
     /// Whether the endpoint can leave agents out of its grid.
@@ -76,14 +154,22 @@ impl ClientShellState {
         }
     }
 
-    /// The grid shows only agents, so keyboard input must target one of them.
-    /// `leaving` is an agent just left out whose snapshot has not caught up.
+    /// The grid shows only agents, so keyboard input must target one of them,
+    /// preferably one its view matches. `leaving` is an agent just left out
+    /// whose snapshot has not caught up.
     fn focus_agent_for_grid(&mut self, leaving: Option<&str>, outcome: &mut ClientShellInput) {
+        let filter = self.effective_agent_grid_filter();
         let Some(snapshot) = self.snapshot.as_deref() else {
             return;
         };
-        let shown =
-            |pane_id: &str| Some(pane_id) != leaving && !agent_grid_excludes(snapshot, pane_id);
+        let shown = |pane_id: &str| {
+            Some(pane_id) != leaving
+                && snapshot
+                    .agents
+                    .iter()
+                    .find(|agent| agent.pane_id == pane_id)
+                    .is_some_and(|agent| agent_grid_filter_matches(snapshot, agent, filter))
+        };
         let agents = super::agent_sidebar::ordered_agent_pane_ids(
             snapshot,
             crate::config::AgentPanelSortConfig::Spaces,
@@ -119,6 +205,10 @@ impl ClientShellState {
         } else {
             None
         };
+        // The server keeps the view per connection; send it before showing.
+        if active {
+            self.push_agent_grid_filter(outcome);
+        }
         self.push_endpoint_method(
             crate::api::schema::Method::ClientShellAgentGridSet(
                 crate::api::schema::ClientShellAgentGridSetParams { active },
@@ -182,7 +272,46 @@ pub(super) fn agent_grid_excludes(snapshot: &ClientShellSnapshot, pane_id: &str)
         .any(|pane| pane.pane_id == pane_id && pane.agent_grid_excluded)
 }
 
-/// Whether the live agent grid has a tile for `pane_id`.
+/// Whether `filter` matches `agent`, as the server decides it: agents left
+/// out never match, and `active` leaves out idle and finished agents but keeps
+/// ones in a state the endpoint can't tell. The server also keeps the selected
+/// agent's tile, which this leaves to the caller.
+pub(super) fn agent_grid_filter_matches(
+    snapshot: &ClientShellSnapshot,
+    agent: &crate::protocol::ClientShellAgent,
+    filter: crate::api::schema::AgentGridFilter,
+) -> bool {
+    use crate::api::schema::{AgentGridFilter, AgentStatus};
+
+    !agent_grid_excludes(snapshot, &agent.pane_id)
+        && match filter {
+            AgentGridFilter::All => true,
+            AgentGridFilter::Active => {
+                !matches!(agent.agent_status, AgentStatus::Idle | AgentStatus::Done)
+            }
+        }
+}
+
+/// Whether a grid showing `filter` has a tile for the agent in `pane_id`: one
+/// the filter matches, or the selected agent, which the server keeps.
+pub(super) fn agent_grid_has_tile(
+    snapshot: &ClientShellSnapshot,
+    pane_id: &str,
+    filter: crate::api::schema::AgentGridFilter,
+) -> bool {
+    snapshot
+        .agents
+        .iter()
+        .find(|agent| agent.pane_id == pane_id)
+        .is_some_and(|agent| {
+            agent_grid_filter_matches(snapshot, agent, filter)
+                || (snapshot.focused_pane_id.as_deref() == Some(pane_id)
+                    && !agent_grid_excludes(snapshot, pane_id))
+        })
+}
+
+/// Whether the live agent grid has a tile for `pane_id`. Focusing an agent
+/// selects it, and the grid keeps its selected agent under every view.
 fn agent_grid_shows(snapshot: &ClientShellSnapshot, pane_id: &str) -> bool {
     snapshot.agents.iter().any(|agent| agent.pane_id == pane_id)
         && !agent_grid_excludes(snapshot, pane_id)

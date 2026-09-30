@@ -2133,6 +2133,10 @@ impl ClientShellState {
                     self.toggle_agent_grid(outcome);
                     return;
                 }
+                if super::contains(self.hits.agent_grid_filter_toggle, point) {
+                    self.cycle_agent_grid_filter(outcome);
+                    return;
+                }
                 if super::contains(self.hits.global_launcher, point) {
                     self.toggle_global_menu();
                     outcome.repaint = true;

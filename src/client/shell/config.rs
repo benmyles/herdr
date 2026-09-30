@@ -59,6 +59,8 @@ impl ClientShellState {
             agent_panel_sort: self
                 .agent_panel_sort_manual
                 .then_some(self.config.agent_panel_sort),
+            agent_grid_filter: Some(self.agent_grid_filter)
+                .filter(|filter| *filter != crate::api::schema::AgentGridFilter::default()),
             collapsed_groups,
             remote_collapsed_groups,
         };
@@ -528,6 +530,32 @@ mod tests {
         let state = ClientShellState::new(config);
         assert_eq!(initial, state.surface_size(100, 30));
         std::fs::remove_file(path).expect("remove endpoint chrome");
+    }
+
+    #[test]
+    fn the_chosen_agent_grid_view_survives_a_restart() {
+        let path = std::env::temp_dir().join(format!(
+            "herdr-agent-grid-view-preferences-{}.json",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&path);
+        let config =
+            ClientShellConfig::from_config(&Config::default()).with_preferences_path(path.clone());
+        let mut state = ClientShellState::new(config);
+        assert_eq!(
+            state.agent_grid_filter,
+            crate::api::schema::AgentGridFilter::All
+        );
+        state.agent_grid_filter = crate::api::schema::AgentGridFilter::Active;
+        state.persist_chrome_preferences(&mut ClientShellInput::default());
+
+        let config =
+            ClientShellConfig::from_config(&Config::default()).with_preferences_path(path.clone());
+        assert_eq!(
+            ClientShellState::new(config).agent_grid_filter,
+            crate::api::schema::AgentGridFilter::Active
+        );
+        std::fs::remove_file(path).expect("remove preferences");
     }
 
     #[test]

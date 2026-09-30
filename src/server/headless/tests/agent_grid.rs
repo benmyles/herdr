@@ -265,3 +265,112 @@ async fn excluding_an_agent_returns_it_to_tab_geometry_and_regrids_the_rest() {
 
     shutdown_test_runtimes(&mut server);
 }
+
+fn set_grid_filter(
+    server: &mut HeadlessServer,
+    client_id: u64,
+    filter: api::schema::AgentGridFilter,
+) -> bool {
+    server.handle_server_event(ServerEvent::ClientShellEndpointRequest {
+        client_id,
+        boot_id: server.client_shell_boot_id.clone(),
+        request: Box::new(api::schema::Request {
+            id: format!("filter-{filter:?}"),
+            method: api::schema::Method::ClientShellAgentGridFilterSet(
+                api::schema::ClientShellAgentGridFilterSetParams { filter },
+            ),
+        }),
+    })
+}
+
+fn set_agent_state(
+    server: &mut HeadlessServer,
+    workspace_index: usize,
+    pane_id: crate::layout::PaneId,
+    state: crate::detect::AgentState,
+) {
+    let terminal_id = server.app.state.workspaces[workspace_index]
+        .terminal_id(pane_id)
+        .cloned()
+        .expect("terminal id");
+    server
+        .app
+        .state
+        .terminals
+        .get_mut(&terminal_id)
+        .expect("terminal")
+        .state = state;
+}
+
+#[tokio::test]
+async fn active_grid_filter_shows_agents_that_are_not_idle() {
+    let GridFixture {
+        mut server,
+        shell,
+        first_agent,
+        second_agent,
+        ..
+    } = grid_fixture();
+    set_agent_state(&mut server, 0, first_agent, crate::detect::AgentState::Idle);
+    set_agent_state(
+        &mut server,
+        1,
+        second_agent,
+        crate::detect::AgentState::Working,
+    );
+    let (control, render) = connect_test_shell(&mut server, 7, 100, 30);
+    let _ = client_shell_snapshot(&control);
+    server.render_and_stream();
+    let _ = recv_pane_surface(&render, "tab surface");
+    let tab_size = runtime_size(&server, 0, first_agent);
+
+    assert!(
+        !set_grid_filter(&mut server, 7, api::schema::AgentGridFilter::Active),
+        "a hidden grid has nothing to repaint"
+    );
+    let _ = control.recv().expect("filter response");
+    assert!(set_grid(&mut server, 7, true));
+    let _ = control.recv().expect("grid response");
+    server.render_and_stream();
+    let grid = recv_pane_surface(&render, "active grid");
+    let first_id = server.app.public_pane_id(0, first_agent).unwrap();
+    let second_id = server.app.public_pane_id(1, second_agent).unwrap();
+    let pane_ids = |surface: &crate::protocol::PaneSurfaceFrame| {
+        surface
+            .panes
+            .iter()
+            .map(|pane| pane.pane_id.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(pane_ids(&grid), vec![second_id.clone()]);
+    assert_eq!(
+        runtime_size(&server, 0, first_agent),
+        tab_size,
+        "an idle agent keeps its tab size"
+    );
+    assert!(!server.pty_sources_visible_to_any_render_target(&HashSet::from([first_agent])));
+    assert!(!server.pty_sources_visible_to_any_render_target(&HashSet::from([shell])));
+
+    set_agent_state(
+        &mut server,
+        0,
+        first_agent,
+        crate::detect::AgentState::Blocked,
+    );
+    server.render_and_stream();
+    let grid = recv_pane_surface(&render, "agent waiting on the user");
+    assert_eq!(pane_ids(&grid), vec![first_id.clone(), second_id.clone()]);
+
+    assert!(set_grid_filter(
+        &mut server,
+        7,
+        api::schema::AgentGridFilter::All
+    ));
+    let _ = control.recv().expect("filter response");
+    set_agent_state(&mut server, 0, first_agent, crate::detect::AgentState::Idle);
+    server.render_and_stream();
+    let grid = recv_pane_surface(&render, "all grid");
+    assert_eq!(pane_ids(&grid), vec![first_id, second_id]);
+
+    shutdown_test_runtimes(&mut server);
+}

@@ -68,6 +68,12 @@ fn methods(outcome: &ClientShellInput) -> Vec<crate::api::schema::Method> {
         .collect()
 }
 
+fn grid_filter(filter: crate::api::schema::AgentGridFilter) -> crate::api::schema::Method {
+    crate::api::schema::Method::ClientShellAgentGridFilterSet(
+        crate::api::schema::ClientShellAgentGridFilterSetParams { filter },
+    )
+}
+
 fn grid_set(active: bool) -> crate::api::schema::Method {
     crate::api::schema::Method::ClientShellAgentGridSet(
         crate::api::schema::ClientShellAgentGridSetParams { active },
@@ -90,6 +96,7 @@ fn agents_heading_toggles_the_grid_and_gives_it_the_tab_bar_row() {
     assert_eq!(
         methods(&open),
         vec![
+            grid_filter(crate::api::schema::AgentGridFilter::All),
             grid_set(true),
             crate::api::schema::Method::PaneFocus(crate::api::schema::PaneTarget {
                 pane_id: "pane_2".into(),
@@ -474,7 +481,14 @@ fn only_agents_shown_in_the_grid_carry_the_rail() {
 fn opening_the_grid_skips_an_excluded_focused_agent() {
     let mut state = two_agent_state(&["pane_2"]);
     let open = press(&mut state, |hits| hits.agent_grid_toggle);
-    assert_eq!(methods(&open), vec![grid_set(true), pane_focus("pane_3")]);
+    assert_eq!(
+        methods(&open),
+        vec![
+            grid_filter(crate::api::schema::AgentGridFilter::All),
+            grid_set(true),
+            pane_focus("pane_3")
+        ]
+    );
 }
 
 #[test]
@@ -511,6 +525,32 @@ fn agent_cycling_in_the_grid_skips_excluded_agents() {
 }
 
 #[test]
+fn agent_cycling_in_the_active_view_skips_idle_agents() {
+    use crate::input::KeybindAction;
+
+    let mut state = two_agent_state(&[]);
+    update_agents(
+        &mut state,
+        "pane_2",
+        &[
+            ("pane_2", AgentStatus::Working),
+            ("pane_3", AgentStatus::Idle),
+        ],
+    );
+    state.agent_grid_filter = crate::api::schema::AgentGridFilter::Active;
+    state.show_test_agent_grid();
+    assert_eq!(
+        state.endpoint_method_for_action(KeybindAction::NextAgent),
+        Some(pane_focus("pane_2"))
+    );
+    update_agents(&mut state, "pane_2", &[("pane_3", AgentStatus::Blocked)]);
+    assert_eq!(
+        state.endpoint_method_for_action(KeybindAction::NextAgent),
+        Some(pane_focus("pane_3"))
+    );
+}
+
+#[test]
 fn grid_tiles_offer_exclusion_first_in_their_pane_menu() {
     let mut state = two_agent_state(&[]);
     state.open_pane_context_menu("pane_3".into(), 40, 10);
@@ -542,4 +582,117 @@ fn endpoints_without_grid_exclusion_open_no_agent_menu() {
     state.show_test_agent_grid();
     state.open_pane_context_menu("pane_2".into(), 40, 10);
     assert!(!menu_labels(&state).contains(&"Exclude from grid"));
+}
+
+/// Makes `pane_id` the only focused agent and gives each agent a status.
+fn update_agents(state: &mut ClientShellState, focused: &str, statuses: &[(&str, AgentStatus)]) {
+    let mut snapshot = state.snapshot.as_deref().cloned().expect("snapshot");
+    snapshot.focused_pane_id = Some(focused.into());
+    for pane in &mut snapshot.panes {
+        pane.focused = pane.pane_id == focused;
+    }
+    for agent in &mut snapshot.agents {
+        agent.focused = agent.pane_id == focused;
+        if let Some((_, status)) = statuses
+            .iter()
+            .find(|(pane_id, _)| *pane_id == agent.pane_id)
+        {
+            agent.agent_status = *status;
+        }
+    }
+    state.set_snapshot(Box::new(snapshot));
+    state.set_pane_surface(surface());
+    state.compose(106, 30).expect("frame");
+}
+
+fn heading_text(state: &mut ClientShellState) -> String {
+    state.set_pane_surface(surface());
+    let frame = state.compose(106, 30).expect("frame");
+    let buffer = frame.to_ratatui_buffer().expect("buffer");
+    let rect = state.hits.agent_grid_toggle;
+    (rect.x..state.hits.agent_sort_toggle.x)
+        .map(|x| buffer[(x, rect.y)].symbol().to_owned())
+        .collect::<String>()
+        .trim_end()
+        .to_owned()
+}
+
+#[test]
+fn the_view_word_switches_the_grid_and_is_remembered_across_closing() {
+    use crate::api::schema::AgentGridFilter;
+
+    let mut state = two_agent_state(&[]);
+    update_agents(
+        &mut state,
+        "pane_2",
+        &[
+            ("pane_2", AgentStatus::Idle),
+            ("pane_3", AgentStatus::Working),
+        ],
+    );
+    assert_eq!(heading_text(&mut state), " agents | all");
+
+    // The view word opens the grid in the other view and moves keyboard
+    // focus off the idle agent onto one the view shows.
+    let switch = press(&mut state, |hits| hits.agent_grid_filter_toggle);
+    assert_eq!(
+        methods(&switch),
+        vec![
+            grid_filter(AgentGridFilter::Active),
+            grid_set(true),
+            pane_focus("pane_3")
+        ]
+    );
+    assert_eq!(state.agent_grid_filter, AgentGridFilter::Active);
+    update_agents(&mut state, "pane_3", &[]);
+    assert_eq!(heading_text(&mut state), " agents | active");
+    assert!(has_grid_rail(&mut state, "pane_3"));
+    assert!(
+        !has_grid_rail(&mut state, "pane_2"),
+        "an idle agent has no tile in the active view"
+    );
+
+    // The agents word only closes and reopens, in the remembered view.
+    let close = press(&mut state, |hits| hits.agent_grid_toggle);
+    assert_eq!(methods(&close), vec![grid_set(false)]);
+    assert_eq!(heading_text(&mut state), " agents | active");
+    let reopen = press(&mut state, |hits| hits.agent_grid_toggle);
+    assert_eq!(
+        methods(&reopen),
+        vec![grid_filter(AgentGridFilter::Active), grid_set(true)]
+    );
+
+    // Switching while open changes only the view.
+    assert_eq!(heading_text(&mut state), " agents | active");
+    let switch = press(&mut state, |hits| hits.agent_grid_filter_toggle);
+    assert_eq!(methods(&switch), vec![grid_filter(AgentGridFilter::All)]);
+    assert!(has_grid_rail(&mut state, "pane_2"));
+}
+
+#[test]
+fn the_active_view_keeps_agents_whose_state_is_unknown_and_the_selected_one() {
+    let mut state = two_agent_state(&[]);
+    update_agents(
+        &mut state,
+        "pane_2",
+        &[
+            ("pane_2", AgentStatus::Done),
+            ("pane_3", AgentStatus::Unknown),
+        ],
+    );
+    state.agent_grid_filter = crate::api::schema::AgentGridFilter::Active;
+    state.show_test_agent_grid();
+    assert!(
+        has_grid_rail(&mut state, "pane_3"),
+        "unknown state stays in"
+    );
+    assert!(
+        has_grid_rail(&mut state, "pane_2"),
+        "the selected agent keeps its tile"
+    );
+    update_agents(&mut state, "pane_3", &[]);
+    assert!(
+        !has_grid_rail(&mut state, "pane_2"),
+        "a finished agent leaves"
+    );
 }

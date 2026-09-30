@@ -1235,6 +1235,21 @@
     },
     "request": {
       "$defs": {
+        "AgentGridFilter": {
+          "description": "Which live agents a client shell's grid shows. Agents left out of the grid\nstay out under every filter.",
+          "oneOf": [
+            {
+              "const": "all",
+              "description": "Every live agent.",
+              "type": "string"
+            },
+            {
+              "const": "active",
+              "description": "Agents working, waiting on the user, or in a state Herdr can't tell;\nnot agents that are idle or finished. The selected agent stays shown.",
+              "type": "string"
+            }
+          ]
+        },
         "AgentPromptParams": {
           "properties": {
             "target": {
@@ -1699,6 +1714,18 @@
           },
           "required": [
             "target"
+          ],
+          "type": "object"
+        },
+        "ClientShellAgentGridFilterSetParams": {
+          "description": "Sets which agents the requesting client shell's grid shows. The filter is\nper connection and starts at `all`.",
+          "properties": {
+            "filter": {
+              "$ref": "#/schemas/request/$defs/AgentGridFilter"
+            }
+          },
+          "required": [
+            "filter"
           ],
           "type": "object"
         },
@@ -5206,6 +5233,22 @@
             },
             "params": {
               "$ref": "#/schemas/request/$defs/ClientShellAgentGridSetParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "client_shell.agent_grid.filter.set",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/ClientShellAgentGridFilterSetParams"
             }
           },
           "required": [

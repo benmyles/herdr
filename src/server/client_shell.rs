@@ -558,18 +558,17 @@ fn surface_pane(
     })
 }
 
-/// Renders a client's live agent grid: every live agent terminal across all
-/// workspaces and tabs, tiled over the pane surface. Grid tiles carry no
-/// splits, popup, or native graphics. `focused` is the client's selected pane.
+/// Renders a client's live agent grid: the live agent terminals across all
+/// workspaces and tabs that `view` shows, tiled over the pane surface. Grid
+/// tiles carry no splits, popup, or native graphics.
 pub(super) fn render_agent_grid_surface(
     app: &app::App,
-    focused: Option<(usize, crate::layout::PaneId)>,
+    view: crate::ui::AgentGridView,
     area: Rect,
     cell_size: crate::kitty_graphics::HostCellSize,
     graphics_delivery: &crate::kitty_graphics::surface::DeliveryCache,
 ) -> Result<RenderedPaneSurface, SurfaceRenderDeferred> {
-    let tiles =
-        crate::ui::compute_agent_grid(&app.state, &app.terminal_runtimes, area, focused, None);
+    let tiles = crate::ui::compute_agent_grid(&app.state, &app.terminal_runtimes, area, view, None);
     let mut revisions_before = std::collections::HashMap::new();
     for tile in &tiles {
         if let Some(runtime) = app.state.runtime_for_pane_in_workspace(
@@ -588,6 +587,7 @@ pub(super) fn render_agent_grid_surface(
         &app.state,
         &app.terminal_runtimes,
         &tiles,
+        view.filter,
         area,
     );
     let panes = tiles

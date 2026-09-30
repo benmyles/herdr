@@ -15,11 +15,13 @@ Grid order follows space, workspace, tab, and pane order and does not change whe
 
 Ordinary shell panes are excluded. If no agents are live, the grid shows an empty state and does not forward input to a hidden shell.
 
+The heading shows the grid's view after the word **agents**: `agents | all` tiles every live agent, and `agents | active` tiles only agents that are working or waiting on you, leaving out idle and finished ones. Agents whose state Herdr can't tell stay in the active view. Click the view word to switch views; while the grid is closed, it opens the grid in the new view. The agent you have selected keeps its tile in the active view after it finishes, so its output doesn't vanish while you read it, and leaves once you select another agent. The grid always opens in the view you chose last, including after a restart. Next and previous agent shortcuts step through the agents the view shows.
+
 Every agent starts in the grid. To leave one out, right-click it in the Agents list, or right-click its tile, and choose **Exclude from grid**. The other tiles grow to fill the space, and the excluded agent goes back to its workspace layout size. While the grid is shown, a bar in the accent color marks each agent in the Agents list that has a tile; excluded agents have no bar. Right-click an excluded agent and choose **Include in grid** to bring it back. Clicking an excluded agent while the grid is shown leaves the grid and opens that agent's tab. Next and previous agent shortcuts skip excluded agents while the grid is shown. The choice is shared by every connected client and lasts until the pane closes or the server restarts.
 
 While the grid is shown, each agent terminal is resized to fit its tile, and leaving the grid restores the workspace layout sizes. If several clients show the grid at once, the earliest-connected one sets the tile sizes. With more than one machine connected, the grid shows the agents on the machine selected in the sidebar. Inline images are not drawn inside tiles; open the agent's workspace to see them.
 
-Click **Agents** again to return to the selected agent's workspace view. Switching workspaces directly also leaves the grid. Collapsing the sidebar or entering the mobile layout closes the grid so its toggle never becomes inaccessible.
+Click **Agents** again to return to the selected agent's workspace view; clicking **agents** only opens and closes the grid and never changes its view. Switching workspaces directly also leaves the grid. Collapsing the sidebar or entering the mobile layout closes the grid so its toggle never becomes inaccessible.
 
 ## Supported agents
 

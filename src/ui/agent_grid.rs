@@ -16,6 +16,33 @@ use crate::terminal::{TerminalId, TerminalRuntimeRegistry};
 /// renders at full strength.
 const UNSELECTED_TILE_COLOR_PERCENT: u8 = 25;
 
+/// What one client's grid shows: the agents its filter matches, plus its
+/// selected agent, which stays so the tile being read never disappears.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct AgentGridView {
+    pub(crate) filter: crate::api::schema::AgentGridFilter,
+    pub(crate) selected: Option<(usize, PaneId)>,
+}
+
+impl AgentGridView {
+    /// Whether an agent in `state` gets a tile. `active` keeps every state
+    /// but idle, so agents Herdr can't read stay in.
+    fn shows(
+        &self,
+        workspace_index: usize,
+        pane_id: PaneId,
+        state: crate::detect::AgentState,
+    ) -> bool {
+        match self.filter {
+            crate::api::schema::AgentGridFilter::All => true,
+            crate::api::schema::AgentGridFilter::Active => {
+                state != crate::detect::AgentState::Idle
+                    || self.selected == Some((workspace_index, pane_id))
+            }
+        }
+    }
+}
+
 /// One live agent terminal shown in the grid, in grid order.
 pub(crate) struct AgentGridTarget {
     pub(crate) workspace_index: usize,
@@ -51,14 +78,15 @@ fn is_live_agent(
             .is_some()
 }
 
-/// Whether a pane belongs in the live agent grid: a detected agent terminal
-/// with a running runtime that the user has not left out. Ordinary shell
-/// panes never appear in the grid.
+/// Whether a pane belongs in a live agent grid: a detected agent terminal
+/// with a running runtime that the user has not left out and `view` shows.
+/// Ordinary shell panes never appear in the grid.
 pub(crate) fn pane_in_agent_grid(
     app: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,
     workspace_index: usize,
     pane_id: PaneId,
+    view: AgentGridView,
 ) -> bool {
     app.workspaces
         .get(workspace_index)
@@ -72,6 +100,10 @@ pub(crate) fn pane_in_agent_grid(
                     pane_id,
                     &pane.attached_terminal_id,
                 )
+                && app
+                    .terminals
+                    .get(&pane.attached_terminal_id)
+                    .is_some_and(|terminal| view.shows(workspace_index, pane_id, terminal.state))
         })
 }
 
@@ -110,13 +142,21 @@ fn sidebar_workspace_order(app: &AppState) -> Vec<usize> {
 /// Whether some live agent is left out of the grid, which then may be empty
 /// only because of the user's choice.
 fn any_excluded_live_agent(app: &AppState, terminal_runtimes: &TerminalRuntimeRegistry) -> bool {
+    any_live_agent(app, terminal_runtimes, |pane| pane.agent_grid_excluded)
+}
+
+fn any_live_agent(
+    app: &AppState,
+    terminal_runtimes: &TerminalRuntimeRegistry,
+    matches: impl Fn(&crate::pane::PaneState) -> bool,
+) -> bool {
     app.workspaces
         .iter()
         .enumerate()
         .any(|(workspace_index, workspace)| {
             workspace.tabs.iter().any(|tab| {
                 tab.panes.iter().any(|(&pane_id, pane)| {
-                    pane.agent_grid_excluded
+                    matches(pane)
                         && is_live_agent(
                             app,
                             terminal_runtimes,
@@ -129,12 +169,13 @@ fn any_excluded_live_agent(app: &AppState, terminal_runtimes: &TerminalRuntimeRe
         })
 }
 
-/// Every live agent the user has not left out, in space, workspace, tab, and
-/// pane order. The order does not depend on agent status, so tiles never jump
-/// when an agent changes state.
+/// Every live agent the user has not left out and `view` shows, in space,
+/// workspace, tab, and pane order. The order does not depend on agent status,
+/// so tiles keep their relative places as agents come and go.
 pub(crate) fn live_agent_targets(
     app: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,
+    view: AgentGridView,
 ) -> Vec<AgentGridTarget> {
     let spaces = space_presentation(app);
     let mut targets = Vec::new();
@@ -167,6 +208,9 @@ pub(crate) fn live_agent_targets(
                 let Some(terminal) = app.terminals.get(terminal_id) else {
                     continue;
                 };
+                if !view.shows(workspace_index, pane_id, terminal.state) {
+                    continue;
+                }
                 let agent_label = terminal
                     .effective_display_agent()
                     .or_else(|| terminal.agent_name.clone())
@@ -282,17 +326,19 @@ fn split_lengths(total: u16, parts: usize) -> Vec<u16> {
         .collect()
 }
 
-/// Lay out every live agent over `area`. `focused` selects the tile drawn at
-/// full strength and given the host cursor. With `resize` set, each agent's
-/// PTY is resized to its tile so the program redraws for the visible size.
+/// Lay out every live agent `view` shows over `area`. `view.selected` is the
+/// tile drawn at full strength and given the host cursor. With `resize` set,
+/// each agent's PTY is resized to its tile so the program redraws for the
+/// visible size.
 pub(crate) fn compute_agent_grid(
     app: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,
     area: Rect,
-    focused: Option<(usize, PaneId)>,
+    view: AgentGridView,
     resize: Option<crate::kitty_graphics::HostCellSize>,
 ) -> Vec<AgentGridTile> {
-    let targets = live_agent_targets(app, terminal_runtimes);
+    let focused = view.selected;
+    let targets = live_agent_targets(app, terminal_runtimes, view);
     let raw_infos = targets
         .iter()
         .zip(auto_tile_rects(area, targets.len()))
@@ -364,11 +410,16 @@ pub(crate) fn render_agent_grid(
     app: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,
     tiles: &[AgentGridTile],
+    filter: crate::api::schema::AgentGridFilter,
     frame: &mut Frame,
     area: Rect,
 ) {
     if tiles.is_empty() {
-        let message = if any_excluded_live_agent(app, terminal_runtimes) {
+        let message = if filter == crate::api::schema::AgentGridFilter::Active
+            && any_live_agent(app, terminal_runtimes, |pane| !pane.agent_grid_excluded)
+        {
+            "no agent is working or waiting on you"
+        } else if any_excluded_live_agent(app, terminal_runtimes) {
             "every agent is excluded from the grid"
         } else {
             "no live agents"
@@ -644,7 +695,10 @@ mod tests {
             app,
             &TerminalRuntimeRegistry::new(),
             Rect::new(0, 0, 120, 40),
-            focused,
+            AgentGridView {
+                selected: focused,
+                ..AgentGridView::default()
+            },
             None,
         )
     }
@@ -662,14 +716,75 @@ mod tests {
             &app,
             &TerminalRuntimeRegistry::new(),
             1,
-            second_agent
+            second_agent,
+            AgentGridView::default()
         ));
         assert!(!pane_in_agent_grid(
             &app,
             &TerminalRuntimeRegistry::new(),
             0,
-            shell
+            shell,
+            AgentGridView::default()
         ));
+    }
+
+    #[tokio::test]
+    async fn active_filter_leaves_out_idle_agents_but_keeps_the_selected_one() {
+        let (mut app, _, first_agent, second_agent) = cross_workspace_agent_app();
+        let set_state = |app: &mut AppState, ws: usize, pane: PaneId, state| {
+            let terminal_id = app.workspaces[ws].terminal_id(pane).cloned().unwrap();
+            app.terminals.get_mut(&terminal_id).unwrap().state = state;
+        };
+        let active = |selected| AgentGridView {
+            filter: crate::api::schema::AgentGridFilter::Active,
+            selected,
+        };
+        let shown = |app: &AppState, view| {
+            compute_agent_grid(
+                app,
+                &TerminalRuntimeRegistry::new(),
+                Rect::new(0, 0, 120, 40),
+                view,
+                None,
+            )
+            .iter()
+            .map(|tile| tile.info.id)
+            .collect::<Vec<_>>()
+        };
+        set_state(&mut app, 0, first_agent, crate::detect::AgentState::Idle);
+        for state in [
+            crate::detect::AgentState::Working,
+            crate::detect::AgentState::Blocked,
+            // Herdr can't tell whether it waits on the user, so it stays.
+            crate::detect::AgentState::Unknown,
+        ] {
+            set_state(&mut app, 1, second_agent, state);
+            assert_eq!(shown(&app, active(None)), vec![second_agent], "{state:?}");
+        }
+        assert_eq!(
+            shown(
+                &app,
+                AgentGridView {
+                    selected: None,
+                    ..AgentGridView::default()
+                }
+            ),
+            vec![first_agent, second_agent]
+        );
+        assert_eq!(
+            shown(&app, active(Some((0, first_agent)))),
+            vec![first_agent, second_agent],
+            "the selected agent stays while it is read"
+        );
+        assert!(!pane_in_agent_grid(
+            &app,
+            &TerminalRuntimeRegistry::new(),
+            0,
+            first_agent,
+            active(None)
+        ));
+        set_state(&mut app, 1, second_agent, crate::detect::AgentState::Idle);
+        assert!(shown(&app, active(None)).is_empty());
     }
 
     #[tokio::test]
@@ -690,13 +805,15 @@ mod tests {
             &app,
             &TerminalRuntimeRegistry::new(),
             0,
-            first_agent
+            first_agent,
+            AgentGridView::default()
         ));
         assert!(pane_in_agent_grid(
             &app,
             &TerminalRuntimeRegistry::new(),
             1,
-            second_agent
+            second_agent,
+            AgentGridView::default()
         ));
     }
 
@@ -802,12 +919,23 @@ mod tests {
         let (app, _shell, first_agent, _second_agent) = cross_workspace_agent_app();
         let area = Rect::new(0, 0, 120, 40);
         let runtimes = TerminalRuntimeRegistry::new();
-        let tiles = compute_agent_grid(&app, &runtimes, area, Some((0, first_agent)), None);
+        let tiles = compute_agent_grid(
+            &app,
+            &runtimes,
+            area,
+            AgentGridView {
+                selected: Some((0, first_agent)),
+                ..AgentGridView::default()
+            },
+            None,
+        );
         let mut terminal =
             ratatui::Terminal::new(ratatui::backend::TestBackend::new(area.width, area.height))
                 .unwrap();
         terminal
-            .draw(|frame| render_agent_grid(&app, &runtimes, &tiles, frame, area))
+            .draw(|frame| {
+                render_agent_grid(&app, &runtimes, &tiles, Default::default(), frame, area)
+            })
             .unwrap();
         let buffer = terminal.backend().buffer();
         let rendered = buffer
@@ -841,14 +969,16 @@ mod tests {
         app.ensure_test_terminals();
         let area = Rect::new(0, 0, 60, 10);
         let runtimes = TerminalRuntimeRegistry::new();
-        let tiles = compute_agent_grid(&app, &runtimes, area, None, None);
+        let tiles = compute_agent_grid(&app, &runtimes, area, AgentGridView::default(), None);
         assert!(tiles.is_empty());
         assert!(agent_grid_cursor(&app, &runtimes, &tiles).is_none());
         let mut terminal =
             ratatui::Terminal::new(ratatui::backend::TestBackend::new(area.width, area.height))
                 .unwrap();
         terminal
-            .draw(|frame| render_agent_grid(&app, &runtimes, &tiles, frame, area))
+            .draw(|frame| {
+                render_agent_grid(&app, &runtimes, &tiles, Default::default(), frame, area)
+            })
             .unwrap();
         let rendered = terminal
             .backend()

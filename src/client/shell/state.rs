@@ -115,6 +115,7 @@ pub(super) struct ShellHitMap {
     pub(super) agent_sort_toggle: Rect,
     /// The agents heading, which shows or hides the live agent grid.
     pub(super) agent_grid_toggle: Rect,
+    pub(super) agent_grid_filter_toggle: Rect,
     pub(super) sidebar_divider: Rect,
     pub(super) sidebar_section_divider: Rect,
     pub(super) sidebar_toggle: Rect,
@@ -1230,6 +1231,8 @@ pub(crate) struct ClientShellState {
     pub(super) endpoint_error_deadline: Option<std::time::Instant>,
     pub(super) dismissed_product_announcement: Option<(String, String)>,
     pub(super) agent_grid_owner: Option<super::agent_grid::ClientAgentGridOwner>,
+    /// The grid view last chosen; the grid opens in it.
+    pub(super) agent_grid_filter: crate::api::schema::AgentGridFilter,
     pub(super) palette_usage: super::palette_usage::PaletteUsage,
 }
 
@@ -1402,6 +1405,7 @@ impl ClientShellState {
             endpoint_error_deadline: None,
             dismissed_product_announcement: None,
             agent_grid_owner: None,
+            agent_grid_filter: preferences.agent_grid_filter.unwrap_or_default(),
             palette_usage,
         }
     }

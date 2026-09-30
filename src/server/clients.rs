@@ -163,6 +163,8 @@ pub(crate) struct ClientConnection {
     pub(crate) shell_surface_active: bool,
     /// Whether this shell shows the live agent grid instead of its focused tab.
     pub(crate) shell_agent_grid: bool,
+    /// Which agents this shell's grid shows.
+    pub(crate) shell_agent_grid_filter: crate::api::schema::AgentGridFilter,
     /// Whether this shell wants host mouse capture without pane demand.
     pub(crate) shell_mouse_capture: bool,
     /// Last host mouse capture mode sent to this client.
@@ -242,6 +244,7 @@ impl ClientConnection {
             render_pending: false,
             shell_surface_active: true,
             shell_agent_grid: false,
+            shell_agent_grid_filter: crate::api::schema::AgentGridFilter::All,
             shell_mouse_capture: false,
             host_mouse_capture_active: None,
             host_sgr_pixels_active: None,
