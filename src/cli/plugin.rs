@@ -19,6 +19,12 @@ const PLUGIN_INSTALL_USAGE: &str =
     "usage: herdr-benmyles plugin install [--ref REF] [--yes|-y] <owner>/<repo>[/subdir...]";
 
 pub(super) fn run_plugin_command(args: &[String]) -> std::io::Result<i32> {
+    // herdr-benmyles ships with plugins off (see AppPolicy::plugins). The
+    // upstream commands stay compiled so merges stay small.
+    if !crate::build_info::PLUGINS_ENABLED {
+        eprintln!("plugins are turned off in {}", crate::build_info::BIN_NAME);
+        return Ok(1);
+    }
     let Some(subcommand) = args.first().map(|arg| arg.as_str()) else {
         print_plugin_help();
         return Ok(2);

@@ -75,6 +75,9 @@ pub(crate) struct AppPolicy {
     pub(crate) persist_session: bool,
     pub(crate) persist_plugin_registry: bool,
     pub(crate) background_updates: bool,
+    /// herdr-benmyles ships with plugins off; tests keep them on so the
+    /// untouched upstream plugin code stays covered.
+    pub(crate) plugins: bool,
 }
 
 impl AppPolicy {
@@ -83,6 +86,7 @@ impl AppPolicy {
         persist_session: true,
         persist_plugin_registry: true,
         background_updates: true,
+        plugins: crate::build_info::PLUGINS_ENABLED,
     };
 
     #[cfg(test)]
@@ -91,6 +95,7 @@ impl AppPolicy {
         persist_session: false,
         persist_plugin_registry: false,
         background_updates: false,
+        plugins: true,
     };
 
     #[cfg(unix)]
@@ -99,6 +104,7 @@ impl AppPolicy {
         persist_session: true,
         persist_plugin_registry: true,
         background_updates: true,
+        plugins: crate::build_info::PLUGINS_ENABLED,
     };
 }
 
@@ -536,7 +542,9 @@ impl App {
             integration_recommendations: crate::integration::integration_recommendations(),
             agent_manifest_summaries,
             agent_manifest_update_status: crate::detect::manifest_update::load_status(),
-            installed_plugins: load_plugin_registry(policy.persist_plugin_registry),
+            installed_plugins: load_plugin_registry(
+                policy.plugins && policy.persist_plugin_registry,
+            ),
             plugin_panes: std::collections::HashMap::new(),
             popup_pane: None,
             plugin_command_logs: Vec::new(),
@@ -1042,6 +1050,27 @@ mod tests {
         );
         app.state.default_shell = exiting_test_command().into();
         app
+    }
+
+    #[test]
+    fn shipped_policies_turn_plugins_off_at_the_api() {
+        const { assert!(!AppPolicy::PRODUCTION.plugins) };
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = App::new(
+            &Config::default(),
+            AppPolicy {
+                plugins: false,
+                ..AppPolicy::TEST
+            },
+            None,
+            api_rx,
+            crate::api::EventHub::default(),
+        );
+        let response = app.handle_api_request(crate::api::schema::Request {
+            id: "req".into(),
+            method: crate::api::schema::Method::PluginList(Default::default()),
+        });
+        assert!(response.contains("plugins_disabled"), "{response}");
     }
 
     fn unique_temp_path(name: &str) -> std::path::PathBuf {

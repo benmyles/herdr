@@ -905,6 +905,15 @@ impl App {
         &mut self,
         request: crate::api::schema::Request,
     ) -> String {
+        if !self.policy.plugins
+            && crate::api::api_method_name(&request.method).starts_with("plugin.")
+        {
+            return responses::encode_error(
+                request.id,
+                "plugins_disabled",
+                format!("plugins are turned off in {}", crate::build_info::BIN_NAME),
+            );
+        }
         self.sync_pending_terminal_titles();
         use crate::api::schema::{
             ErrorBody, ErrorResponse, Method, ResponseResult, SuccessResponse,

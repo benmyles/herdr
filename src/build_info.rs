@@ -3,6 +3,8 @@
 /// Fork identity. herdr-benmyles runs beside stock herdr, so every name that
 /// locates its binary, directories, sockets or control variables is its own.
 pub const BIN_NAME: &str = "herdr-benmyles";
+/// herdr-benmyles ships without plugin support.
+pub const PLUGINS_ENABLED: bool = false;
 
 /// Stock environment names still exported into panes. Agent hooks installed by
 /// either build read these to find the server that owns their pane.

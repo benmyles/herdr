@@ -935,6 +935,7 @@ fn live_handoff_preserves_client_socket_env_without_api_socket_env() {
 }
 
 #[test]
+#[ignore = "herdr-benmyles ships with plugins off"]
 fn live_handoff_preserves_installed_plugins() {
     let _lock = test_lock();
     let base = unique_test_dir();
