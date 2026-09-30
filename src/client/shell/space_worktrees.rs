@@ -42,13 +42,13 @@ pub(super) fn space_worktree_preview(
         _ => repo.base_branch.clone(),
     };
     let branch = format!("{}{name}", repo.settings.branch_prefix);
-    let setup = if repo.settings.on_create.is_empty() {
-        ""
+    let note = if repo.settings.on_create.is_empty() {
+        "unless it already exists"
     } else {
-        ", then its setup command runs"
+        "unless it exists; then setup runs"
     };
     SpaceWorktreePreview {
-        branch: format!("{branch}  (new from {start} unless it already exists{setup})"),
+        branch: format!("{branch}  (new from {start} {note})"),
         checkout: if template.is_empty() {
             "chosen by the server".to_owned()
         } else {

@@ -149,12 +149,14 @@ pub(super) enum PanelLine {
         name: String,
         color: ratatui::style::Color,
         stale: bool,
+        indent: u16,
     },
     Worktree {
         label: String,
         branch: Option<String>,
         color: ratatui::style::Color,
         stale: bool,
+        indent: u16,
     },
     Agent(PanelAgent),
 }
@@ -271,6 +273,8 @@ pub(super) fn panel_lines(
             });
         }
         let spaces = super::sidebar::space_presentation(snapshot, &config.palette);
+        // Each level indents one column under the one above it.
+        let base = u16::from(source.machine.is_some());
         for group in grouped_workspaces(snapshot) {
             let members = group
                 .workspaces
@@ -287,9 +291,10 @@ pub(super) fn panel_lines(
                     name: space.name.clone(),
                     color: super::sidebar::space_header_color(space, &config.palette),
                     stale: source.stale,
+                    indent: 1 + base,
                 });
             }
-            let depth = u16::from(space.is_some());
+            let depth = base + u16::from(space.is_some());
             for (index, agents) in members {
                 let workspace = &snapshot.workspaces[index];
                 lines.push(PanelLine::Worktree {
@@ -297,6 +302,7 @@ pub(super) fn panel_lines(
                     branch: distinct_branch(workspace, space).map(str::to_owned),
                     color: spaces.color(index),
                     stale: source.stale,
+                    indent: 1 + depth,
                 });
                 lines.extend(agents.into_iter().map(|agent| {
                     PanelLine::Agent(PanelAgent::new(
@@ -591,11 +597,16 @@ fn render_panel_line(
                 ),
             );
         }
-        PanelLine::Space { name, color, stale } => {
+        PanelLine::Space {
+            name,
+            color,
+            stale,
+            indent,
+        } => {
             put_str(
                 buffer,
                 rect,
-                rect.x + 1,
+                rect.x + indent,
                 name,
                 pick(
                     Style::default().fg(*color).add_modifier(Modifier::BOLD),
@@ -608,11 +619,12 @@ fn render_panel_line(
             branch,
             color,
             stale,
+            indent,
         } => {
             let x = put_str(
                 buffer,
                 rect,
-                rect.x + 2,
+                rect.x + indent,
                 label,
                 pick(
                     Style::default().fg(super::sidebar::muted_space_color(*color, palette)),

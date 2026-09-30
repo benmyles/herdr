@@ -437,9 +437,14 @@ fn names_location(title: &str, cwd: &str) -> bool {
     let basename = cwd.rsplit('/').next().unwrap_or(cwd);
     names_path(title)
         || title == basename
+        // `<path>: <job>`, as zsh titles a running command.
         || title
             .split_once(": ")
             .is_some_and(|(head, _)| names_path(head))
+        // `user@host: <path>`, the common bash prompt title.
+        || title
+            .rsplit_once(':')
+            .is_some_and(|(head, tail)| head.contains('@') && names_path(tail.trim()))
 }
 
 #[cfg(test)]
@@ -484,6 +489,10 @@ mod tests {
             "notes: rewriting the parser"
         );
         assert_eq!(session_title(&agent("droid", Some("  ")), cwd), "droid");
+        assert_eq!(
+            session_title(&agent("claude", Some("me@box: ~/src/notes")), cwd),
+            "Claude Code"
+        );
     }
 
     #[test]
