@@ -23,6 +23,90 @@ These instructions are layered.
   not a verified maintainer, the work is happening in a fork, or the account
   cannot be determined.
 
+## herdr-benmyles Fork
+
+This repository is the `herdr-benmyles` fork (`origin` is `benmyles/herdr`,
+`upstream` is `herdrdev/herdr`). Every other section still applies; this one
+covers what is specific to building, installing, and upgrading the fork.
+
+### Identity
+
+- The binary is `herdr-benmyles` and runs beside stock `herdr` without sharing
+  state. Release builds keep config, sessions, and sockets under
+  `~/.config/herdr-benmyles`; debug builds use `~/.config/herdr-benmyles-dev`.
+- Control variables use `HERDR_BENMYLES_*` names (`HERDR_BENMYLES_SOCKET_PATH`,
+  `HERDR_BENMYLES_CLIENT_SOCKET_PATH`, `HERDR_BENMYLES_SESSION`,
+  `HERDR_BENMYLES_CONFIG_PATH`). Panes also export the stock `HERDR_*` names so
+  agent hooks find their server, so clearing only `HERDR_SOCKET_PATH`, as the
+  Testing section says for upstream, does not isolate a fork build.
+- Plugins stay compiled but are off in shipped builds
+  (`build_info::PLUGINS_ENABLED`).
+
+### Building and testing
+
+- Use `just test` and `just check` as described under Testing. The vendored
+  libghostty-vt needs Zig 0.16.0; `install.sh` finds or downloads it, and
+  `ZIG=/path/to/zig` overrides the choice.
+- `just check` ends with a Windows cross-lint that needs the SDK from
+  `just setup-windows-cross`. On a machine where that has not run, the stage
+  fails with a missing `libc.txt` after every other stage has run; report that
+  instead of treating the check as passed.
+- From inside a `herdr-benmyles` pane, clear the fork's overrides before
+  running a debug build, or it drives the user's live session:
+
+  ```bash
+  env -u HERDR_BENMYLES_SOCKET_PATH -u HERDR_BENMYLES_CLIENT_SOCKET_PATH \
+    -u HERDR_BENMYLES_SESSION cargo run -- <command>
+  ```
+
+- To exercise a real server (handoff, upgrade, restore), run it with a scrubbed
+  environment (`env -i`) and point `HOME` and every `XDG_*` directory at a
+  throwaway directory. Keep that directory short, for example
+  `mktemp -d /tmp/hbu.XXXXXX`: macOS limits Unix socket paths to about 104
+  bytes, and a server under a long path exits with `local socket name length
+  exceeds capacity of sun_path`. Remove the directory afterwards.
+
+### Installing
+
+- Install with `./install.sh`. It builds the release binary, stamps
+  `HERDR_BUILD_COMMIT` (remote attach uses it to keep SSH hosts on the same
+  build; a dirty tree gets a `-dirty-<time>` suffix), and replaces the
+  `herdr-benmyles` found on `PATH`, following symlinks.
+  `HERDR_BENMYLES_INSTALL_TARGET` or `HERDR_BENMYLES_BIN_DIR` pick another
+  location. `--remote` also builds the Linux binaries that
+  `herdr-benmyles --remote` installs on SSH hosts.
+- Never `cp` a build over the installed binary. On macOS, overwriting a signed
+  executable in place gets the new copy killed at launch (exit 137) and changes
+  the file under any server running from it, which can crash that server.
+  Write a temporary file in the same directory and `mv` it into place, as
+  `install.sh` does.
+- Installing does not touch running servers; they keep the binary they started
+  from until they are upgraded or restarted.
+
+### Upgrading running sessions
+
+- `herdr-benmyles server upgrade` hands each running server's live panes to the
+  binary that runs the command (live handoff). Pane processes and agents keep
+  running; attached TUI clients exit, and running `herdr-benmyles` again
+  reattaches with the new client. `./install.sh --upgrade` installs and then
+  runs it.
+- It upgrades every running session, only the session named with
+  `--session NAME`, or, when run inside a pane, only that pane's session. A
+  server too old for live handoff is left running; moving it to the new build
+  means `herdr-benmyles server stop` (or `session stop NAME`), which exits its
+  pane processes.
+- Client changes (rendering, input, menus) need a reattach. Server changes (API
+  methods, grid layout, detection, persistence) need `server upgrade` or a
+  restart. A feature spanning both needs the upgrade, because the new client
+  hides actions that an old server does not advertise.
+- Live handoff is experimental upstream. State carried in the session snapshot
+  survives it, including agent grid exclusions; runtime-only pane settings,
+  such as right-click passthrough, reset.
+- An agent working inside the user's session must ask before running
+  `server upgrade` or `install.sh --upgrade` against it, because the user's
+  client exits mid-session. Validate handoff changes against a scrubbed
+  throwaway server first.
+
 ## Universal Project Rules
 
 ### Principles

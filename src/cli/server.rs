@@ -7,6 +7,7 @@ pub(super) fn run_server_command(args: &[String]) -> std::io::Result<Option<i32>
 
     match subcommand {
         "stop" => server_stop(&args[1..]).map(Some),
+        "upgrade" => server_upgrade(&args[1..]).map(Some),
         "live-handoff" => server_live_handoff(&args[1..]).map(Some),
         "--handoff-import" => Ok(None),
         "reload-config" => server_reload_config(&args[1..]).map(Some),
@@ -41,6 +42,30 @@ fn server_stop(args: &[String]) -> std::io::Result<i32> {
             Ok(1)
         }
     }
+}
+
+#[cfg(not(windows))]
+fn server_upgrade(args: &[String]) -> std::io::Result<i32> {
+    if !args.is_empty() {
+        eprintln!("usage: herdr-benmyles server upgrade");
+        return Ok(2);
+    }
+    match crate::update::upgrade_running_servers() {
+        Ok(true) => Ok(0),
+        Ok(false) => Ok(1),
+        Err(err) => {
+            eprintln!("{err}");
+            Ok(1)
+        }
+    }
+}
+
+#[cfg(windows)]
+fn server_upgrade(_args: &[String]) -> std::io::Result<i32> {
+    eprintln!(
+        "live upgrade needs a Unix server; stop the server with `herdr-benmyles server stop` and start it again"
+    );
+    Ok(1)
 }
 
 fn server_reload_config(args: &[String]) -> std::io::Result<i32> {
@@ -260,6 +285,7 @@ fn print_server_help() {
     eprintln!("herdr-benmyles server commands:");
     eprintln!("  herdr-benmyles server                run as headless server");
     eprintln!("  herdr-benmyles server stop           stop the running server via the API socket");
+    eprintln!("  herdr-benmyles server upgrade        move running servers onto this binary, keeping panes alive");
     eprintln!("  herdr-benmyles server live-handoff   hand off live panes to a new local server");
     eprintln!("  herdr-benmyles server reload-config  reload config.toml in the running server");
     eprintln!(

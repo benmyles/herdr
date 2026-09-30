@@ -160,6 +160,10 @@ fn server_command() -> Command {
     Command::new("server")
         .about("Run or control the headless server")
         .subcommand(Command::new("stop").about("Stop the running server"))
+        .subcommand(
+            Command::new("upgrade")
+                .about("Move running servers onto this binary, keeping panes alive"),
+        )
         .subcommand(Command::new("reload-config").about("Reload config in the running server"))
         .subcommand(
             Command::new("agent-manifests")

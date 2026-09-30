@@ -122,13 +122,14 @@ compinit
 ```bash
 herdr server
 herdr server stop
+herdr server upgrade
 herdr server reload-config
 herdr server agent-manifests [--json]
 herdr server update-agent-manifests [--json]
 herdr server reload-agent-manifests
 ```
 
-`herdr server` runs the headless server explicitly. Use it for supervised or service-style setups. `reload-config` applies reloadable settings without restarting panes. `agent-manifests` shows the active agent detection manifest sources, cached remote versions, and last remote update results. `update-agent-manifests` fetches remote manifest updates immediately, reloads them into the running server, and prints the updated manifest status; pass `--json` for the raw status response. `reload-agent-manifests` reloads agent detection manifests into the running server after local override edits.
+`herdr server` runs the headless server explicitly. Use it for supervised or service-style setups. `upgrade` moves running servers onto the binary you run it with, through experimental live handoff: pane processes keep running, attached clients exit, and running `herdr` again reattaches with the new client. It upgrades every running session, or only the one selected with `--session` or run from inside a pane, and leaves a server too old for live handoff running. `reload-config` applies reloadable settings without restarting panes. `agent-manifests` shows the active agent detection manifest sources, cached remote versions, and last remote update results. `update-agent-manifests` fetches remote manifest updates immediately, reloads them into the running server, and prints the updated manifest status; pass `--json` for the raw status response. `reload-agent-manifests` reloads agent detection manifests into the running server after local override edits.
 
 ## Notifications
 

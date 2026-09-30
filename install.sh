@@ -16,6 +16,11 @@
 # Set HERDR_BENMYLES_INSTALL_TARGET to install to an explicit path, or
 # HERDR_BENMYLES_BIN_DIR to install to HERDR_BENMYLES_BIN_DIR/herdr-benmyles.
 #
+# --upgrade then moves every running herdr-benmyles session onto the installed
+# binary with `herdr-benmyles server upgrade` (live handoff): pane processes
+# keep running and attached clients exit, so run herdr-benmyles again to
+# reattach with the new client.
+#
 # --remote also cross-builds static Linux binaries (x86_64 and aarch64) of the
 # same commit into ${XDG_CACHE_HOME:-~/.cache}/herdr-benmyles/remote, where
 # `herdr-benmyles --remote` finds them to install on SSH hosts. It needs
@@ -26,11 +31,13 @@ set -euo pipefail
 ROOT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
 BUILD_REMOTE=0
+UPGRADE_RUNNING=0
 for arg in "$@"; do
     case "$arg" in
     --remote) BUILD_REMOTE=1 ;;
+    --upgrade) UPGRADE_RUNNING=1 ;;
     *)
-        echo "usage: ./install.sh [--remote]" >&2
+        echo "usage: ./install.sh [--remote] [--upgrade]" >&2
         exit 2
         ;;
     esac
@@ -251,4 +258,8 @@ TEMP_BINARY=""
 trap - EXIT
 
 echo "installed $("$INSTALL_TARGET" --version)"
-echo "running $BIN_NAME servers keep their current binary until they are stopped and restarted"
+if [[ "$UPGRADE_RUNNING" == 1 ]]; then
+    "$INSTALL_TARGET" server upgrade
+else
+    echo "running $BIN_NAME servers keep their current binary; move them onto this build with \`$BIN_NAME server upgrade\`"
+fi
