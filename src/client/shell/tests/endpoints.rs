@@ -656,7 +656,7 @@ fn saved_machine_preserves_endpoint_scoped_space_collapses() {
     };
     state.activate_context_menu_item(toggle_index, &mut ClientShellInput::default());
 
-    let frame = state.compose(100, 28).expect("collapsed local space");
+    let frame = state.compose(100, 40).expect("collapsed local space");
     assert!(!state
         .hits
         .workspaces
@@ -702,7 +702,7 @@ fn saved_machine_preserves_endpoint_scoped_space_collapses() {
             modifiers: KeyModifiers::empty(),
         })]);
     }
-    state.compose(100, 28).expect("both spaces collapsed");
+    state.compose(100, 40).expect("both spaces collapsed");
     assert!(!state
         .hits
         .workspaces
@@ -727,7 +727,7 @@ fn saved_machine_preserves_endpoint_scoped_space_collapses() {
             modifiers: KeyModifiers::empty(),
         })]);
     }
-    state.compose(100, 28).expect("only remote space collapsed");
+    state.compose(100, 40).expect("only remote space collapsed");
     assert!(state
         .hits
         .workspaces

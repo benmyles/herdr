@@ -281,11 +281,7 @@ pub(crate) fn render_sidebar(
             .add_modifier(Modifier::BOLD),
     );
 
-    let rows = sidebar_rows(
-        snapshot,
-        state.collapsed_groups,
-        state.dragged_workspace_id.is_some(),
-    );
+    let rows = sidebar_rows(snapshot, state.collapsed_groups);
     let spaces = space_presentation(snapshot, palette);
     let body = Rect::new(
         workspace_area.x,
@@ -554,13 +550,12 @@ pub(in crate::client::shell) enum SidebarRow {
 }
 
 /// Sidebar rows: each space's header, then its live members, then its closed
-/// members, then "+ worktree" when the server can create worktrees. Empty
-/// `other` is hidden unless `show_empty_other` (a drag needs it as a target).
+/// members, then "+ worktree" when the server can create worktrees. `other`
+/// shows even while empty, so its "+ worktree" and drop target stay reachable.
 /// Servers without spaces list workspaces flat, as before spaces existed.
 pub(in crate::client::shell) fn sidebar_rows(
     snapshot: &ClientShellSnapshot,
     collapsed_groups: &HashSet<String>,
-    show_empty_other: bool,
 ) -> Vec<SidebarRow> {
     // Servers without space worktrees send no path template.
     let add_rows = !snapshot.worktree_path_template.is_empty();
@@ -576,9 +571,6 @@ pub(in crate::client::shell) fn sidebar_rows(
             .collect::<Vec<_>>();
         for &index in &members {
             listed[index] = true;
-        }
-        if space.built_in && members.is_empty() && space.closed.is_empty() && !show_empty_other {
-            continue;
         }
         let collapsed = collapsed_groups.contains(&space.space_id);
         rows.push(SidebarRow::SpaceHeader {
@@ -636,7 +628,7 @@ pub(crate) fn workspace_entries(
     snapshot: &ClientShellSnapshot,
     collapsed_groups: &HashSet<String>,
 ) -> Vec<WorkspaceEntry> {
-    sidebar_rows(snapshot, collapsed_groups, false)
+    sidebar_rows(snapshot, collapsed_groups)
         .into_iter()
         .filter_map(|row| match row {
             SidebarRow::Workspace(entry) => Some(entry),

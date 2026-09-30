@@ -1586,11 +1586,13 @@ fn spaces_render_headers_members_and_closed_rows() {
     let frame = state.compose(106, 30).expect("sidebar frame");
     let buffer = frame.to_ratatui_buffer().expect("sidebar buffer");
 
-    // Empty `other` is hidden, so only the knowledge header renders.
-    let [header] = &state.hits.space_headers[..] else {
-        panic!("one space header: {:?}", state.hits.space_headers);
+    // `other` shows even while empty, after the user spaces.
+    let [header, other] = &state.hits.space_headers[..] else {
+        panic!("two space headers: {:?}", state.hits.space_headers);
     };
     assert_eq!(header.space_id, "space_knowledge");
+    assert_eq!(other.space_id, "other");
+    assert!(other.rect.y > header.rect.y);
     let header_name = cell_symbol_position(&frame, header.rect, "knowledge");
     assert_eq!(
         buffer[header_name].fg,
@@ -2151,11 +2153,12 @@ fn mouse(
 }
 
 #[test]
-fn other_gets_an_add_worktree_row_with_a_random_name() {
+fn empty_other_gets_an_add_worktree_row_with_a_random_name() {
+    assert!(repo_snapshot()
+        .workspaces
+        .iter()
+        .all(|workspace| workspace.space_id.as_deref() != Some("other")));
     let mut state = repo_state();
-    let mut snapshot = repo_snapshot();
-    snapshot.workspaces[0].space_id = Some("other".into());
-    state.set_snapshot(Box::new(snapshot));
     screen_text(&mut state);
     let add = state
         .hits

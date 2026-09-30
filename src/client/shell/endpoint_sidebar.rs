@@ -287,10 +287,7 @@ pub(super) fn render_expanded(
         if let Some(snapshot) = endpoint.snapshot.as_deref() {
             let collapsed_groups = collapsed_groups_for_endpoint(state, &endpoint.endpoint_id)
                 .unwrap_or(&empty_collapsed_groups);
-            let dragging_here = state.dragged_workspace_id.is_some()
-                && &endpoint.endpoint_id == state.active_endpoint_id;
-            let space_rows =
-                super::sidebar::sidebar_rows(snapshot, collapsed_groups, dragging_here);
+            let space_rows = super::sidebar::sidebar_rows(snapshot, collapsed_groups);
             endpoint_rows.push((endpoint_index, rows.len(), space_rows.clone()));
             rows.extend(space_rows.into_iter().map(|row| Row::Space {
                 endpoint: endpoint_index,

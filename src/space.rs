@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::workspace::WorktreeSpaceMembership;
 
 /// Built-in space holding every workspace the user has not organized. It is
-/// always last, cannot be renamed or deleted, and is hidden while empty.
+/// always last and cannot be renamed or deleted.
 pub const OTHER_SPACE_ID: &str = "other";
 pub const OTHER_SPACE_NAME: &str = "other";
 
