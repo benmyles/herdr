@@ -1,0 +1,84 @@
+src/persist/snapshot.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 116-119,396,447,832,844,1168-1188,1519,1533
+src/client/shell/state.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 746-747,786-792
+src/ui/agent_grid.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 55-57,65-74,110-134,154-156,371-375,377,661,667,675-700
+  s_25e7ed85e3c500::t_98574ed8662028 701-702
+src/server/client_commands.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 22,322-324
+  s_25e7ed85e3c500::t_44f2ebf24988b1 325
+src/app/api.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 1191-1193
+src/pane/state.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 13-14,23
+src/ui.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 17
+docs/next/website/src/content/docs/agents.mdx
+  s_25e7ed85e3c500::t_a04092d3d0d85b 18-19
+src/protocol/wire.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 1175-1178,2982
+src/api/server.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 586
+src/client/shell/agent_sidebar.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 140-142,189-191,230-232,372,669-678,735-737
+  s_25e7ed85e3c500::t_2bb0c910c32bdb 738
+src/client/shell/agent_grid.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 43-75,80-81,85-90,92,94-95,98-104,149-153,176-181
+  s_25e7ed85e3c500::t_c40b875ee021a2 182-183
+src/server/headless/tests/agent_grid.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 198-267
+src/server/headless/agent_grid.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 32
+src/client/shell/tests/mod.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 65
+src/server/client_shell.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 138,145-148,158
+src/client/shell/context_menu.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 79-86,91,94-98,289,297,305-329,385-393,683-684
+  s_25e7ed85e3c500::t_a7f52db5c024e6 685
+src/api/schema/panes.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 43-50
+src/client/shell/endpoint_navigation.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 14-32
+src/client/shell/tests/copy.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 1852
+src/persist/restore.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 448-458,536,616,719,747,1354,1371,1385-1391,1445,1457,1511,1527,1684,1991
+src/api/schema.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 226-227
+src/app/api/panes.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 4-6,1479-1498,2293-2334
+  s_25e7ed85e3c500::t_4a62c6743516da 2335
+src/client/shell/endpoint_agents.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 76-82,98,102,116,158
+src/client/shell/actions.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 927,931-936
+src/client/shell/tests/agent_grid.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 20,255,325-545
+src/api/mod.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 79
+src/client/shell/mouse.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 1903-1908
+src/server/headless/client_views.rs
+  s_25e7ed85e3c500::t_a04092d3d0d85b 263,513
+docs/next/api/herdr-api.schema.json
+  s_25e7ed85e3c500::t_a04092d3d0d85b 2450-2465,6369-6379,6382-6384
+  s_25e7ed85e3c500::t_5672125f3692b5 6380-6381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "236e260e4716ca85971362da2e37071305979692",
+  "prompts": {},
+  "sessions": {
+    "s_25e7ed85e3c500": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3892cfdc-de73-4f3e-8f4a-5c8d9d1ba855",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
