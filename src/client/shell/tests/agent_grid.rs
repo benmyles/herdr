@@ -696,3 +696,102 @@ fn the_active_view_keeps_agents_whose_state_is_unknown_and_the_selected_one() {
         "a finished agent leaves"
     );
 }
+
+fn with_pull_request(state: &mut ClientShellState) {
+    let mut snapshot = state.snapshot.as_deref().cloned().expect("snapshot");
+    snapshot.workspaces[0].branch = Some("fix-login".into());
+    snapshot.workspaces[0].pull_request = Some(crate::api::schema::WorkspacePullRequest {
+        number: 42,
+        url: "https://github.com/o/r/pull/42".into(),
+        title: "Fix login".into(),
+        state: crate::api::schema::PullRequestState::Open,
+        checks: crate::api::schema::PullRequestChecks::Failing,
+        review: crate::api::schema::PullRequestReview::None,
+    });
+    state.set_snapshot(Box::new(snapshot));
+    state.set_pane_surface(surface());
+    state.compose(106, 30).expect("frame");
+}
+
+fn opens_url(outcome: &ClientShellInput) -> Option<&str> {
+    match &outcome.actions[..] {
+        [ClientShellAction::OpenSafeWebUrl(url)] => Some(url.as_str()),
+        _ => None,
+    }
+}
+
+#[test]
+fn workspaces_agents_and_grid_tiles_with_a_pull_request_offer_to_open_it() {
+    let mut state = two_agent_state(&[]);
+    let workspace = state.hits.workspaces[0].rect;
+    right_click(&mut state, workspace);
+    assert!(
+        !menu_labels(&state).contains(&"Open PR"),
+        "no pull request yet"
+    );
+    state.overlay = None;
+
+    with_pull_request(&mut state);
+    let workspace = state.hits.workspaces[0].rect;
+    right_click(&mut state, workspace);
+    assert_eq!(menu_labels(&state)[0], "Open PR");
+    assert_eq!(
+        opens_url(&activate_menu_item(&mut state, "Open PR")),
+        Some("https://github.com/o/r/pull/42")
+    );
+
+    state.compose(106, 30).expect("frame");
+    let row = agent_row(&state, "pane_3");
+    right_click(&mut state, row);
+    assert_eq!(menu_labels(&state), vec!["Open PR", "Exclude from grid"]);
+    assert_eq!(
+        opens_url(&activate_menu_item(&mut state, "Open PR")),
+        Some("https://github.com/o/r/pull/42")
+    );
+
+    state.show_test_agent_grid();
+    state.open_pane_context_menu("pane_2".into(), 40, 10);
+    assert_eq!(menu_labels(&state)[..2], ["Open PR", "Exclude from grid"]);
+    assert_eq!(
+        opens_url(&activate_menu_item(&mut state, "Open PR")),
+        Some("https://github.com/o/r/pull/42")
+    );
+}
+
+#[test]
+fn pull_request_badges_show_the_number_and_checks() {
+    let mut state = two_agent_state(&[]);
+    with_pull_request(&mut state);
+    let frame = state.compose(106, 30).expect("frame");
+    let buffer = frame.to_ratatui_buffer().expect("buffer");
+    let rows = frame_rows(&frame);
+    let workspace = state.hits.workspaces[0].rect;
+    let branch_row = &rows[usize::from(workspace.y) + 1][..usize::from(workspace.right())];
+    assert!(branch_row.contains("fix-login"), "{branch_row}");
+    assert!(branch_row.trim_end().ends_with("#42 ✗"), "{branch_row}");
+    let number_x = branch_row.chars().position(|ch| ch == '#').expect("badge") as u16;
+    let palette = &state.config.palette;
+    assert_eq!(
+        buffer[(number_x, workspace.y + 1)].fg,
+        palette.green,
+        "open is green"
+    );
+    assert_eq!(
+        buffer[(number_x + 4, workspace.y + 1)].fg,
+        palette.red,
+        "failing checks are red"
+    );
+
+    let mut snapshot = state.snapshot.as_deref().cloned().unwrap();
+    let pull_request = snapshot.workspaces[0].pull_request.as_mut().unwrap();
+    pull_request.state = crate::api::schema::PullRequestState::Merged;
+    state.set_snapshot(Box::new(snapshot));
+    state.set_pane_surface(surface());
+    let frame = state.compose(106, 30).expect("frame");
+    let rows = frame_rows(&frame);
+    let branch_row = &rows[usize::from(workspace.y) + 1][..usize::from(workspace.right())];
+    assert!(
+        branch_row.trim_end().ends_with("#42"),
+        "a merged pull request drops its checks: {branch_row}"
+    );
+}

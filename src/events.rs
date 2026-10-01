@@ -193,6 +193,8 @@ pub enum AppEvent {
         pane_id: PaneId,
         cwd: std::path::PathBuf,
     },
+    /// Background GitHub pull request lookups completed for workspaces.
+    PullRequestsRefreshed(Vec<crate::app::PullRequestResult>),
     /// Background git status refresh completed for workspaces.
     GitStatusRefreshed {
         results: Vec<WorkspaceGitStatus>,

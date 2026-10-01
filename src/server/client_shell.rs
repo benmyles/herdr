@@ -99,6 +99,7 @@ pub(super) fn snapshot_with_completions(
                 // Create commands now run in the worktree's first pane, where
                 // their output shows; older servers ran them out of sight.
                 setup: None,
+                pull_request: workspace.pull_request,
             }
         })
         .collect();

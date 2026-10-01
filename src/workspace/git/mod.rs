@@ -2,11 +2,13 @@ mod config;
 #[cfg(test)]
 mod config_tests;
 mod discovery;
+mod pull_request;
 mod status;
 #[cfg(test)]
 pub(super) mod test_support;
 
 pub(crate) use self::discovery::automatic_workspace_label;
+pub(crate) use self::pull_request::{lookup_pull_request, PullRequestLookup};
 
 pub use self::{
     discovery::{

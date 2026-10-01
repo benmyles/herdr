@@ -140,6 +140,12 @@ start_command = "claude"
 
 To delete a worktree checkout, use `Delete worktree checkout...` on its workspace. Herdr runs `git worktree remove`, first asking Git to remove safely. If Git refuses because the checkout has modified or untracked files, Herdr asks again before running the forced remove. Branches are not deleted.
 
+### Pull requests
+
+When a workspace's branch has a GitHub pull request, the sidebar shows its number at the end of the branch row: green while open, gray as a draft, purple once merged, red once closed. An open pull request also shows its checks: `✓` passed, `✗` failed, `●` still running. The agents panel shows the same badge on each worktree line. Right-click the workspace, one of its agents, or the agent's grid tile and choose `Open PR` to open it in your browser.
+
+Herdr looks pull requests up with the GitHub CLI (`gh pr view`) on the server's machine, so `gh` must be installed and logged in there. Lookups run while a client is attached: about once a minute, and right away for a new workspace or a branch switch. Workspaces on the default branch are skipped. The pull request also appears as `pull_request` in the API's workspace info.
+
 ### Agent context
 
 When Claude Code or Codex starts in a space that holds more than one checkout, Herdr tells it which space it is in and lists the full path, repo, and branch of every other checkout in the space, including closed ones, so work that spans repos doesn't start with a hunt for paths. The context is added when a session starts, resumes, clears, or compacts; an agent that is already running picks up new members the next time one of those happens. Agents in `other` get no context, since `other` doesn't group related work.

@@ -1028,6 +1028,52 @@
           ],
           "type": "object"
         },
+        "PullRequestChecks": {
+          "oneOf": [
+            {
+              "enum": [
+                "pending",
+                "passing",
+                "failing",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "none",
+              "description": "No checks reported.",
+              "type": "string"
+            }
+          ]
+        },
+        "PullRequestReview": {
+          "oneOf": [
+            {
+              "enum": [
+                "review_required",
+                "approved",
+                "changes_requested",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "none",
+              "description": "No review decision, such as a repository without required reviews.",
+              "type": "string"
+            }
+          ]
+        },
+        "PullRequestState": {
+          "enum": [
+            "open",
+            "draft",
+            "merged",
+            "closed",
+            "unknown"
+          ],
+          "type": "string"
+        },
         "SplitDirection": {
           "enum": [
             "right",
@@ -1098,6 +1144,17 @@
               "minimum": 0,
               "type": "integer"
             },
+            "pull_request": {
+              "anyOf": [
+                {
+                  "$ref": "#/schemas/event/$defs/WorkspacePullRequest"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The GitHub pull request for the checkout's branch, when the GitHub CLI\nfinds one."
+            },
             "space_id": {
               "description": "Space this workspace is filed under.",
               "type": [
@@ -1143,6 +1200,41 @@
             "tab_count",
             "active_tab_id",
             "agent_status"
+          ],
+          "type": "object"
+        },
+        "WorkspacePullRequest": {
+          "description": "A GitHub pull request whose head is a workspace's branch.",
+          "properties": {
+            "checks": {
+              "$ref": "#/schemas/event/$defs/PullRequestChecks",
+              "default": "none",
+              "description": "The combined result of the pull request's checks."
+            },
+            "number": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "review": {
+              "$ref": "#/schemas/event/$defs/PullRequestReview",
+              "default": "none"
+            },
+            "state": {
+              "$ref": "#/schemas/event/$defs/PullRequestState"
+            },
+            "title": {
+              "default": "",
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "number",
+            "url",
+            "state"
           ],
           "type": "object"
         },
@@ -9831,6 +9923,52 @@
             }
           ]
         },
+        "PullRequestChecks": {
+          "oneOf": [
+            {
+              "enum": [
+                "pending",
+                "passing",
+                "failing",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "none",
+              "description": "No checks reported.",
+              "type": "string"
+            }
+          ]
+        },
+        "PullRequestReview": {
+          "oneOf": [
+            {
+              "enum": [
+                "review_required",
+                "approved",
+                "changes_requested",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "none",
+              "description": "No review decision, such as a repository without required reviews.",
+              "type": "string"
+            }
+          ]
+        },
+        "PullRequestState": {
+          "enum": [
+            "open",
+            "draft",
+            "merged",
+            "closed",
+            "unknown"
+          ],
+          "type": "string"
+        },
         "ReadFormat": {
           "enum": [
             "text",
@@ -11531,6 +11669,17 @@
               "minimum": 0,
               "type": "integer"
             },
+            "pull_request": {
+              "anyOf": [
+                {
+                  "$ref": "#/schemas/success_response/$defs/WorkspacePullRequest"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The GitHub pull request for the checkout's branch, when the GitHub CLI\nfinds one."
+            },
             "space_id": {
               "description": "Space this workspace is filed under.",
               "type": [
@@ -11576,6 +11725,41 @@
             "tab_count",
             "active_tab_id",
             "agent_status"
+          ],
+          "type": "object"
+        },
+        "WorkspacePullRequest": {
+          "description": "A GitHub pull request whose head is a workspace's branch.",
+          "properties": {
+            "checks": {
+              "$ref": "#/schemas/success_response/$defs/PullRequestChecks",
+              "default": "none",
+              "description": "The combined result of the pull request's checks."
+            },
+            "number": {
+              "format": "uint64",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "review": {
+              "$ref": "#/schemas/success_response/$defs/PullRequestReview",
+              "default": "none"
+            },
+            "state": {
+              "$ref": "#/schemas/success_response/$defs/PullRequestState"
+            },
+            "title": {
+              "default": "",
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "number",
+            "url",
+            "state"
           ],
           "type": "object"
         },

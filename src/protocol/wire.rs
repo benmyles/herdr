@@ -1032,8 +1032,9 @@ pub struct ClientShellSpace {
     #[serde(default)]
     pub closed: Vec<ClientShellClosedMember>,
     /// Whether agents in this space are told about its other checkouts.
-    /// Absent from servers without the setting.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    /// Absent from servers without the setting. Always written: the
+    /// same-build protocol is bincode, which has no field names.
+    #[serde(default)]
     pub agent_context: Option<bool>,
 }
 
@@ -1135,6 +1136,10 @@ pub struct ClientShellWorkspace {
     /// after it failed.
     #[serde(default)]
     pub setup: Option<ClientShellWorktreeSetup>,
+    /// The GitHub pull request for the workspace's branch. Always written:
+    /// the same-build protocol is bincode, which has no field names.
+    #[serde(default)]
+    pub pull_request: Option<crate::api::schema::WorkspacePullRequest>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2963,6 +2968,14 @@ mod tests {
                     failure: Some("npm ERR! missing script".into()),
                     log_path: "/tmp/setup.log".into(),
                 }),
+                pull_request: Some(crate::api::schema::WorkspacePullRequest {
+                    number: 42,
+                    url: "https://github.com/o/r/pull/42".into(),
+                    title: "Fix".into(),
+                    state: crate::api::schema::PullRequestState::Draft,
+                    checks: crate::api::schema::PullRequestChecks::Pending,
+                    review: crate::api::schema::PullRequestReview::ChangesRequested,
+                }),
             }],
             tabs: vec![ClientShellTab {
                 tab_id: "w1:t1".into(),
@@ -3009,7 +3022,24 @@ mod tests {
                 action: ClientShellCommandAction::Shell,
                 description: Some("deploy".into()),
             }],
-            spaces: Vec::new(),
+            spaces: vec![
+                ClientShellSpace {
+                    space_id: "space_1".into(),
+                    name: "billing".into(),
+                    color: 1,
+                    built_in: false,
+                    closed: Vec::new(),
+                    agent_context: Some(false),
+                },
+                ClientShellSpace {
+                    space_id: "other".into(),
+                    name: "other".into(),
+                    color: 0,
+                    built_in: true,
+                    closed: Vec::new(),
+                    agent_context: None,
+                },
+            ],
             repos: vec![ClientShellRepo {
                 name: "alpha".into(),
                 root: "~/code/alpha".into(),

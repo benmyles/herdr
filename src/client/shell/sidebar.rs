@@ -425,6 +425,7 @@ pub(crate) fn render_sidebar(
                     WorkspaceRowColors {
                         palette,
                         space: spaces.color(entry.index),
+                        pull_request: workspace.pull_request.as_ref(),
                     },
                 );
                 hits.workspaces.push(WorkspaceHit {
@@ -887,11 +888,67 @@ pub(in crate::client::shell) fn muted_space_color(
     crate::ui::mute_color(color, palette.sidebar_bg, 60)
 }
 
-/// Theme palette plus the workspace's space color for one sidebar row.
+/// Theme palette, the workspace's space color, and its pull request badge
+/// for one sidebar row.
 #[derive(Clone, Copy)]
 pub(in crate::client::shell) struct WorkspaceRowColors<'a> {
     pub(in crate::client::shell) palette: &'a Palette,
     pub(in crate::client::shell) space: ratatui::style::Color,
+    pub(in crate::client::shell) pull_request: Option<&'a crate::api::schema::WorkspacePullRequest>,
+}
+
+/// A pull request's badge: its number in the color of its state and, while
+/// it is open, a mark for its checks.
+pub(in crate::client::shell) fn pull_request_badge(
+    pull_request: &crate::api::schema::WorkspacePullRequest,
+    palette: &Palette,
+) -> Vec<(String, Style)> {
+    use crate::api::schema::{PullRequestChecks, PullRequestState};
+
+    let (state_color, open) = match pull_request.state {
+        PullRequestState::Open => (palette.green, true),
+        PullRequestState::Draft => (palette.overlay0, true),
+        PullRequestState::Merged => (palette.mauve, false),
+        PullRequestState::Closed => (palette.red, false),
+        PullRequestState::Unknown => (palette.overlay1, false),
+    };
+    let mut badge = vec![(
+        format!("#{}", pull_request.number),
+        Style::default().fg(state_color),
+    )];
+    let checks = match pull_request.checks {
+        PullRequestChecks::Passing => Some(("✓", palette.green)),
+        PullRequestChecks::Failing => Some(("✗", palette.red)),
+        PullRequestChecks::Pending => Some(("●", palette.yellow)),
+        PullRequestChecks::None | PullRequestChecks::Unknown => None,
+    };
+    if let Some((mark, color)) = checks.filter(|_| open) {
+        badge.push((format!(" {mark}"), Style::default().fg(color)));
+    }
+    badge
+}
+
+/// Draws `badge` at the right of `rect`'s first row and returns what is left
+/// of `rect` before it. A badge that would leave fewer than `keep` columns is
+/// not drawn.
+pub(in crate::client::shell) fn put_right_badge(
+    buffer: &mut Buffer,
+    rect: Rect,
+    badge: &[(String, Style)],
+    keep: u16,
+) -> Rect {
+    let width = badge
+        .iter()
+        .map(|(text, _)| display_width(text))
+        .sum::<u16>();
+    if badge.is_empty() || rect.width < width + 1 + keep {
+        return rect;
+    }
+    let mut x = rect.right() - width;
+    for (text, style) in badge {
+        x = put_segment(buffer, x, rect.y, rect.right(), text, *style);
+    }
+    Rect::new(rect.x, rect.y, rect.width - width - 1, rect.height)
 }
 
 pub(in crate::client::shell) fn render_workspace_rows(
@@ -910,12 +967,29 @@ pub(in crate::client::shell) fn render_workspace_rows(
     let WorkspaceRowColors {
         palette,
         space: space_color,
+        pull_request,
     } = colors;
+    let badge = pull_request
+        .map(|pull_request| pull_request_badge(pull_request, palette))
+        .unwrap_or_default();
     for (row_index, row) in rows.iter().enumerate() {
         let y = area.y + row_index as u16;
         if y >= area.bottom() {
             break;
         }
+        // The badge sits at the end of the last row, beside the branch.
+        let right = if row_index + 1 == rows.len() {
+            put_right_badge(
+                buffer,
+                Rect::new(area.x, y, area.width.saturating_sub(2), 1),
+                &badge,
+                12,
+            )
+            .right()
+            .saturating_add(2)
+        } else {
+            area.right()
+        };
         let mut x = area.x;
         if entry.indented {
             let prefix = if row_index == 0 {
@@ -966,10 +1040,10 @@ pub(in crate::client::shell) fn render_workspace_rows(
             secondary_style,
             Style::default().fg(palette.overlay1),
             palette,
-            area.right().saturating_sub(2).saturating_sub(x) as usize,
+            right.saturating_sub(2).saturating_sub(x) as usize,
         );
         Paragraph::new(Line::from(spans)).render(
-            Rect::new(x, y, area.right().saturating_sub(2).saturating_sub(x), 1),
+            Rect::new(x, y, right.saturating_sub(2).saturating_sub(x), 1),
             buffer,
         );
     }

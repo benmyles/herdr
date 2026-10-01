@@ -766,6 +766,8 @@ pub(super) enum ClientContextMenuAction {
     IncludeInAgentGrid,
     /// Turns the space's agent context on or off.
     ToggleSpaceAgentContext,
+    /// Opens the GitHub pull request of the target's workspace.
+    OpenPullRequest,
 }
 
 #[derive(Debug)]
@@ -776,6 +778,7 @@ pub(super) enum ClientContextMenuTarget {
         is_linked_worktree: bool,
         /// Worktrees are created from spaces, so the repo-parent actions hide.
         space_worktrees: bool,
+        pull_request: bool,
     },
     Space {
         space_id: String,
@@ -808,11 +811,14 @@ pub(super) enum ClientContextMenuTarget {
         right_click_passthrough: bool,
         /// Set when the pane is a live agent grid tile that can be left out.
         agent_grid_tile: bool,
+        pull_request: bool,
     },
     /// An agent row in the agents panel.
     Agent {
         pane_id: String,
-        agent_grid_excluded: bool,
+        /// `None` when the endpoint can't leave agents out of its grid.
+        agent_grid_excluded: Option<bool>,
+        pull_request: bool,
     },
 }
 

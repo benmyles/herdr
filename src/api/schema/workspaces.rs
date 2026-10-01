@@ -76,6 +76,66 @@ pub struct WorkspaceInfo {
     pub tokens: HashMap<String, String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub worktree: Option<WorkspaceWorktreeInfo>,
+    /// The GitHub pull request for the checkout's branch, when the GitHub CLI
+    /// finds one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pull_request: Option<WorkspacePullRequest>,
+}
+
+/// A GitHub pull request whose head is a workspace's branch.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct WorkspacePullRequest {
+    pub number: u64,
+    pub url: String,
+    #[serde(default)]
+    pub title: String,
+    pub state: PullRequestState,
+    /// The combined result of the pull request's checks.
+    #[serde(default)]
+    pub checks: PullRequestChecks,
+    #[serde(default)]
+    pub review: PullRequestReview,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum PullRequestState {
+    Open,
+    Draft,
+    Merged,
+    Closed,
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum PullRequestChecks {
+    /// No checks reported.
+    #[default]
+    None,
+    Pending,
+    Passing,
+    Failing,
+    #[serde(other)]
+    Unknown,
+}
+
+#[derive(
+    Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema,
+)]
+#[serde(rename_all = "snake_case")]
+pub enum PullRequestReview {
+    /// No review decision, such as a repository without required reviews.
+    #[default]
+    None,
+    ReviewRequired,
+    Approved,
+    ChangesRequested,
+    #[serde(other)]
+    Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]

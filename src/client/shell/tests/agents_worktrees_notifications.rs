@@ -110,6 +110,7 @@ fn space_members_render_labels_branches_and_collapsed_status() {
         agent_status: AgentStatus::Idle,
         space_id: Some("space_repo".into()),
         setup: None,
+        pull_request: None,
     });
     snapshot.spaces = vec![crate::protocol::ClientShellSpace {
         space_id: "space_repo".into(),

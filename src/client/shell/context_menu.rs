@@ -2,6 +2,26 @@ use super::*;
 
 impl ClientContextMenuOverlay {
     pub(super) fn items(&self) -> Vec<ClientContextMenuItem> {
+        let mut items = self.target_items();
+        let pull_request = match &self.target {
+            ClientContextMenuTarget::Workspace { pull_request, .. }
+            | ClientContextMenuTarget::Pane { pull_request, .. }
+            | ClientContextMenuTarget::Agent { pull_request, .. } => *pull_request,
+            _ => false,
+        };
+        if pull_request {
+            items.insert(
+                0,
+                ClientContextMenuItem {
+                    label: "Open PR",
+                    action: ClientContextMenuAction::OpenPullRequest,
+                },
+            );
+        }
+        items
+    }
+
+    fn target_items(&self) -> Vec<ClientContextMenuItem> {
         use ClientContextMenuAction as Action;
 
         let item = |label, action| ClientContextMenuItem { label, action };
@@ -90,11 +110,11 @@ impl ClientContextMenuOverlay {
             ClientContextMenuTarget::Agent {
                 agent_grid_excluded,
                 ..
-            } => vec![if *agent_grid_excluded {
-                item("Include in grid", Action::IncludeInAgentGrid)
-            } else {
-                item("Exclude from grid", Action::ExcludeFromAgentGrid)
-            }],
+            } => match agent_grid_excluded {
+                Some(true) => vec![item("Include in grid", Action::IncludeInAgentGrid)],
+                Some(false) => vec![item("Exclude from grid", Action::ExcludeFromAgentGrid)],
+                None => Vec::new(),
+            },
             ClientContextMenuTarget::Pane {
                 source_pane_id,
                 has_manual_label,
@@ -148,6 +168,7 @@ impl ClientShellState {
         let worktree = workspace.worktree.as_ref();
         let is_git = worktree.is_some() || workspace.branch.is_some();
         let is_linked_worktree = worktree.is_some_and(|worktree| worktree.is_linked_worktree);
+        let pull_request = workspace.pull_request.is_some();
         let space_worktrees = self.endpoint_supports_space_worktrees();
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Workspace {
@@ -155,6 +176,7 @@ impl ClientShellState {
                 is_git,
                 is_linked_worktree,
                 space_worktrees,
+                pull_request,
             },
             x,
             y,
@@ -303,6 +325,7 @@ impl ClientShellState {
             .clone()
             .filter(|focused| focused != &pane_id);
         let agent_grid_tile = self.agent_grid_active() && self.agent_grid_exclusion_supported();
+        let pull_request = workspace_pull_request_url(snapshot, &pane.workspace_id).is_some();
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Pane {
                 pane_id,
@@ -311,6 +334,7 @@ impl ClientShellState {
                 has_manual_label: pane.label.is_some(),
                 right_click_passthrough: pane.right_click_passthrough,
                 agent_grid_tile,
+                pull_request,
             },
             x,
             y,
@@ -318,23 +342,32 @@ impl ClientShellState {
         }));
     }
 
-    /// Opens the menu for an agent row. Its only action leaves the agent out
-    /// of the live agent grid, so endpoints without that open nothing.
+    /// Opens the menu for an agent row: leaving the agent out of the live
+    /// agent grid, and opening its workspace's pull request. With neither,
+    /// nothing opens.
     pub(super) fn open_agent_context_menu(&mut self, pane_id: String, x: u16, y: u16) -> bool {
-        if !self.agent_grid_exclusion_supported() {
-            return false;
-        }
+        let exclusion = self.agent_grid_exclusion_supported();
         let Some(snapshot) = self.snapshot.as_deref() else {
             return false;
         };
-        if !snapshot.agents.iter().any(|agent| agent.pane_id == pane_id) {
+        let Some(agent) = snapshot
+            .agents
+            .iter()
+            .find(|agent| agent.pane_id == pane_id)
+        else {
+            return false;
+        };
+        let pull_request = workspace_pull_request_url(snapshot, &agent.workspace_id).is_some();
+        if !exclusion && !pull_request {
             return false;
         }
-        let agent_grid_excluded = super::agent_grid::agent_grid_excludes(snapshot, &pane_id);
+        let agent_grid_excluded =
+            exclusion.then(|| super::agent_grid::agent_grid_excludes(snapshot, &pane_id));
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Agent {
                 pane_id,
                 agent_grid_excluded,
+                pull_request,
             },
             x,
             y,
@@ -367,6 +400,10 @@ impl ClientShellState {
             outcome.repaint = true;
             return;
         };
+        if action == ClientContextMenuAction::OpenPullRequest {
+            self.open_target_pull_request(&menu.target, outcome);
+            return;
+        }
         match menu.target {
             ClientContextMenuTarget::Workspace { workspace_id, .. } => {
                 self.activate_workspace_context_action(workspace_id, action, outcome)
@@ -732,6 +769,50 @@ impl ClientShellState {
                 self.set_agent_grid_excluded(pane_id, true, outcome)
             }
             _ => {}
+        }
+    }
+}
+
+/// The pull request URL of a workspace, when the endpoint found one.
+pub(super) fn workspace_pull_request_url<'a>(
+    snapshot: &'a ClientShellSnapshot,
+    workspace_id: &str,
+) -> Option<&'a str> {
+    snapshot
+        .workspaces
+        .iter()
+        .find(|workspace| workspace.workspace_id == workspace_id)
+        .and_then(|workspace| workspace.pull_request.as_ref())
+        .map(|pull_request| pull_request.url.as_str())
+}
+
+impl ClientShellState {
+    /// Opens the pull request of the menu target's workspace in the local
+    /// browser, so it works the same for a remote endpoint.
+    fn open_target_pull_request(
+        &mut self,
+        target: &ClientContextMenuTarget,
+        outcome: &mut ClientShellInput,
+    ) {
+        let Some(snapshot) = self.snapshot.as_deref() else {
+            return;
+        };
+        let workspace_id = match target {
+            ClientContextMenuTarget::Workspace { workspace_id, .. }
+            | ClientContextMenuTarget::Pane { workspace_id, .. } => Some(workspace_id.as_str()),
+            ClientContextMenuTarget::Agent { pane_id, .. } => snapshot
+                .agents
+                .iter()
+                .find(|agent| &agent.pane_id == pane_id)
+                .map(|agent| agent.workspace_id.as_str()),
+            _ => None,
+        };
+        if let Some(url) =
+            workspace_id.and_then(|workspace_id| workspace_pull_request_url(snapshot, workspace_id))
+        {
+            outcome
+                .actions
+                .push(ClientShellAction::OpenSafeWebUrl(url.to_owned()));
         }
     }
 }

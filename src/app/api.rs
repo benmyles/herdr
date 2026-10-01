@@ -35,6 +35,9 @@ impl App {
                 results,
                 cache_updates,
             } => self.handle_git_status_refreshed(results, cache_updates),
+            AppEvent::PullRequestsRefreshed(results) => {
+                self.handle_pull_requests_refreshed(results)
+            }
             AppEvent::TabBarCommandFinished {
                 generation,
                 segment_index,
@@ -122,6 +125,11 @@ impl App {
         } = ev
         {
             self.handle_git_status_refreshed(results, cache_updates);
+            return Vec::new();
+        }
+
+        if let AppEvent::PullRequestsRefreshed(results) = ev {
+            self.handle_pull_requests_refreshed(results);
             return Vec::new();
         }
 

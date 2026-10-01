@@ -14,11 +14,13 @@ mod api;
 pub(crate) use api::test_support::exiting_test_command;
 mod api_helpers;
 pub(crate) use api_helpers::limit_snapshot_lines;
+pub(crate) use pull_requests::PullRequestResult;
 mod creation;
 mod custom_commands;
 mod git_refresh;
 mod ids;
 mod popup;
+mod pull_requests;
 mod runtime;
 mod session;
 mod spaces;
@@ -129,6 +131,10 @@ pub struct App {
     pub(crate) git_identity_refresh_requested: bool,
     pub(crate) git_status_cache: HashMap<std::path::PathBuf, crate::workspace::GitStatusCacheEntry>,
     pub(crate) pending_api_worktree_creates: HashMap<std::path::PathBuf, u64>,
+    /// GitHub pull request lookups by workspace id; runtime only.
+    pub(crate) pull_requests: HashMap<String, pull_requests::PullRequestEntry>,
+    pub(crate) pull_request_refresh_in_flight: bool,
+    pub(crate) next_pull_request_refresh: Instant,
     /// Where repo worktree commands log their output.
     pub(crate) worktree_hook_logs: std::path::PathBuf,
     /// Where repos are persisted; `None` keeps them in memory (tests).
@@ -611,6 +617,9 @@ impl App {
             git_identity_refresh_requested: false,
             git_status_cache: HashMap::new(),
             pending_api_worktree_creates: HashMap::new(),
+            pull_requests: HashMap::new(),
+            pull_request_refresh_in_flight: false,
+            next_pull_request_refresh: Instant::now(),
             worktree_hook_logs: crate::config::state_dir().join("worktree-hooks"),
             repos_path,
             worktree_read_slots: std::sync::Arc::new(tokio::sync::Semaphore::new(8)),

@@ -160,6 +160,7 @@ pub(super) enum PanelLine {
         color: ratatui::style::Color,
         stale: bool,
         indent: u16,
+        pull_request: Option<crate::api::schema::WorkspacePullRequest>,
     },
     Agent(PanelAgent),
 }
@@ -316,6 +317,7 @@ pub(super) fn panel_lines(
                     color: spaces.color(index),
                     stale: source.stale,
                     indent: 1 + depth,
+                    pull_request: workspace.pull_request.clone(),
                 });
                 lines.extend(agents.into_iter().map(|agent| {
                     PanelLine::Agent(PanelAgent::new(
@@ -677,7 +679,23 @@ fn render_panel_line(
             color,
             stale,
             indent,
+            pull_request,
         } => {
+            let badge = pull_request
+                .as_ref()
+                .filter(|_| !*stale)
+                .map(|pull_request| super::sidebar::pull_request_badge(pull_request, palette))
+                .unwrap_or_default();
+            let rect = if badge.is_empty() {
+                rect
+            } else {
+                super::sidebar::put_right_badge(
+                    buffer,
+                    Rect::new(rect.x, rect.y, rect.width.saturating_sub(1), rect.height),
+                    &badge,
+                    indent + 8,
+                )
+            };
             let x = put_str(
                 buffer,
                 rect,

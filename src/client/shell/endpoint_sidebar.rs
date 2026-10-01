@@ -544,6 +544,7 @@ pub(super) fn render_expanded(
                             super::sidebar::WorkspaceRowColors {
                                 palette,
                                 space: spaces.color(entry.index),
+                                pull_request: workspace.pull_request.as_ref(),
                             },
                         );
                         hits.workspaces.push(WorkspaceHit {
