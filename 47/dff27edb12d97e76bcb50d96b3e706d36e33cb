@@ -1,0 +1,83 @@
+src/api/schema/tests.rs
+  s_d0f98f56b5eed8::t_4d8ae112e1bc89 813,902
+src/api/schema/workspaces.rs
+  s_d0f98f56b5eed8::t_ee4e0e0d0520fd 79-138
+src/server/headless.rs
+  s_d0f98f56b5eed8::t_73535ef52f4359 3231
+src/app/creation.rs
+  s_d0f98f56b5eed8::t_ed522397600874 404
+src/client/shell/tests/agents_worktrees_notifications.rs
+  s_d0f98f56b5eed8::t_4d8ae112e1bc89 113
+src/app/mod.rs
+  s_d0f98f56b5eed8::t_9a3b5613a41bf0 23,134-137,620-622
+  s_d0f98f56b5eed8::t_73535ef52f4359 17
+src/server/client_shell.rs
+  s_d0f98f56b5eed8::t_4d8ae112e1bc89 102
+docs/next/website/src/content/docs/configuration.mdx
+  s_d0f98f56b5eed8::t_c0e08e4809d4a2 143-148
+src/app/runtime.rs
+  s_d0f98f56b5eed8::t_73535ef52f4359 157-159
+src/app/api.rs
+  s_d0f98f56b5eed8::t_73535ef52f4359 38-40,131-132
+  s_d0f98f56b5eed8::t_4405e18797acd5 133-135
+src/client/shell/agent_sidebar.rs
+  s_d0f98f56b5eed8::t_37e830a80ae1eb 163,320,682,684-688
+  s_d0f98f56b5eed8::t_49c44b84ba7f5e 689-698
+src/events.rs
+  s_d0f98f56b5eed8::t_9a3b5613a41bf0 196-197
+src/client/shell/tests/mod.rs
+  s_d0f98f56b5eed8::t_4d8ae112e1bc89 45
+src/client/endpoint/activation_tests.rs
+  s_d0f98f56b5eed8::t_4d8ae112e1bc89 155
+src/protocol/wire.rs
+  s_d0f98f56b5eed8::t_ed522397600874 1142
+  s_d0f98f56b5eed8::t_077bebc906e62c 2971-2978,3025-3042
+  s_d0f98f56b5eed8::t_32d2312d0d6945 1035-1037,1139-1141
+src/workspace/git/pull_request.rs
+  s_d0f98f56b5eed8::t_ee4e0e0d0520fd 1-37,44-251,256-277
+  s_d0f98f56b5eed8::t_c6425db360200c 38-43,252-255
+src/client/shell/context_menu.rs
+  s_d0f98f56b5eed8::t_c6425db360200c 353-357,364-365
+  s_d0f98f56b5eed8::t_e2a877c75bbb4c 5-24,113-117,171,179,328,337,345-347,349,359-361,370,403-406,775-818
+  s_d0f98f56b5eed8::t_470eedeca4731e 358
+src/client/shell/state.rs
+  s_d0f98f56b5eed8::t_e2a877c75bbb4c 769-770,781,814,819-821
+src/client/shell/sidebar.rs
+  s_d0f98f56b5eed8::t_a9256f80ac47fd 891-892,897-951,970,972-974,980-992
+  s_d0f98f56b5eed8::t_37e830a80ae1eb 428,1043,1046
+src/app/actions.rs
+  s_d0f98f56b5eed8::t_73535ef52f4359 1611
+src/client/shell/tests/agent_grid.rs
+  s_d0f98f56b5eed8::t_c6425db360200c 699-797
+docs/next/api/herdr-api.schema.json
+  s_d0f98f56b5eed8::t_c0e08e4809d4a2 1031-1076,1147-1157,1206-1240,9926-9971,11672-11682,11731-11763,11765
+  s_d0f98f56b5eed8::t_204ce70171d51e 11764
+src/workspace.rs
+  s_d0f98f56b5eed8::t_c6425db360200c 30-32
+  s_d0f98f56b5eed8::t_849783831008fb 33
+src/client/shell/tests/mobile.rs
+  s_d0f98f56b5eed8::t_4d8ae112e1bc89 378,580,623
+src/client/shell/endpoint_sidebar.rs
+  s_d0f98f56b5eed8::t_37e830a80ae1eb 547
+src/workspace/git/mod.rs
+  s_d0f98f56b5eed8::t_ee4e0e0d0520fd 5,11
+src/app/pull_requests.rs
+  s_d0f98f56b5eed8::t_9a3b5613a41bf0 1-54,57-131,136-269
+  s_d0f98f56b5eed8::t_c6425db360200c 55-56,132-135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "47dff27edb12d97e76bcb50d96b3e706d36e33cb",
+  "prompts": {},
+  "sessions": {
+    "s_d0f98f56b5eed8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ecef884f-7023-4736-87d9-0920da9e531d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
