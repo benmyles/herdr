@@ -1224,6 +1224,215 @@ fn worktree_remove_escalates_recoverable_failure_to_force_confirmation() {
     }
 }
 
+/// A delete-worktree dialog for `ws_1`, whose branch has `pull_request`.
+fn remove_dialog(
+    pull_request: Option<crate::api::schema::WorkspacePullRequest>,
+) -> ClientShellState {
+    let mut snapshot = snapshot();
+    snapshot.workspaces[0].worktree = Some(ClientShellWorktree {
+        key: "repo-key".into(),
+        label: "repo".into(),
+        is_linked_worktree: true,
+    });
+    snapshot.workspaces[0].pull_request = pull_request;
+    let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+    state.set_snapshot(Box::new(snapshot));
+    state.set_pane_surface(surface());
+    let mut prepare = ClientShellInput::default();
+    state.record_binding(
+        crate::input::KeybindMatch::Action(crate::input::KeybindAction::RemoveWorktree),
+        &mut prepare,
+    );
+    let [ClientShellAction::Endpoint { request, .. }] = &prepare.actions[..] else {
+        panic!("remove worktree should prepare through worktree.list");
+    };
+    let request_id = request.id.clone();
+    state.handle_endpoint_result(
+        "boot-1",
+        &request_id,
+        Ok(worktree_list_result(Some("ws_1"))),
+    );
+    state
+}
+
+fn pull_request_in(
+    state: crate::api::schema::PullRequestState,
+) -> crate::api::schema::WorkspacePullRequest {
+    crate::api::schema::WorkspacePullRequest {
+        number: 42,
+        url: "https://github.com/o/r/pull/42".into(),
+        title: "Fix login".into(),
+        state,
+        checks: crate::api::schema::PullRequestChecks::Passing,
+        review: crate::api::schema::PullRequestReview::None,
+    }
+}
+
+fn remove_request(outcome: &ClientShellInput) -> Option<(String, bool)> {
+    match &outcome.actions[..] {
+        [ClientShellAction::Endpoint { request, .. }] => match &request.method {
+            crate::api::schema::Method::WorktreeRemove(params) => {
+                Some((request.id.clone(), params.force))
+            }
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+#[test]
+fn deleting_a_worktree_with_an_unmerged_pull_request_needs_its_number_typed() {
+    let mut state = remove_dialog(Some(pull_request_in(
+        crate::api::schema::PullRequestState::Open,
+    )));
+    let text = screen_text(&mut state);
+    assert!(
+        text.contains("open pull request that isn't merged"),
+        "{text}"
+    );
+    assert!(text.contains("#42 Fix login"), "{text}");
+    assert!(text.contains("Type 42 to delete it anyway"), "{text}");
+
+    let refused = state.handle_input_bytes(b"\r");
+    assert_eq!(remove_request(&refused), None, "nothing typed");
+    assert!(screen_text(&mut state).contains("type 42 to delete"));
+    state.handle_input_bytes(b"41\r");
+    assert!(matches!(
+        &state.overlay,
+        Some(ClientShellOverlay::WorktreeRemove(remove)) if !remove.removing
+    ));
+
+    // Fix the typo; `#42` counts too.
+    state.handle_input_bytes(b"\x7f\x7f#42");
+    assert!(screen_text(&mut state).contains("✓"));
+    let (request_id, force) =
+        remove_request(&state.handle_input_bytes(b"\r")).expect("confirmed delete");
+    assert!(!force);
+
+    // A dirty checkout asks again without retyping the number.
+    state.handle_endpoint_result(
+        "boot-1",
+        &request_id,
+        Err(ClientShellEndpointError {
+            code: Some("dirty_worktree_requires_force".into()),
+            message: "dirty worktree".into(),
+        }),
+    );
+    let (_, force) = remove_request(&state.handle_input_bytes(b"\r")).expect("forced delete");
+    assert!(force);
+}
+
+#[test]
+fn merged_and_closed_pull_requests_delete_without_typing() {
+    for pull_request in [
+        None,
+        Some(pull_request_in(
+            crate::api::schema::PullRequestState::Merged,
+        )),
+        Some(pull_request_in(
+            crate::api::schema::PullRequestState::Closed,
+        )),
+    ] {
+        let mut state = remove_dialog(pull_request);
+        assert!(!screen_text(&mut state).contains("isn't merged"));
+        assert!(remove_request(&state.handle_input_bytes(b"\r")).is_some());
+    }
+    let mut state = remove_dialog(Some(pull_request_in(
+        crate::api::schema::PullRequestState::Draft,
+    )));
+    assert!(screen_text(&mut state).contains("draft pull request that isn't merged"));
+    assert!(remove_request(&state.handle_input_bytes(b"\r")).is_none());
+}
+
+#[test]
+fn the_delete_dialog_opens_while_the_checkout_is_looked_up() {
+    for result in [
+        Ok(worktree_list_result(Some("ws_1"))),
+        Ok(worktree_list_result(None)),
+        Err(ClientShellEndpointError {
+            code: Some("server_unavailable".into()),
+            message: "gone".into(),
+        }),
+    ] {
+        let found = remove_dialog_found(&result);
+        let mut snapshot = snapshot();
+        snapshot.workspaces[0].worktree = Some(ClientShellWorktree {
+            key: "repo-key".into(),
+            label: "repo".into(),
+            is_linked_worktree: true,
+        });
+        let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
+        state.set_snapshot(Box::new(snapshot));
+        state.set_pane_surface(surface());
+        let mut prepare = ClientShellInput::default();
+        state.record_binding(
+            crate::input::KeybindMatch::Action(crate::input::KeybindAction::RemoveWorktree),
+            &mut prepare,
+        );
+        let [ClientShellAction::Endpoint { request, .. }] = &prepare.actions[..] else {
+            panic!("remove worktree should prepare through worktree.list");
+        };
+        let request_id = request.id.clone();
+        let text = screen_text(&mut state);
+        assert!(text.contains("finding the checkout…"), "{text}");
+        assert!(text.contains("loading…"), "the button spins: {text}");
+        assert_eq!(
+            remove_request(&state.handle_input_bytes(b"\r")),
+            None,
+            "nothing to delete until the path is known"
+        );
+        state.handle_endpoint_result("boot-1", &request_id, result);
+        if found {
+            assert!(screen_text(&mut state).contains("/repo-feature"));
+            assert!(remove_request(&state.handle_input_bytes(b"\r")).is_some());
+        } else {
+            assert!(state.overlay.is_none(), "a failed lookup closes the dialog");
+        }
+    }
+}
+
+fn remove_dialog_found(
+    result: &Result<crate::api::schema::ResponseResult, ClientShellEndpointError>,
+) -> bool {
+    matches!(
+        result,
+        Ok(crate::api::schema::ResponseResult::WorktreeList { worktrees, .. })
+            if worktrees.iter().any(|entry| entry.open_workspace_id.as_deref() == Some("ws_1"))
+    )
+}
+
+#[test]
+fn a_busy_modal_shows_a_spinner_on_its_button_and_keeps_repainting() {
+    let mut state = remove_dialog(None);
+    screen_text(&mut state);
+    let primary = state.hits.overlay_primary;
+    remove_request(&state.handle_input_bytes(b"\r")).expect("delete");
+    let frame = state.compose(120, 34).expect("frame");
+    let rows = frame_rows(&frame);
+    let button = &rows[usize::from(primary.y)];
+    assert!(button.contains("removing…"), "{button}");
+    assert!(
+        button
+            .chars()
+            .any(|ch| ('\u{2800}'..='\u{28ff}').contains(&ch)),
+        "the button spins: {button}"
+    );
+    assert!(
+        state.tick_agent_marks(std::time::Instant::now() + std::time::Duration::from_millis(250)),
+        "a busy modal keeps repainting so its spinner moves"
+    );
+    // After a few seconds the button also says how long it has waited.
+    state.overlay_busy_since = state
+        .overlay_busy_since
+        .map(|since| since - std::time::Duration::from_secs(3));
+    let frame = state.compose(120, 34).expect("frame");
+    let button = &frame_rows(&frame)[usize::from(primary.y)];
+    assert!(button.contains("removing… 3s"), "{button}");
+    // Esc does nothing until the endpoint answers.
+    state.handle_input_bytes(b"\x1b");
+    assert!(state.overlay.is_some());
+}
+
 #[test]
 fn semantic_notifications_use_client_policy_and_stable_navigation_targets() {
     let mut config = ClientShellConfig::from_config(&Config::default());

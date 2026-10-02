@@ -38,7 +38,109 @@ pub(crate) struct OverlayRender {
     pub(crate) cursor: Option<crate::protocol::CursorState>,
 }
 
+/// A modal waiting on its endpoint: the spinner frame drawn on its primary
+/// button and how long it has waited.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct OverlayBusy {
+    pub(crate) spinner: char,
+    pub(crate) elapsed: std::time::Duration,
+}
+
+impl Default for OverlayBusy {
+    fn default() -> Self {
+        Self {
+            spinner: super::agent_marks::spinner(super::agent_marks::AnimationFrame::default()),
+            elapsed: std::time::Duration::ZERO,
+        }
+    }
+}
+
+impl ClientShellOverlay {
+    /// What the overlay is doing while it waits on its endpoint, as a verb
+    /// for its primary button, and whether it can be dismissed meanwhile.
+    pub(crate) fn busy(&self) -> Option<(&'static str, bool)> {
+        match self {
+            Self::WorktreeCreate(create) if create.creating => Some(("creating", false)),
+            Self::WorktreeOpen(open) if open.opening => Some(("opening", false)),
+            Self::WorktreeRemove(remove) if remove.removing => Some(("removing", false)),
+            Self::WorktreeRemove(remove) if remove.loading => Some(("loading", true)),
+            Self::SpaceWorktree(dialog) if dialog.creating => Some(("creating", false)),
+            Self::SpaceWorktreeOpen(picker) if picker.opening => Some(("opening", false)),
+            Self::SpaceWorktreeOpen(picker) if picker.loading > 0 => Some(("loading", true)),
+            Self::RepoEdit(edit) if edit.saving => Some(("saving", false)),
+            Self::Settings(settings) if settings.installing_integrations => {
+                Some(("installing", true))
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Redraws a busy modal's buttons: the primary shows the spinner, what is
+/// happening, and after a second how long it has taken, so a press visibly
+/// took; a cancel that does nothing until the endpoint answers is dimmed.
+fn render_busy_buttons(
+    b: &mut Buffer,
+    rendered: &OverlayRender,
+    verb: &str,
+    dismissable: bool,
+    busy: OverlayBusy,
+    p: &Palette,
+) {
+    let primary = rendered.primary;
+    if primary.width > 0 {
+        let secs = busy.elapsed.as_secs();
+        let spinner = busy.spinner;
+        let candidates = [
+            (secs > 0).then(|| format!(" {spinner} {verb}… {secs}s ")),
+            Some(format!(" {spinner} {verb}… ")),
+            Some(format!(" {spinner} ")),
+        ];
+        if let Some(label) = candidates
+            .into_iter()
+            .flatten()
+            .find(|label| display_width(label) <= primary.width)
+        {
+            button(
+                b,
+                primary,
+                &label,
+                Style::default()
+                    .fg(p.accent)
+                    .bg(p.surface1)
+                    .add_modifier(Modifier::BOLD),
+            );
+        }
+    }
+    if !dismissable {
+        for y in rendered.cancel.top()..rendered.cancel.bottom() {
+            for x in rendered.cancel.left()..rendered.cancel.right() {
+                let cell = &mut b[(x, y)];
+                cell.set_fg(p.overlay0);
+                cell.modifier.remove(Modifier::BOLD);
+            }
+        }
+    }
+}
+
 pub(crate) fn render_client_overlay(
+    b: &mut Buffer,
+    o: &ClientShellOverlay,
+    s: &ClientShellSnapshot,
+    endpoints: &[ClientShellEndpoint],
+    active_endpoint_id: &ClientEndpointId,
+    k: &LiveKeybindConfig,
+    p: &Palette,
+    busy: OverlayBusy,
+) -> Option<OverlayRender> {
+    let rendered = render_client_overlay_content(b, o, s, endpoints, active_endpoint_id, k, p)?;
+    if let Some((verb, dismissable)) = o.busy() {
+        render_busy_buttons(b, &rendered, verb, dismissable, busy, p);
+    }
+    Some(rendered)
+}
+
+fn render_client_overlay_content(
     b: &mut Buffer,
     o: &ClientShellOverlay,
     s: &ClientShellSnapshot,

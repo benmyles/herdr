@@ -737,6 +737,24 @@ pub(super) struct ClientWorktreeRemoveOverlay {
     pub(super) error: Option<String>,
     pub(super) removing: bool,
     pub(super) force_confirmation: bool,
+    /// An open or draft pull request for the checkout's branch. Deleting
+    /// then waits for its number to be typed into `confirmation`.
+    pub(super) pull_request: Option<crate::api::schema::WorkspacePullRequest>,
+    pub(super) confirmation: TextEditor,
+    /// Set while the endpoint lists worktrees to find the checkout's path;
+    /// the dialog opens right away so the menu choice visibly took.
+    pub(super) loading: bool,
+}
+
+impl ClientWorktreeRemoveOverlay {
+    /// Whether deleting may go ahead: no unmerged pull request, or its
+    /// number typed in, with or without `#`.
+    pub(super) fn confirmed(&self) -> bool {
+        self.pull_request.as_ref().is_none_or(|pull_request| {
+            self.confirmation.as_str().trim().trim_start_matches('#')
+                == pull_request.number.to_string()
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1184,6 +1202,8 @@ pub(crate) struct ClientShellState {
     pub(super) agent_repaint_key: Option<(u64, u64)>,
     /// Whether the last composed frame drew an animated agent mark.
     pub(super) agent_marks_animating: bool,
+    /// When the open modal started waiting on its endpoint.
+    pub(super) overlay_busy_since: Option<std::time::Instant>,
     pub(super) selection_repaint_deadline: Option<std::time::Instant>,
     pub(super) hits: ShellHitMap,
     pub(super) endpoints: Vec<ClientShellEndpoint>,
@@ -1358,6 +1378,7 @@ impl ClientShellState {
             agent_clock_epoch: std::time::Instant::now(),
             agent_repaint_key: None,
             agent_marks_animating: false,
+            overlay_busy_since: None,
             selection_repaint_deadline: None,
             hits: ShellHitMap::default(),
             endpoints: vec![local_endpoint()],
@@ -2183,13 +2204,43 @@ impl ClientShellState {
         }
     }
 
-    /// Repaints when an animated agent mark steps or an idle age turns over.
+    /// Repaints when an animated agent mark or a busy modal's spinner steps,
+    /// or an idle age turns over.
     pub(crate) fn tick_agent_marks(&mut self, now: std::time::Instant) -> bool {
         let Some(previous) = self.agent_repaint_key else {
             return false;
         };
-        let animating = self.agent_marks_animating && self.config.agent_marks.animate;
+        let animating = self.animating(self.agent_marks_animating);
         previous != self.agent_clock(now).repaint_key(animating)
+    }
+
+    /// Whether the frame animates: agent marks the config lets move, or a
+    /// modal waiting on its endpoint.
+    pub(super) fn animating(&self, agent_marks_animating: bool) -> bool {
+        (agent_marks_animating && self.config.agent_marks.animate)
+            || self
+                .overlay
+                .as_ref()
+                .and_then(ClientShellOverlay::busy)
+                .is_some()
+    }
+
+    /// The busy modal's spinner frame and wait so far, timed from the first
+    /// frame that showed it busy.
+    pub(super) fn overlay_busy(&mut self, now: std::time::Instant) -> super::render::OverlayBusy {
+        let busy = self
+            .overlay
+            .as_ref()
+            .and_then(ClientShellOverlay::busy)
+            .is_some();
+        self.overlay_busy_since = busy.then(|| self.overlay_busy_since.unwrap_or(now));
+        super::render::OverlayBusy {
+            spinner: super::agent_marks::spinner(self.agent_clock(now).frame),
+            elapsed: self
+                .overlay_busy_since
+                .map(|since| now.saturating_duration_since(since))
+                .unwrap_or_default(),
+        }
     }
 
     pub(crate) fn timer_delay(&self, now: std::time::Instant) -> std::time::Duration {

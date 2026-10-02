@@ -466,6 +466,13 @@ impl ClientShellState {
                         ..
                     }
                 ))
+                | Some(ClientShellOverlay::WorktreeRemove(
+                    ClientWorktreeRemoveOverlay {
+                        pull_request: Some(_),
+                        removing: false,
+                        ..
+                    }
+                ))
                 | Some(ClientShellOverlay::WorktreeOpen(
                     ClientWorktreeOpenOverlay {
                         search_focused: true,

@@ -297,6 +297,9 @@ fn every_dialog_and_menu_occludes_its_panel_not_the_whole_screen() {
             error: None,
             removing: false,
             force_confirmation: false,
+            pull_request: None,
+            confirmation: TextEditor::default(),
+            loading: false,
         }),
         ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Tab {
@@ -346,6 +349,7 @@ fn every_dialog_and_menu_occludes_its_panel_not_the_whole_screen() {
                 &state.active_endpoint_id,
                 &state.config.keybinds,
                 &state.config.palette,
+                Default::default(),
             ),
         }
         .unwrap();

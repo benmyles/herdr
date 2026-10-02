@@ -29,6 +29,14 @@ impl ClientShellState {
                 }
                 true
             }
+            Some(ClientShellOverlay::WorktreeRemove(remove))
+                if remove.pull_request.is_some() && !remove.removing =>
+            {
+                if remove.confirmation.insert(text) {
+                    remove.error = None;
+                }
+                true
+            }
             Some(ClientShellOverlay::WorktreeOpen(open))
                 if open.search_focused && !open.opening =>
             {
@@ -156,6 +164,18 @@ impl ClientShellState {
                         outcome.repaint = true;
                     }
                     KeyCode::Enter => self.submit_worktree_remove(outcome),
+                    _ if !removing => {
+                        if let Some(ClientShellOverlay::WorktreeRemove(remove)) =
+                            self.overlay.as_mut()
+                        {
+                            if remove.pull_request.is_some()
+                                && remove.confirmation.handle_key(key) == Some(true)
+                            {
+                                remove.error = None;
+                                outcome.repaint = true;
+                            }
+                        }
+                    }
                     _ => {}
                 }
                 true
@@ -242,15 +262,31 @@ impl ClientShellState {
             },
             _ => return,
         };
-        self.push_endpoint_method_with_kind(
+        let removing = matches!(kind, PendingEndpointKind::PrepareWorktreeRemove { .. });
+        let sent = self.push_endpoint_method_with_kind(
             Method::WorktreeList(WorktreeListParams {
-                workspace_id: Some(workspace_id),
+                workspace_id: Some(workspace_id.clone()),
                 cwd: None,
                 trust_repository: false,
             }),
             kind,
             outcome,
         );
+        if removing && sent {
+            self.overlay = Some(ClientShellOverlay::WorktreeRemove(
+                ClientWorktreeRemoveOverlay {
+                    pull_request: self.unmerged_pull_request(&workspace_id),
+                    workspace_id,
+                    path: String::new(),
+                    error: None,
+                    removing: false,
+                    force_confirmation: false,
+                    confirmation: TextEditor::default(),
+                    loading: true,
+                },
+            ));
+            outcome.repaint = true;
+        }
     }
 
     pub(super) fn sync_worktree_create_path(&mut self) {
@@ -363,11 +399,43 @@ impl ClientShellState {
         outcome.repaint = true;
     }
 
+    /// The workspace's pull request while it is open or a draft.
+    fn unmerged_pull_request(
+        &self,
+        workspace_id: &str,
+    ) -> Option<crate::api::schema::WorkspacePullRequest> {
+        use crate::api::schema::PullRequestState;
+
+        self.snapshot
+            .as_deref()?
+            .workspaces
+            .iter()
+            .find(|workspace| workspace.workspace_id == workspace_id)?
+            .pull_request
+            .clone()
+            .filter(|pull_request| {
+                matches!(
+                    pull_request.state,
+                    PullRequestState::Open | PullRequestState::Draft
+                )
+            })
+    }
+
     pub(super) fn submit_worktree_remove(&mut self, outcome: &mut ClientShellInput) {
         let Some(ClientShellOverlay::WorktreeRemove(remove)) = self.overlay.as_mut() else {
             return;
         };
-        if remove.removing {
+        if remove.removing || remove.loading {
+            return;
+        }
+        outcome.repaint = true;
+        if !remove.confirmed() {
+            if let Some(pull_request) = remove.pull_request.as_ref() {
+                remove.error = Some(format!(
+                    "type {} to delete the checkout of an unmerged pull request",
+                    pull_request.number
+                ));
+            }
             return;
         }
         let workspace_id = remove.workspace_id.clone();
@@ -469,20 +537,31 @@ impl ClientShellState {
                     .into_iter()
                     .find(|entry| entry.open_workspace_id.as_deref() == Some(&workspace_id))
                     .map(|entry| entry.path);
-                if let Some(path) = path {
-                    self.overlay = Some(ClientShellOverlay::WorktreeRemove(
-                        ClientWorktreeRemoveOverlay {
-                            workspace_id,
-                            path,
-                            error: None,
-                            removing: false,
-                            force_confirmation: false,
-                        },
-                    ));
-                } else {
-                    self.set_endpoint_error(
-                        "This workspace is not a Herdr-managed worktree checkout.",
-                    );
+                let loading_dialog = matches!(
+                    self.overlay.as_ref(),
+                    Some(ClientShellOverlay::WorktreeRemove(remove))
+                        if remove.loading && remove.workspace_id == workspace_id
+                );
+                match path {
+                    // Fill in the dialog that opened while the list loaded;
+                    // the user may have closed it meanwhile.
+                    Some(path) if loading_dialog => {
+                        if let Some(ClientShellOverlay::WorktreeRemove(remove)) =
+                            self.overlay.as_mut()
+                        {
+                            remove.path = path;
+                            remove.loading = false;
+                        }
+                    }
+                    Some(_) => {}
+                    None => {
+                        if loading_dialog {
+                            self.overlay = None;
+                        }
+                        self.set_endpoint_error(
+                            "This workspace is not a Herdr-managed worktree checkout.",
+                        );
+                    }
                 }
                 true
             }
@@ -551,10 +630,19 @@ impl ClientShellState {
                 }
                 true
             }
+            (PendingEndpointKind::PrepareWorktreeRemove { workspace_id }, Err(_)) => {
+                if matches!(
+                    self.overlay.as_ref(),
+                    Some(ClientShellOverlay::WorktreeRemove(remove))
+                        if remove.loading && remove.workspace_id == workspace_id
+                ) {
+                    self.overlay = None;
+                }
+                true
+            }
             (
                 PendingEndpointKind::PrepareWorktreeCreate { .. }
-                | PendingEndpointKind::PrepareWorktreeOpen { .. }
-                | PendingEndpointKind::PrepareWorktreeRemove { .. },
+                | PendingEndpointKind::PrepareWorktreeOpen { .. },
                 Err(_),
             ) => true,
             (_, Ok(_)) => {

@@ -138,11 +138,13 @@ on_remove = "just db-teardown"
 start_command = "claude"
 ```
 
-To delete a worktree checkout, use `Delete worktree checkout...` on its workspace. Herdr runs `git worktree remove`, first asking Git to remove safely. If Git refuses because the checkout has modified or untracked files, Herdr asks again before running the forced remove. Branches are not deleted.
+To delete a worktree checkout, use `Delete worktree checkout...` on its workspace. The dialog opens right away and fills in the checkout's path once the server finds it; while Herdr works, its button shows a spinner and how long it has taken. Herdr runs `git worktree remove`, first asking Git to remove safely. If Git refuses because the checkout has modified or untracked files, Herdr asks again before running the forced remove. Branches are not deleted.
 
 ### Pull requests
 
 When a workspace's branch has a GitHub pull request, the sidebar shows its number at the end of the branch row: green while open, gray as a draft, purple once merged, red once closed. An open pull request also shows its checks: `✓` passed, `✗` failed, `●` still running. The agents panel shows the same badge on each worktree line. Right-click the workspace, one of its agents, or the agent's grid tile and choose `Open PR` to open it in your browser.
+
+Deleting the checkout of a branch whose pull request is still open or a draft asks for the pull request's number to be typed before `Delete worktree checkout...` goes ahead. Merged and closed pull requests delete without it.
 
 Herdr looks pull requests up with the GitHub CLI (`gh pr view`) on the server's machine, so `gh` must be installed and logged in there. Lookups run while a client is attached: about once a minute, and right away for a new workspace or a branch switch. Workspaces on the default branch are skipped. The pull request also appears as `pull_request` in the API's workspace info.
 

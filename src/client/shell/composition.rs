@@ -105,7 +105,7 @@ impl ClientShellState {
         }
         self.agent_marks_animating = agent_marks_animating;
         self.agent_repaint_key =
-            Some(agent_clock.repaint_key(agent_marks_animating && self.config.agent_marks.animate));
+            Some(agent_clock.repaint_key(self.animating(agent_marks_animating)));
         if !self.config.mouse_capture {
             self.hits = ShellHitMap::default();
         }
@@ -163,6 +163,7 @@ impl ClientShellState {
     ) -> Option<crate::client::frame_output::ComposedFrame> {
         self.last_composed_at = Some(std::time::Instant::now());
         self.selection_repaint_deadline = None;
+        let overlay_busy = self.overlay_busy(std::time::Instant::now());
         if self.last_composed_size != Some((cols, rows)) && self.mode == ClientShellMode::Navigate {
             self.reveal_navigation_workspace = true;
             self.reveal_mobile_workspace = true;
@@ -374,7 +375,7 @@ impl ClientShellState {
         }
         self.agent_marks_animating = agent_marks_animating;
         self.agent_repaint_key =
-            Some(agent_clock.repaint_key(agent_marks_animating && self.config.agent_marks.animate));
+            Some(agent_clock.repaint_key(self.animating(agent_marks_animating)));
         restore_mode_bar(&mut frame, mode_bar, mode_bar_cells.as_deref());
         let mut occlusion = crate::kitty_graphics::surface::Occlusion::default();
         let has_selection = self
@@ -715,6 +716,7 @@ impl ClientShellState {
                     &self.active_endpoint_id,
                     &self.config.keybinds,
                     &self.config.palette,
+                    overlay_busy,
                 )?;
                 occlusion.cover(rendered.area);
                 self.hits.overlay_primary = rendered.primary;

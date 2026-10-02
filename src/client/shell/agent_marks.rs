@@ -153,6 +153,12 @@ impl AgentClock {
     }
 }
 
+/// The spinner character for `frame`, shared by working agents and busy
+/// modals.
+pub(crate) fn spinner(frame: AnimationFrame) -> char {
+    SPINNER[(frame.0 % SPINNER.len() as u64) as usize]
+}
+
 /// Animation step shared by every animated mark on screen.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub(crate) struct AnimationFrame(pub(crate) u64);

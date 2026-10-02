@@ -555,16 +555,8 @@ pub(super) fn render_repo_edit_overlay(
         hint,
         Style::default().fg(p.overlay1).bg(p.panel_bg),
     );
-    if edit.saving {
-        put_text(
-            b,
-            inner.x,
-            hint_y + 2,
-            inner.width,
-            " saving…",
-            Style::default().fg(p.accent).bg(p.panel_bg),
-        );
-    } else if let Some(error) = edit.error.as_deref() {
+    // While busy, the primary button shows the progress.
+    if let Some(error) = edit.error.as_deref() {
         for (offset, line) in wrap_words(error, inner.width.saturating_sub(2))
             .iter()
             .take(2)
@@ -580,7 +572,7 @@ pub(super) fn render_repo_edit_overlay(
             );
         }
     }
-    let buttons = row(inner, &[10, 12], 2, inner.height.saturating_sub(1));
+    let buttons = row(inner, &[14, 12], 2, inner.height.saturating_sub(1));
     let [save, cancel] = buttons.as_slice() else {
         return None;
     };
@@ -754,16 +746,8 @@ pub(super) fn render_existing_worktree_overlay(
             Style::default().fg(p.overlay0).bg(p.panel_bg),
         );
     }
-    if picker.opening {
-        put_text(
-            b,
-            inner.x,
-            inner.bottom().saturating_sub(2),
-            inner.width,
-            " opening…",
-            Style::default().fg(p.accent).bg(p.panel_bg),
-        );
-    } else if let Some(error) = picker.error.as_deref() {
+    // While busy, the primary button shows the progress.
+    if let Some(error) = picker.error.as_deref() {
         put_text(
             b,
             inner.x,
@@ -773,7 +757,7 @@ pub(super) fn render_existing_worktree_overlay(
             Style::default().fg(p.red).bg(p.panel_bg),
         );
     }
-    let buttons = row(inner, &[12, 12], 2, inner.height.saturating_sub(1));
+    let buttons = row(inner, &[14, 12], 2, inner.height.saturating_sub(1));
     let [primary, cancel] = buttons.as_slice() else {
         return None;
     };

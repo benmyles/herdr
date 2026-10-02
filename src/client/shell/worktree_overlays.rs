@@ -50,16 +50,8 @@ pub(super) fn render_worktree_create_overlay(
         &format!(" {}", create.checkout_path),
         Style::default().fg(p.subtext0).bg(p.panel_bg),
     );
-    if create.creating {
-        put_text(
-            b,
-            inner.x,
-            inner.y + 8,
-            inner.width,
-            " creating…",
-            Style::default().fg(p.accent).bg(p.panel_bg),
-        );
-    } else if let Some(error) = create.error.as_deref() {
+    // While busy, the primary button shows the progress.
+    if let Some(error) = create.error.as_deref() {
         put_text(
             b,
             inner.x,
@@ -249,16 +241,8 @@ pub(super) fn render_worktree_open_overlay(
             Style::default().fg(p.overlay0).bg(p.panel_bg),
         );
     }
-    if open.opening {
-        put_text(
-            b,
-            inner.x,
-            inner.bottom() - 3,
-            inner.width,
-            " opening…",
-            Style::default().fg(p.accent).bg(p.panel_bg),
-        );
-    } else if let Some(error) = open.error.as_deref() {
+    // While busy, the primary button shows the progress.
+    if let Some(error) = open.error.as_deref() {
         put_text(
             b,
             inner.x,
@@ -268,7 +252,7 @@ pub(super) fn render_worktree_open_overlay(
             Style::default().fg(p.red).bg(p.panel_bg),
         );
     }
-    let buttons = row(inner, &[10, 12], 2, inner.height.saturating_sub(1));
+    let buttons = row(inner, &[14, 12], 2, inner.height.saturating_sub(1));
     let [primary, cancel] = buttons.as_slice() else {
         return None;
     };
@@ -310,8 +294,11 @@ pub(super) fn render_worktree_remove_overlay(
     remove: &ClientWorktreeRemoveOverlay,
     p: &Palette,
 ) -> Option<OverlayRender> {
-    let popup = popup(b.area, 72, 10)?;
+    let warning_rows = if remove.pull_request.is_some() { 5 } else { 0 };
+    let force_rows = u16::from(remove.force_confirmation);
+    let popup = popup(b.area, 72, 10 + warning_rows + force_rows)?;
     let inner = panel(b, popup, p.red, p.panel_bg)?;
+    let text = Style::default().fg(p.text).bg(p.panel_bg);
     put_text(
         b,
         inner.x,
@@ -329,14 +316,18 @@ pub(super) fn render_worktree_remove_overlay(
         inner.y + 1,
         inner.width,
         " This removes the checkout folder:",
-        Style::default().fg(p.text).bg(p.panel_bg),
+        text,
     );
     put_text(
         b,
         inner.x,
         inner.y + 2,
         inner.width,
-        &format!(" {}", remove.path),
+        &if remove.loading {
+            " finding the checkout…".to_owned()
+        } else {
+            format!(" {}", remove.path)
+        },
         Style::default().fg(p.subtext0).bg(p.panel_bg),
     );
     put_text(
@@ -345,40 +336,100 @@ pub(super) fn render_worktree_remove_overlay(
         inner.y + 3,
         inner.width,
         " The branch is not deleted. The Herdr workspace will close.",
-        Style::default().fg(p.text).bg(p.panel_bg),
+        text,
     );
+    let mut y = inner.y + 4;
     if remove.force_confirmation {
         put_text(
             b,
             inner.x,
-            inner.y + 4,
+            y,
             inner.width,
             " Dirty or untracked files will be permanently deleted.",
             Style::default().fg(p.red).bg(p.panel_bg),
         );
+        y += 1;
     }
-    if remove.removing {
+    let mut cursor = None;
+    if let Some(pull_request) = remove.pull_request.as_ref() {
+        let kind = if pull_request.state == crate::api::schema::PullRequestState::Draft {
+            "a draft pull request"
+        } else {
+            "an open pull request"
+        };
         put_text(
             b,
             inner.x,
-            inner.y + 5,
+            y + 1,
             inner.width,
-            " removing…",
-            Style::default().fg(p.accent).bg(p.panel_bg),
+            &format!(" ⚠ This branch has {kind} that isn't merged:"),
+            Style::default()
+                .fg(p.yellow)
+                .bg(p.panel_bg)
+                .add_modifier(Modifier::BOLD),
         );
-    } else if let Some(error) = remove.error.as_deref() {
         put_text(
             b,
             inner.x,
-            inner.y + 5,
+            y + 2,
+            inner.width,
+            &format!("   #{} {}", pull_request.number, pull_request.title),
+            Style::default().fg(p.subtext0).bg(p.panel_bg),
+        );
+        put_text(
+            b,
+            inner.x,
+            y + 3,
+            inner.width,
+            &format!(" Type {} to delete it anyway:", pull_request.number),
+            text,
+        );
+        let input = Rect::new(inner.x + 1, y + 4, 16.min(inner.width.saturating_sub(2)), 1);
+        let input_style = Style::default().fg(p.text).bg(p.surface0);
+        b.set_style(input, input_style);
+        cursor = text_editor::render(
+            b,
+            Rect::new(input.x + 1, input.y, input.width.saturating_sub(1), 1),
+            &remove.confirmation,
+            input_style,
+        );
+        if remove.confirmed() {
+            put_text(
+                b,
+                input.right() + 1,
+                input.y,
+                2,
+                "✓",
+                Style::default().fg(p.green).bg(p.panel_bg),
+            );
+        }
+        y += warning_rows;
+    }
+    let status_y = y + 1;
+    // While busy, the primary button shows the progress.
+    if let Some(error) = remove.error.as_deref() {
+        put_text(
+            b,
+            inner.x,
+            status_y,
             inner.width,
             &format!(" {error}"),
             Style::default().fg(p.red).bg(p.panel_bg),
         );
     }
-    let buttons = row(inner, &[18, 12], 2, 7);
+    let buttons = row(inner, &[18, 12], 2, status_y + 2 - inner.y);
     let [primary, cancel] = buttons.as_slice() else {
         return None;
+    };
+    // The delete stays visibly unavailable until the pull request number
+    // is typed.
+    let primary_style = if remove.confirmed() {
+        Style::default()
+            .fg(contrast(p))
+            .bg(p.red)
+            .add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(p.overlay0).bg(p.surface0)
     };
     button(
         b,
@@ -388,10 +439,7 @@ pub(super) fn render_worktree_remove_overlay(
         } else {
             " ↵ remove "
         },
-        Style::default()
-            .fg(contrast(p))
-            .bg(p.red)
-            .add_modifier(Modifier::BOLD),
+        primary_style,
     );
     button(
         b,
@@ -412,7 +460,7 @@ pub(super) fn render_worktree_remove_overlay(
         navigator_rows: Vec::new(),
         worktree_search: Rect::default(),
         worktree_rows: Vec::new(),
-        cursor: None,
+        cursor: cursor.filter(|_| !remove.removing),
         ..OverlayRender::default()
     })
 }
