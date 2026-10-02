@@ -1,0 +1,58 @@
+src/client/shell/composition.rs
+  s_d0f98f56b5eed8::t_106f3872677239 108,378
+  s_d0f98f56b5eed8::t_6cce4cbbe3db17 166
+  s_d0f98f56b5eed8::t_e0c2fd28b2db35 719
+docs/next/website/src/content/docs/configuration.mdx
+  s_d0f98f56b5eed8::t_0f9fa63414fb1d 141,147
+  s_d0f98f56b5eed8::t_6aeae7996b14cd 148
+src/client/shell/worktree_overlays.rs
+  s_d0f98f56b5eed8::t_5ac80926914340 297-299,301,319,339,341,346,351,353-359,363,365-369,374-408,411-414,420,424-433,442,463
+  s_d0f98f56b5eed8::t_d8b27b41f781e5 326-330
+  s_d0f98f56b5eed8::t_29485ac8a8e2ae 53-54,244-245,255,409-410
+src/client/shell/agent_marks.rs
+  s_d0f98f56b5eed8::t_bb8535fdf22d9c 156-161
+src/client/shell/tests/graphics.rs
+  s_d0f98f56b5eed8::t_d8b27b41f781e5 302
+  s_d0f98f56b5eed8::t_e0c2fd28b2db35 352
+  s_d0f98f56b5eed8::t_7ff63d3dddaac0 300-301
+src/client/shell/overlays.rs
+  s_d0f98f56b5eed8::t_bb8535fdf22d9c 41-65,67-125,134-144,150
+  s_d0f98f56b5eed8::t_d8b27b41f781e5 66
+  s_d0f98f56b5eed8::t_c846506bc5c2b3 145-149
+src/client/shell/render.rs
+  s_d0f98f56b5eed8::t_106f3872677239 14
+src/client/shell/tests/agents_worktrees_notifications.rs
+  s_d0f98f56b5eed8::t_47ad70102ed4f8 1227-1347,1405-1423,1431-1435
+  s_d0f98f56b5eed8::t_27a2479324c8f4 1348-1356,1358-1404
+  s_d0f98f56b5eed8::t_b9f8a8ebbdad97 1357
+  s_d0f98f56b5eed8::t_a0cbdd5c403a20 1424-1430
+src/client/shell/repo_overlays.rs
+  s_d0f98f56b5eed8::t_29485ac8a8e2ae 558-559,575,749-750,760
+src/client/shell/worktrees.rs
+  s_d0f98f56b5eed8::t_c3620bc1b0993f 32-39,167-178,402-423,429-438
+  s_d0f98f56b5eed8::t_d8b27b41f781e5 265-266,268,275-289,428,540-564,633-642,645
+src/client/shell/input.rs
+  s_d0f98f56b5eed8::t_c3620bc1b0993f 469-475
+src/client/shell/state.rs
+  s_d0f98f56b5eed8::t_106f3872677239 2230,2237
+  s_d0f98f56b5eed8::t_c3620bc1b0993f 740-743,747-757
+  s_d0f98f56b5eed8::t_d8b27b41f781e5 744-746
+  s_d0f98f56b5eed8::t_e0c2fd28b2db35 1205-1206,1381,2207-2208,2213,2217-2229,2231-2236,2238-2244
+  s_d0f98f56b5eed8::t_01a13be48eb431 2245
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5d4eb1eee7f6123e51a65e538eb7e2b59cc561f3",
+  "prompts": {},
+  "sessions": {
+    "s_d0f98f56b5eed8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ecef884f-7023-4736-87d9-0920da9e531d",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
