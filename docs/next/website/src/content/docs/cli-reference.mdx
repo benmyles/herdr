@@ -444,8 +444,11 @@ herdr integration uninstall cursor
 herdr integration uninstall mastracode
 herdr integration uninstall grok
 herdr integration uninstall crush
+herdr integration install --outdated
 herdr integration status [--outdated-only]
 ```
+
+`integration install --outdated` reinstalls every installed integration that `integration status` reports as outdated or needing repair, and leaves integrations that were never installed alone.
 
 ## Plugins
 

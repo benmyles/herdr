@@ -1410,6 +1410,80 @@ fn install_codex_is_idempotent_for_hook_entries_and_feature_flag() {
 }
 
 #[test]
+fn installing_outdated_targets_repairs_installed_integrations_only() {
+    let _lock = integration_env_lock();
+    let base = unique_base();
+    let home = base.join("home");
+    fs::create_dir_all(home.join(".claude")).unwrap();
+    std::env::set_var("HOME", &home);
+    // The repair writes, so every integration directory must resolve under
+    // the test home rather than the developer's own config.
+    let relocations = [
+        "XDG_CONFIG_HOME",
+        "XDG_STATE_HOME",
+        "APPDATA",
+        "LOCALAPPDATA",
+        PI_CODING_AGENT_DIR_ENV_VAR,
+        OMP_CONFIG_DIR_ENV_VAR,
+        CLAUDE_CONFIG_DIR_ENV_VAR,
+        CODEX_HOME_ENV_VAR,
+        KIMI_CODE_HOME_ENV_VAR,
+        COPILOT_HOME_ENV_VAR,
+        QODERCLI_CONFIG_DIR_ENV_VAR,
+        QWEN_HOME_ENV_VAR,
+        CURSOR_CONFIG_DIR_ENV_VAR,
+        ANTIGRAVITY_CLI_CONFIG_DIR_ENV_VAR,
+        GROK_CONFIG_DIR_ENV_VAR,
+        GROK_HOME_ENV_VAR,
+        HERMES_HOME_ENV_VAR,
+        CRUSH_CONFIG_DIR_ENV_VAR,
+        CRUSH_GLOBAL_CONFIG_ENV_VAR,
+    ];
+    let saved = relocations.map(|var| (var, std::env::var_os(var)));
+    for var in relocations {
+        std::env::remove_var(var);
+    }
+
+    assert!(install_outdated_targets().is_empty(), "nothing installed");
+
+    // A stock install: current hooks, but no space context hook.
+    let claude = install_claude().unwrap();
+    let settings = fs::read_to_string(&claude.settings_path).unwrap();
+    let stock =
+        super::claude_settings::uninstall_agent_context(&settings, &claude.settings_path).unwrap();
+    fs::write(&claude.settings_path, &stock).unwrap();
+
+    let repaired = install_outdated_targets();
+    assert_eq!(
+        repaired
+            .iter()
+            .map(|(target, outcome)| (*target, outcome.is_ok()))
+            .collect::<Vec<_>>(),
+        vec![(crate::api::schema::IntegrationTarget::Claude, true)]
+    );
+    assert!(super::claude_settings::has_agent_context(
+        &fs::read_to_string(&claude.settings_path).unwrap()
+    ));
+    assert!(
+        !home.join(".codex").exists(),
+        "an integration that was never installed stays uninstalled"
+    );
+    assert!(
+        install_outdated_targets().is_empty(),
+        "nothing left to repair"
+    );
+
+    for (var, value) in saved {
+        match value {
+            Some(value) => std::env::set_var(var, value),
+            None => std::env::remove_var(var),
+        }
+    }
+    std::env::remove_var("HOME");
+    let _ = fs::remove_dir_all(base);
+}
+
+#[test]
 fn agent_context_hook_is_required_for_a_current_claude_or_codex_install() {
     let _lock = integration_env_lock();
     let base = unique_base();

@@ -92,6 +92,9 @@ fn describe_integration_state(
 }
 
 fn integration_install(args: &[String]) -> std::io::Result<i32> {
+    if matches!(args, [flag] if flag == "--outdated") {
+        return Ok(integration_install_outdated());
+    }
     let Some(target) = parse_integration_target(args, "install")? else {
         return Ok(2);
     };
@@ -111,6 +114,30 @@ fn integration_install(args: &[String]) -> std::io::Result<i32> {
             Ok(1)
         }
     }
+}
+
+/// Reinstalls every installed integration that is outdated or needs repair,
+/// leaving integrations that were never installed alone.
+fn integration_install_outdated() -> i32 {
+    let outcomes = crate::integration::install_outdated_targets();
+    if outcomes.is_empty() {
+        println!("installed integrations are current");
+        return 0;
+    }
+    let mut code = 0;
+    for (target, outcome) in outcomes {
+        match outcome {
+            Ok(messages) => print_integration_messages(messages),
+            Err(err) => {
+                eprintln!(
+                    "{}: {err}",
+                    crate::integration::integration_target_label(target)
+                );
+                code = 1;
+            }
+        }
+    }
+    code
 }
 
 fn integration_uninstall(args: &[String]) -> std::io::Result<i32> {
@@ -141,6 +168,14 @@ fn print_integration_messages(messages: Vec<String>) {
     }
 }
 
+fn install_outdated_usage(action: &str) -> &'static str {
+    if action == "install" {
+        "\n       herdr-benmyles integration install --outdated"
+    } else {
+        ""
+    }
+}
+
 /// Integration target accepted by the CLI. Letta and Crush are deliberately
 /// kept out of the frozen client endpoint `IntegrationTarget` enum and are
 /// handled as experimental CLI-only targets until the agent registry replaces it.
@@ -156,13 +191,15 @@ fn parse_integration_target(
 ) -> std::io::Result<Option<IntegrationCommandTarget>> {
     let Some(target) = args.first().map(|arg| arg.as_str()) else {
         eprintln!(
-            "usage: herdr-benmyles integration {action} <pi|omp|claude|codex|copilot|devin|droid|kimi|opencode|kilo|hermes|qodercli|qwen|letta|cursor|mastracode|grok|crush>"
+            "usage: herdr-benmyles integration {action} <pi|omp|claude|codex|copilot|devin|droid|kimi|opencode|kilo|hermes|qodercli|qwen|letta|cursor|mastracode|grok|crush>{}",
+            install_outdated_usage(action)
         );
         return Ok(None);
     };
     if args.len() != 1 {
         eprintln!(
-            "usage: herdr-benmyles integration {action} <pi|omp|claude|codex|copilot|devin|droid|kimi|opencode|kilo|hermes|qodercli|qwen|letta|cursor|mastracode|grok|crush>"
+            "usage: herdr-benmyles integration {action} <pi|omp|claude|codex|copilot|devin|droid|kimi|opencode|kilo|hermes|qodercli|qwen|letta|cursor|mastracode|grok|crush>{}",
+            install_outdated_usage(action)
         );
         return Ok(None);
     }

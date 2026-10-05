@@ -773,7 +773,16 @@ fn integration_command() -> Command {
         .subcommand(
             Command::new("install")
                 .about("Install an integration")
-                .arg(integration_target_arg()),
+                .arg(
+                    integration_target_arg()
+                        .required(false)
+                        .required_unless_present("outdated"),
+                )
+                .arg(
+                    flag("outdated")
+                        .conflicts_with("target")
+                        .help("Reinstall every installed integration that is outdated"),
+                ),
         )
         .subcommand(
             Command::new("uninstall")
@@ -1157,6 +1166,22 @@ mod tests {
                 .collect::<Vec<_>>(),
             expected
         );
+    }
+
+    #[test]
+    fn integration_install_takes_a_target_or_outdated() {
+        for valid in [
+            &["herdr", "integration", "install", "claude"][..],
+            &["herdr", "integration", "install", "--outdated"],
+        ] {
+            assert!(super::command().try_get_matches_from(valid).is_ok());
+        }
+        for invalid in [
+            &["herdr", "integration", "install"][..],
+            &["herdr", "integration", "install", "claude", "--outdated"],
+        ] {
+            assert!(super::command().try_get_matches_from(invalid).is_err());
+        }
     }
 
     #[test]

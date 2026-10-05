@@ -23,6 +23,19 @@ pub(crate) fn install_target(
     result
 }
 
+/// Reinstalls every installed integration that is outdated or needs repair,
+/// leaving integrations that were never installed alone. Returns each target's
+/// outcome in registry order.
+pub(crate) fn install_outdated_targets() -> Vec<(
+    crate::api::schema::IntegrationTarget,
+    io::Result<Vec<String>>,
+)> {
+    super::registry::outdated_installed_integrations()
+        .into_iter()
+        .map(|status| (status.target, install_target(status.target)))
+        .collect()
+}
+
 /// Experimental Letta install that bypasses the frozen client endpoint
 /// `IntegrationTarget` enum. Fold into the agent registry when it lands.
 pub(crate) fn install_experimental_letta() -> io::Result<Vec<String>> {

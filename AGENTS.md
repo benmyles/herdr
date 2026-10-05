@@ -75,6 +75,11 @@ covers what is specific to building, installing, and upgrading the fork.
   `HERDR_BENMYLES_INSTALL_TARGET` or `HERDR_BENMYLES_BIN_DIR` pick another
   location. `--remote` also builds the Linux binaries that
   `herdr-benmyles --remote` installs on SSH hosts.
+- After installing, `install.sh` runs `herdr-benmyles integration install
+  --outdated`, which reinstalls every agent integration that is installed but
+  outdated or needs repair (for example Claude Code or Codex hooks without the
+  fork's space context hook). It never installs an integration that was not
+  already there.
 - Never `cp` a build over the installed binary. On macOS, overwriting a signed
   executable in place gets the new copy killed at launch (exit 137) and changes
   the file under any server running from it, which can crash that server.

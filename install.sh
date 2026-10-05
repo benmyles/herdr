@@ -3,7 +3,13 @@
 # An existing herdr-benmyles on PATH is replaced; otherwise it goes next to the
 # herdr found on PATH, or into ~/.local/bin. Stock herdr is never touched.
 # Symlinks are followed so dotfile links remain intact while their current
-# target is replaced atomically.
+# target is replaced atomically. Cargo rebuilds only what changed since the last
+# release build.
+#
+# The installed binary then reinstalls every agent integration (hooks and
+# plugins) that is installed but outdated or needs repair, such as a Claude Code
+# or Codex install that lacks the fork's space context hook. Integrations that
+# were never installed are left alone.
 #
 # The vendored libghostty-vt crate is built with Zig and requires Zig 0.16.0.
 # Zig is resolved in this order:
@@ -258,6 +264,9 @@ TEMP_BINARY=""
 trap - EXIT
 
 echo "installed $("$INSTALL_TARGET" --version)"
+if ! "$INSTALL_TARGET" integration install --outdated; then
+    echo "warning: some agent integrations could not be updated; see \`$BIN_NAME integration status\`" >&2
+fi
 if [[ "$UPGRADE_RUNNING" == 1 ]]; then
     "$INSTALL_TARGET" server upgrade
 else
