@@ -25,22 +25,44 @@ pub(crate) struct AgentGridView {
 }
 
 impl AgentGridView {
-    /// Whether an agent in `state` gets a tile. `active` keeps every state
-    /// but idle, so agents Herdr can't read stay in.
+    /// Whether the agent in `terminal` gets a tile. `active` keeps every state
+    /// but idle, so agents Herdr can't read stay in, and keeps idle agents
+    /// until an hour after their last state change.
     fn shows(
         &self,
         workspace_index: usize,
         pane_id: PaneId,
-        state: crate::detect::AgentState,
+        terminal: &crate::terminal::TerminalState,
     ) -> bool {
         match self.filter {
             crate::api::schema::AgentGridFilter::All => true,
             crate::api::schema::AgentGridFilter::Active => {
-                state != crate::detect::AgentState::Idle
+                terminal.state != crate::detect::AgentState::Idle
                     || self.selected == Some((workspace_index, pane_id))
+                    || crate::api::schema::AgentGridFilter::recently_active(
+                        terminal.last_agent_state_change_at,
+                        std::time::SystemTime::now(),
+                    )
             }
         }
     }
+}
+
+/// When the first idle agent's hour in the `active` view ends, so a grid can
+/// drop its tile on time. `None` when no idle agent is still in that hour.
+pub(crate) fn next_agent_activity_expiry(
+    app: &AppState,
+    now: std::time::SystemTime,
+) -> Option<std::time::SystemTime> {
+    app.terminals
+        .values()
+        .filter(|terminal| terminal.state == crate::detect::AgentState::Idle)
+        .filter_map(|terminal| terminal.last_agent_state_change_at)
+        .filter_map(|changed_at| {
+            changed_at.checked_add(crate::api::schema::AgentGridFilter::RECENT_ACTIVITY)
+        })
+        .filter(|expiry| *expiry > now)
+        .min()
 }
 
 /// One live agent terminal shown in the grid, in grid order.
@@ -103,7 +125,7 @@ pub(crate) fn pane_in_agent_grid(
                 && app
                     .terminals
                     .get(&pane.attached_terminal_id)
-                    .is_some_and(|terminal| view.shows(workspace_index, pane_id, terminal.state))
+                    .is_some_and(|terminal| view.shows(workspace_index, pane_id, terminal))
         })
 }
 
@@ -208,7 +230,7 @@ pub(crate) fn live_agent_targets(
                 let Some(terminal) = app.terminals.get(terminal_id) else {
                     continue;
                 };
-                if !view.shows(workspace_index, pane_id, terminal.state) {
+                if !view.shows(workspace_index, pane_id, terminal) {
                     continue;
                 }
                 let agent_label = terminal
@@ -418,7 +440,7 @@ pub(crate) fn render_agent_grid(
         let message = if filter == crate::api::schema::AgentGridFilter::Active
             && any_live_agent(app, terminal_runtimes, |pane| !pane.agent_grid_excluded)
         {
-            "no agent is working or waiting on you"
+            "no agent has been active in the last hour"
         } else if any_excluded_live_agent(app, terminal_runtimes) {
             "every agent is excluded from the grid"
         } else {
@@ -785,6 +807,62 @@ mod tests {
         ));
         set_state(&mut app, 1, second_agent, crate::detect::AgentState::Idle);
         assert!(shown(&app, active(None)).is_empty());
+    }
+
+    #[tokio::test]
+    async fn active_filter_keeps_agents_idle_for_under_an_hour() {
+        let (mut app, _, first_agent, second_agent) = cross_workspace_agent_app();
+        let now = std::time::SystemTime::now();
+        let minutes = |minutes: u64| std::time::Duration::from_secs(minutes * 60);
+        let set_idle_since = |app: &mut AppState, ws: usize, pane: PaneId, changed_at| {
+            let terminal_id = app.workspaces[ws].terminal_id(pane).cloned().unwrap();
+            let terminal = app.terminals.get_mut(&terminal_id).unwrap();
+            terminal.state = crate::detect::AgentState::Idle;
+            terminal.last_agent_state_change_at = changed_at;
+        };
+        let active = AgentGridView {
+            filter: crate::api::schema::AgentGridFilter::Active,
+            selected: None,
+        };
+        let shown = |app: &AppState| {
+            compute_agent_grid(
+                app,
+                &TerminalRuntimeRegistry::new(),
+                Rect::new(0, 0, 120, 40),
+                active,
+                None,
+            )
+            .iter()
+            .map(|tile| tile.info.id)
+            .collect::<Vec<_>>()
+        };
+
+        set_idle_since(&mut app, 0, first_agent, Some(now - minutes(30)));
+        set_idle_since(&mut app, 1, second_agent, Some(now - minutes(90)));
+        assert_eq!(shown(&app), vec![first_agent], "idle for under an hour");
+        let expiry = next_agent_activity_expiry(&app, now).expect("an agent is still recent");
+        assert_eq!(expiry, now + minutes(30), "the first agent's hour ends");
+
+        // An idle agent with no recorded change has no recent activity.
+        set_idle_since(&mut app, 0, first_agent, None);
+        assert!(shown(&app).is_empty());
+        assert_eq!(next_agent_activity_expiry(&app, now), None);
+
+        // Another machine's clock can stamp a change in the future.
+        set_idle_since(&mut app, 1, second_agent, Some(now + minutes(5)));
+        assert_eq!(shown(&app), vec![second_agent]);
+    }
+
+    #[test]
+    fn recent_activity_lasts_an_hour_from_the_last_state_change() {
+        use crate::api::schema::AgentGridFilter;
+
+        let now = std::time::SystemTime::now();
+        let ago = |seconds: u64| Some(now - std::time::Duration::from_secs(seconds));
+        assert!(AgentGridFilter::recently_active(ago(0), now));
+        assert!(AgentGridFilter::recently_active(ago(60 * 60 - 1), now));
+        assert!(!AgentGridFilter::recently_active(ago(60 * 60), now));
+        assert!(!AgentGridFilter::recently_active(None, now));
     }
 
     #[tokio::test]

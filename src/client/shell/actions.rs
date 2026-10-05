@@ -945,8 +945,9 @@ impl ClientShellState {
                 // The grid cycles through the agents it shows.
                 if self.agent_grid_active() {
                     let filter = self.effective_agent_grid_filter();
+                    let now = std::time::SystemTime::now();
                     agents.retain(|pane_id| {
-                        super::agent_grid::agent_grid_has_tile(snapshot, pane_id, filter)
+                        super::agent_grid::agent_grid_has_tile(snapshot, pane_id, filter, now)
                     });
                 }
                 if agents.is_empty() {

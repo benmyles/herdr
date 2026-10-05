@@ -512,7 +512,7 @@ impl ClientShellState {
                 .to_owned(),
                 detail: match heading.filter {
                     Some(crate::api::schema::AgentGridFilter::Active) => {
-                        "tile agents that are working or waiting on you"
+                        "tile agents active in the last hour"
                     }
                     _ => "tile every live agent",
                 }
@@ -529,7 +529,7 @@ impl ClientShellState {
                 let (title, detail) = match filter {
                     crate::api::schema::AgentGridFilter::All => (
                         "agent grid: active agents",
-                        "only agents working or waiting on you",
+                        "only agents active in the last hour",
                     ),
                     crate::api::schema::AgentGridFilter::Active => {
                         ("agent grid: all agents", "every live agent")

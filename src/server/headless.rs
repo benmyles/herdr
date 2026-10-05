@@ -222,6 +222,9 @@ pub struct HeadlessServer {
     pending_alt_screen_reads: Vec<crate::server::alt_screen_read::PendingAltScreenRead>,
     /// Reads waiting for an alternate-screen traversal of the same terminal to finish.
     deferred_alt_screen_reads: Vec<api::ApiRequestMessage>,
+    /// When an idle agent's hour in a shown `active` grid ends. Nothing else
+    /// redraws the grid then, so a render is scheduled to drop its tile.
+    agent_grid_activity_deadline: Option<Instant>,
     /// Monotonic activity counter used to pick the most recently active client.
     next_activity_stamp: u64,
     /// Configured virtual terminal size used when no clients are connected.
@@ -359,6 +362,7 @@ impl HeadlessServer {
             terminal_attach_owners: HashMap::new(),
             pending_alt_screen_reads: Vec::new(),
             deferred_alt_screen_reads: Vec::new(),
+            agent_grid_activity_deadline: None,
             next_activity_stamp: 1,
             headless_size,
             effective_size: headless_size,
@@ -3261,6 +3265,14 @@ impl HeadlessServer {
             .filter(|deadline| now >= *deadline)
         {
             self.app.expire_metadata_at(deadline, now);
+            changed = true;
+        }
+
+        if self
+            .agent_grid_activity_deadline
+            .is_some_and(|deadline| now >= deadline)
+        {
+            self.agent_grid_activity_deadline = None;
             changed = true;
         }
 

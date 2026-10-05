@@ -551,6 +551,51 @@ fn agent_cycling_in_the_active_view_skips_idle_agents() {
 }
 
 #[test]
+fn the_active_view_keeps_agents_idle_for_under_an_hour() {
+    use crate::input::KeybindAction;
+
+    let mut state = two_agent_state(&[]);
+    let changed_minutes_ago = |state: &mut ClientShellState, minutes: u64| {
+        let mut snapshot = state.snapshot.as_deref().cloned().expect("snapshot");
+        let changed_at =
+            std::time::SystemTime::now() - std::time::Duration::from_secs(minutes * 60);
+        let changed_at_ms = changed_at
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("after the epoch")
+            .as_millis() as u64;
+        for agent in &mut snapshot.agents {
+            if agent.pane_id == "pane_3" {
+                agent.state_changed_at_ms = Some(changed_at_ms);
+            }
+        }
+        state.set_snapshot(Box::new(snapshot));
+    };
+    update_agents(
+        &mut state,
+        "pane_2",
+        &[
+            ("pane_2", AgentStatus::Working),
+            ("pane_3", AgentStatus::Done),
+        ],
+    );
+    state.agent_grid_filter = crate::api::schema::AgentGridFilter::Active;
+    state.show_test_agent_grid();
+
+    changed_minutes_ago(&mut state, 10);
+    assert_eq!(
+        state.endpoint_method_for_action(KeybindAction::NextAgent),
+        Some(pane_focus("pane_3")),
+        "an agent that finished ten minutes ago is still active"
+    );
+    changed_minutes_ago(&mut state, 61);
+    assert_eq!(
+        state.endpoint_method_for_action(KeybindAction::NextAgent),
+        Some(pane_focus("pane_2")),
+        "an hour later it leaves the active view"
+    );
+}
+
+#[test]
 fn grid_tiles_offer_exclusion_first_in_their_pane_menu() {
     let mut state = two_agent_state(&[]);
     state.open_pane_context_menu("pane_3".into(), 40, 10);

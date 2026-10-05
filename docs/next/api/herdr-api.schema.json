@@ -1337,7 +1337,7 @@
             },
             {
               "const": "active",
-              "description": "Agents working, waiting on the user, or in a state Herdr can't tell;\nnot agents that are idle or finished. The selected agent stays shown.",
+              "description": "Agents working, waiting on the user, in a state Herdr can't tell, or\nidle or finished within the last hour; not agents idle for longer. The\nselected agent stays shown.",
               "type": "string"
             }
           ]

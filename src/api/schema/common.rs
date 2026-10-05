@@ -84,9 +84,29 @@ pub enum AgentGridFilter {
     /// Every live agent.
     #[default]
     All,
-    /// Agents working, waiting on the user, or in a state Herdr can't tell;
-    /// not agents that are idle or finished. The selected agent stays shown.
+    /// Agents working, waiting on the user, in a state Herdr can't tell, or
+    /// idle or finished within the last hour; not agents idle for longer. The
+    /// selected agent stays shown.
     Active,
+}
+
+impl AgentGridFilter {
+    /// How long an idle or finished agent stays in the `active` view after its
+    /// last state change.
+    pub(crate) const RECENT_ACTIVITY: std::time::Duration = std::time::Duration::from_secs(60 * 60);
+
+    /// Whether an idle or finished agent whose state last changed at
+    /// `changed_at` still counts as active at `now`. A change stamped after
+    /// `now`, as clock skew between machines can make it, counts as just now.
+    pub(crate) fn recently_active(
+        changed_at: Option<std::time::SystemTime>,
+        now: std::time::SystemTime,
+    ) -> bool {
+        changed_at.is_some_and(|changed_at| {
+            now.duration_since(changed_at)
+                .map_or(true, |age| age < Self::RECENT_ACTIVITY)
+        })
+    }
 }
 
 /// Sets which agents the requesting client shell's grid shows. The filter is

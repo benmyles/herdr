@@ -26,11 +26,7 @@ impl HeadlessServer {
     fn shown_agent_grid_views(&self) -> Vec<crate::ui::AgentGridView> {
         self.clients
             .iter()
-            .filter(|(_, client)| {
-                client.shell_agent_grid
-                    && client.is_active_shell_client()
-                    && client.writer.is_some()
-            })
+            .filter(|(_, client)| grid_is_shown(client))
             .filter_map(|(&client_id, _)| self.client_agent_grid_view(client_id))
             .collect()
     }
@@ -40,11 +36,7 @@ impl HeadlessServer {
     fn agent_grid_geometry_client(&self) -> Option<u64> {
         self.clients
             .iter()
-            .filter(|(_, client)| {
-                client.shell_agent_grid
-                    && client.is_active_shell_client()
-                    && client.writer.is_some()
-            })
+            .filter(|(_, client)| grid_is_shown(client))
             .map(|(&client_id, _)| client_id)
             .min()
     }
@@ -82,6 +74,22 @@ impl HeadlessServer {
             }
         }
         pane_ids
+    }
+
+    /// Schedules a render for when the first idle agent's hour in a shown
+    /// `active` grid ends, so its tile leaves on time.
+    pub(super) fn sync_agent_grid_activity_deadline(&mut self) {
+        let shows_active_grid = self.clients.values().any(|client| {
+            grid_is_shown(client)
+                && client.shell_agent_grid_filter == crate::api::schema::AgentGridFilter::Active
+        });
+        self.agent_grid_activity_deadline = if shows_active_grid {
+            let now = SystemTime::now();
+            crate::ui::next_agent_activity_expiry(&self.app.state, now)
+                .map(|expiry| Instant::now() + expiry.duration_since(now).unwrap_or_default())
+        } else {
+            None
+        };
     }
 
     /// Shows or hides one client's grid. Returns whether presentation changed.
@@ -161,4 +169,9 @@ impl HeadlessServer {
         }
         released && self.reapply_controlled_shell_tab_geometry(false)
     }
+}
+
+/// Whether `client` shows its grid to someone.
+fn grid_is_shown(client: &ClientConnection) -> bool {
+    client.shell_agent_grid && client.is_active_shell_client() && client.writer.is_some()
 }

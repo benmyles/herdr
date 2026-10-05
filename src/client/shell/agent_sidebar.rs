@@ -230,10 +230,14 @@ impl PanelAgent {
             indent,
             // The grid keeps its selected agent under every view.
             in_agent_grid: source.agent_grid.map(|filter| {
-                super::agent_grid::agent_grid_filter_matches(source.snapshot, agent, filter)
-                    || (agent.focused
-                        && source.active
-                        && !super::agent_grid::agent_grid_excludes(source.snapshot, &agent.pane_id))
+                super::agent_grid::agent_grid_filter_matches(
+                    source.snapshot,
+                    agent,
+                    filter,
+                    clock.now,
+                ) || (agent.focused
+                    && source.active
+                    && !super::agent_grid::agent_grid_excludes(source.snapshot, &agent.pane_id))
             }),
         }
     }

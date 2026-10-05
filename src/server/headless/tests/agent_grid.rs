@@ -302,6 +302,96 @@ fn set_agent_state(
         .state = state;
 }
 
+fn set_idle_since(
+    server: &mut HeadlessServer,
+    workspace_index: usize,
+    pane_id: crate::layout::PaneId,
+    changed_at: SystemTime,
+) {
+    set_agent_state(
+        server,
+        workspace_index,
+        pane_id,
+        crate::detect::AgentState::Idle,
+    );
+    let terminal_id = server.app.state.workspaces[workspace_index]
+        .terminal_id(pane_id)
+        .cloned()
+        .expect("terminal id");
+    server
+        .app
+        .state
+        .terminals
+        .get_mut(&terminal_id)
+        .expect("terminal")
+        .last_agent_state_change_at = Some(changed_at);
+}
+
+#[tokio::test]
+async fn an_idle_agent_leaves_the_active_grid_when_its_hour_ends() {
+    let GridFixture {
+        mut server,
+        first_agent,
+        second_agent,
+        ..
+    } = grid_fixture();
+    let minutes = |minutes: u64| Duration::from_secs(minutes * 60);
+    set_idle_since(&mut server, 0, first_agent, SystemTime::now() - minutes(30));
+    set_agent_state(
+        &mut server,
+        1,
+        second_agent,
+        crate::detect::AgentState::Working,
+    );
+    let (control, render) = connect_test_shell(&mut server, 7, 100, 30);
+    let _ = client_shell_snapshot(&control);
+    server.render_and_stream();
+    let _ = recv_pane_surface(&render, "tab surface");
+    assert_eq!(
+        server.agent_grid_activity_deadline, None,
+        "no grid is shown, so nothing needs redrawing"
+    );
+
+    assert!(!set_grid_filter(
+        &mut server,
+        7,
+        api::schema::AgentGridFilter::Active
+    ));
+    let _ = control.recv().expect("filter response");
+    assert!(set_grid(&mut server, 7, true));
+    let _ = control.recv().expect("grid response");
+    server.render_and_stream();
+    let first_id = server.app.public_pane_id(0, first_agent).unwrap();
+    let second_id = server.app.public_pane_id(1, second_agent).unwrap();
+    let pane_ids = |surface: &crate::protocol::PaneSurfaceFrame| {
+        surface
+            .panes
+            .iter()
+            .map(|pane| pane.pane_id.clone())
+            .collect::<Vec<_>>()
+    };
+    let grid = recv_pane_surface(&render, "active grid");
+    assert_eq!(pane_ids(&grid), vec![first_id, second_id.clone()]);
+    let deadline = server
+        .agent_grid_activity_deadline
+        .expect("the idle agent's hour ends");
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    assert!(
+        remaining > minutes(29) && remaining <= minutes(30),
+        "{remaining:?}"
+    );
+
+    // The hour passes with nothing else to redraw the grid.
+    set_idle_since(&mut server, 0, first_agent, SystemTime::now() - minutes(61));
+    assert!(server.handle_scheduled_tasks_headless(deadline, false));
+    server.render_and_stream();
+    let grid = recv_pane_surface(&render, "agent idle for an hour");
+    assert_eq!(pane_ids(&grid), vec![second_id]);
+    assert_eq!(server.agent_grid_activity_deadline, None);
+
+    shutdown_test_runtimes(&mut server);
+}
+
 #[tokio::test]
 async fn active_grid_filter_shows_agents_that_are_not_idle() {
     let GridFixture {

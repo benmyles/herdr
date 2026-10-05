@@ -162,13 +162,14 @@ impl ClientShellState {
         let Some(snapshot) = self.snapshot.as_deref() else {
             return;
         };
+        let now = std::time::SystemTime::now();
         let shown = |pane_id: &str| {
             Some(pane_id) != leaving
                 && snapshot
                     .agents
                     .iter()
                     .find(|agent| agent.pane_id == pane_id)
-                    .is_some_and(|agent| agent_grid_filter_matches(snapshot, agent, filter))
+                    .is_some_and(|agent| agent_grid_filter_matches(snapshot, agent, filter, now))
         };
         let agents = super::agent_sidebar::ordered_agent_pane_ids(
             snapshot,
@@ -272,14 +273,16 @@ pub(super) fn agent_grid_excludes(snapshot: &ClientShellSnapshot, pane_id: &str)
         .any(|pane| pane.pane_id == pane_id && pane.agent_grid_excluded)
 }
 
-/// Whether `filter` matches `agent`, as the server decides it: agents left
-/// out never match, and `active` leaves out idle and finished agents but keeps
-/// ones in a state the endpoint can't tell. The server also keeps the selected
-/// agent's tile, which this leaves to the caller.
+/// Whether `filter` matches `agent` at `now`, as the server decides it:
+/// agents left out never match, and `active` leaves out agents idle or finished
+/// for an hour or more but keeps ones in a state the endpoint can't tell. The
+/// server also keeps the selected agent's tile, which this leaves to the
+/// caller.
 pub(super) fn agent_grid_filter_matches(
     snapshot: &ClientShellSnapshot,
     agent: &crate::protocol::ClientShellAgent,
     filter: crate::api::schema::AgentGridFilter,
+    now: std::time::SystemTime,
 ) -> bool {
     use crate::api::schema::{AgentGridFilter, AgentStatus};
 
@@ -288,23 +291,31 @@ pub(super) fn agent_grid_filter_matches(
             AgentGridFilter::All => true,
             AgentGridFilter::Active => {
                 !matches!(agent.agent_status, AgentStatus::Idle | AgentStatus::Done)
+                    || AgentGridFilter::recently_active(
+                        agent.state_changed_at_ms.map(|changed_at_ms| {
+                            std::time::UNIX_EPOCH + std::time::Duration::from_millis(changed_at_ms)
+                        }),
+                        now,
+                    )
             }
         }
 }
 
-/// Whether a grid showing `filter` has a tile for the agent in `pane_id`: one
-/// the filter matches, or the selected agent, which the server keeps.
+/// Whether a grid showing `filter` has a tile for the agent in `pane_id` at
+/// `now`: one the filter matches, or the selected agent, which the server
+/// keeps.
 pub(super) fn agent_grid_has_tile(
     snapshot: &ClientShellSnapshot,
     pane_id: &str,
     filter: crate::api::schema::AgentGridFilter,
+    now: std::time::SystemTime,
 ) -> bool {
     snapshot
         .agents
         .iter()
         .find(|agent| agent.pane_id == pane_id)
         .is_some_and(|agent| {
-            agent_grid_filter_matches(snapshot, agent, filter)
+            agent_grid_filter_matches(snapshot, agent, filter, now)
                 || (snapshot.focused_pane_id.as_deref() == Some(pane_id)
                     && !agent_grid_excludes(snapshot, pane_id))
         })
