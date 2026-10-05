@@ -1,0 +1,43 @@
+src/integration/tests.rs
+  s_310459e3288e50::t_73db49516846da 1413-1418,1446-1470,1475,1482-1485
+  s_310459e3288e50::t_67a1cea2775c3f 1419-1445
+  s_310459e3288e50::t_8821eb1967a9c1 1471-1474
+  s_310459e3288e50::t_5c69f5258396a0 1476-1481
+  s_310459e3288e50::t_b391fffd6b27ec 1412
+src/integration/actions.rs
+  s_310459e3288e50::t_819c561fe2134e 26-38
+docs/next/website/src/content/docs/cli-reference.mdx
+  s_310459e3288e50::t_8e5d0fbce2e8c8 447,451
+  s_310459e3288e50::t_ae9280e58f3356 452
+install.sh
+  s_310459e3288e50::t_8370aad352b70d 6-12,267-269
+AGENTS.md
+  s_310459e3288e50::t_8370aad352b70d 78-82
+src/cli/spec.rs
+  s_310459e3288e50::t_8510ad7836232f 776-780
+  s_310459e3288e50::t_8e5d0fbce2e8c8 781-785
+  s_310459e3288e50::t_bb9ec6831d87f9 1172-1184
+  s_310459e3288e50::t_95e4b89a1f9849 1171
+  s_310459e3288e50::t_c01c88bd3dcfd2 1185-1186
+src/cli/integration.rs
+  s_310459e3288e50::t_8e5d0fbce2e8c8 95-97,119-121,124-127,130-133,135-142,171-178,194-195,201-202
+  s_310459e3288e50::t_819c561fe2134e 122-123,128-129,134
+src/integration/mod.rs
+  s_310459e3288e50::t_819c561fe2134e 15-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a2ae2489274153e5e87938220c48128b3f6c21e2",
+  "prompts": {},
+  "sessions": {
+    "s_310459e3288e50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "573c64bd-18f1-4119-a2ad-f8c4c48a655e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
