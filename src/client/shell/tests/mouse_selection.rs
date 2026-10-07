@@ -157,6 +157,55 @@ fn ctrl_click_without_a_link_replays_the_original_gesture() {
 }
 
 #[test]
+fn ctrl_click_file_links_require_a_shared_local_filesystem() {
+    use crate::client::endpoint::ProfileId;
+    for (endpoint, shared, opens) in [
+        (ClientEndpointId::Local, true, true),
+        (ClientEndpointId::Local, false, false),
+        (
+            ClientEndpointId::Ssh(ProfileId::parse("0123456789abcdef0123456789abcdef").unwrap()),
+            true,
+            false,
+        ),
+    ] {
+        let mut state = ClientShellState::new(
+            ClientShellConfig::from_config(&Config::default()).with_local_filesystem(shared),
+        );
+        state.set_snapshot(Box::new(snapshot()));
+        state.set_pane_surface(surface());
+        state.compose(106, 20).unwrap();
+        let pane = state.hits.panes[0].clone();
+        let down = MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Left),
+            column: pane.inner_rect.x + 2,
+            row: pane.inner_rect.y + 1,
+            modifiers: KeyModifiers::CONTROL,
+        };
+        let outcome = state.handle_raw_events(vec![RawInputEvent::Mouse(down)]);
+        let [ClientShellAction::Endpoint { request, .. }] = &outcome.actions[..] else {
+            panic!("expected link activation");
+        };
+        state.active_endpoint_id = endpoint;
+        let (_, actions) = state.handle_endpoint_result(
+            "boot-1",
+            &request.id,
+            Ok(crate::api::schema::ResponseResult::PaneLinkActivated {
+                url: Some("file:///tmp/src/main.rs".into()),
+                handled: false,
+            }),
+        );
+        if opens {
+            assert!(
+                matches!(&actions[..], [ClientShellAction::OpenLocalFileUrl(url)] if url == "file:///tmp/src/main.rs")
+            );
+            assert!(state.url_click_consumes_until_up);
+        } else {
+            assert!(matches!(&actions[..], [ClientShellAction::ReplayMouse(_)]));
+        }
+    }
+}
+
+#[test]
 fn pane_split_drag_uses_projected_handle_and_stable_tab_path() {
     let mut state = ClientShellState::new(ClientShellConfig::from_config(&Config::default()));
     state.set_snapshot(Box::new(snapshot()));

@@ -21,6 +21,8 @@ Herdr is mouse-native, so start by clicking panes, tabs, workspaces, and agents 
 
 Ctrl-click opens pane links when your terminal sends the modified click to Herdr. This works for OSC 8 hyperlinks and `http://` or `https://` URLs, including wrapped links whose beginning or end is outside the visible area. Hold Ctrl and move the pointer over a link to underline its visible segments. Hover highlighting clears when you move away, the pane content changes, or Herdr receives a Ctrl-release event; some terminals only report modifier changes with mouse movement. On macOS, use Ctrl-click for Herdr-handled pane links while mouse capture is enabled; Cmd-click is only available through the terminal-native bypass path, such as Shift-Cmd-click or `ui.mouse_capture = false`.
 
+Local panes also recognize file paths such as `src/main.rs`, `./README.md`, `../notes.txt`, and `.gitignore`. Ctrl-click resolves them against the pane’s current working directory and opens existing files or directories with the system default application. References ending in `:42`, `:42:7`, or `#L42` open the file; the default application chooses where to position the cursor. Paths can wrap across terminal rows, but must not contain spaces. This applies to local connections only; paths from SSH servers are not opened on the client machine.
+
 If you configure `ui.right_click_passthrough_modifier`, that modifier plus right-click sends right-click, hold, and drag gestures to mouse-reporting pane apps. To make normal right-click go to one pane app, choose **Send right-clicks to pane** from that pane's menu or run `herdr pane input --current --right-click pane` inside it. Right-click the pane frame to reopen Herdr's menu.
 
 ## Run an agent

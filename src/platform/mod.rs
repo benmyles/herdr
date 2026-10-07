@@ -132,6 +132,11 @@ pub(crate) fn normalize_cwd_for_launch(path: &std::path::Path) -> std::path::Pat
 }
 
 #[cfg(not(windows))]
+pub(crate) fn local_file_url_path(path: &std::path::Path) -> Option<String> {
+    path.to_str().map(str::to_owned)
+}
+
+#[cfg(not(windows))]
 fn normalize_cwd_for_launch_platform(path: &std::path::Path) -> std::path::PathBuf {
     path.to_path_buf()
 }

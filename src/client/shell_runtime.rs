@@ -47,6 +47,17 @@ pub(super) fn dispatch_client_shell_actions(
                     }
                 }
             }
+            shell::ClientShellAction::OpenLocalFileUrl(url) => {
+                if !is_remote_client_process()
+                    && crate::app::links::safe_local_file_url(&url).is_some()
+                {
+                    match crate::platform::open_url(&url) {
+                        Ok(Some(child)) => detached_process_children.push(child),
+                        Ok(None) => {}
+                        Err(err) => warn!(err = %err, url = %url, "failed to open pane file"),
+                    }
+                }
+            }
             shell::ClientShellAction::ReplayMouse(events) => replay_mouse.extend(events),
             shell::ClientShellAction::Keybind(action) => {
                 debug!(

@@ -730,6 +730,16 @@ impl ClientShellState {
                         self.url_click_consumes_until_up = completed_before_release;
                         (false, vec![ClientShellAction::OpenSafeWebUrl(url)])
                     }
+                    Ok(crate::api::schema::ResponseResult::PaneLinkActivated {
+                        url: Some(url),
+                        handled: false,
+                    }) if self.active_endpoint_id.is_local()
+                        && self.config.local_filesystem
+                        && crate::app::links::safe_local_file_url(&url).is_some() =>
+                    {
+                        self.url_click_consumes_until_up = completed_before_release;
+                        (false, vec![ClientShellAction::OpenLocalFileUrl(url)])
+                    }
                     Ok(crate::api::schema::ResponseResult::PaneLinkActivated { .. }) => {
                         (false, replay_action(replay))
                     }

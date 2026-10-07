@@ -1022,13 +1022,9 @@ impl AppState {
     }
 }
 
-pub(super) fn url_from_link_target(target: crate::ghostty::LinkTarget) -> Option<String> {
-    match target {
-        crate::ghostty::LinkTarget::Uri(uri) => Some(uri),
-        crate::ghostty::LinkTarget::Text { text, clicked_byte } => {
-            url_at_byte(&text, clicked_byte).map(str::to_owned)
-        }
-    }
+#[cfg(test)]
+fn url_from_link_target(target: crate::ghostty::LinkTarget) -> Option<String> {
+    super::links::url_from_target(target, || None)
 }
 
 pub(crate) fn safe_web_url(url: &str) -> Option<&str> {
@@ -1078,9 +1074,38 @@ pub(crate) fn word_bounds_at_column(row: &str, col: u16) -> Option<(u16, u16)> {
     Some(span.columns(&cells))
 }
 
+#[cfg(test)]
 fn url_at_byte(text: &str, clicked_byte: usize) -> Option<&str> {
     let range = url_byte_range(text, clicked_byte)?;
     text.get(range)
+}
+
+/// A syntactic link range only: filesystem work must stay outside terminal locks.
+pub(super) fn link_byte_range(text: &str, clicked_byte: usize) -> Option<std::ops::Range<usize>> {
+    url_byte_range(text, clicked_byte).or_else(|| file_path_byte_range(text, clicked_byte))
+}
+
+pub(super) fn file_path_byte_range(
+    text: &str,
+    clicked_byte: usize,
+) -> Option<std::ops::Range<usize>> {
+    let clicked_idx = text.get(..clicked_byte)?.chars().count();
+    let cells = text_cells(text);
+    cells.get(clicked_idx)?;
+    let span = token_span_at_column(&cells, clicked_idx)?;
+    let range = byte_index_for_cell(text, span.start)..byte_index_after_cell(text, span.end);
+    let path = super::links::without_location(text.get(range.clone())?);
+    // Require a path signal so ordinary prose is not underlined. Actual targets
+    // are checked on activation, once the terminal lock has been released.
+    let looks_like_path = path.contains(['/', '\\'])
+        || path
+            .rsplit_once('.')
+            .is_some_and(|(_, extension)| !extension.is_empty())
+        || matches!(
+            path,
+            "README" | "LICENSE" | "Makefile" | "Dockerfile" | "Justfile" | "justfile"
+        );
+    (looks_like_path && !path.contains("://") && !path.starts_with('-')).then_some(range)
 }
 
 pub(super) fn url_byte_range(text: &str, clicked_byte: usize) -> Option<std::ops::Range<usize>> {

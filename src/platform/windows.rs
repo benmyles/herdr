@@ -2307,6 +2307,21 @@ pub fn read_clipboard_text() -> Option<String> {
     None
 }
 
+pub(crate) fn local_file_url_path(path: &std::path::Path) -> Option<String> {
+    let path = path.to_str()?;
+    let path = path.strip_prefix(r"\\?\").unwrap_or(path);
+    let bytes = path.as_bytes();
+    // File links are local disk paths, never UNC shares or device paths.
+    if bytes.len() < 3
+        || !bytes[0].is_ascii_alphabetic()
+        || bytes[1] != b':'
+        || !matches!(bytes[2], b'\\' | b'/')
+    {
+        return None;
+    }
+    Some(format!("/{}", path.replace('\\', "/")))
+}
+
 pub fn open_url(url: &str) -> std::io::Result<Option<std::process::Child>> {
     let operation = wide_null("open");
     let url = wide_null(url);

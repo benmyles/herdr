@@ -319,7 +319,7 @@ impl App {
         params: PaneLinkActivateParams,
     ) -> String {
         match self.read_checked_pane_link(&id, &params, "resolution", |runtime, col, row| {
-            runtime.link_regions_at(col, row, crate::app::actions::url_byte_range)
+            runtime.link_regions_at(col, row, crate::app::actions::link_byte_range)
         }) {
             Ok((_, regions)) => encode_success(id, ResponseResult::PaneLinkResolved { regions }),
             Err(error) => error,
@@ -331,15 +331,24 @@ impl App {
         id: String,
         params: PaneLinkActivateParams,
     ) -> String {
-        let (pane_id, url) =
+        let (pane_id, target) =
             match self.read_checked_pane_link(&id, &params, "activation", |runtime, col, row| {
-                runtime
-                    .link_target_at(col, row)
-                    .and_then(crate::app::actions::url_from_link_target)
+                runtime.link_target_at(col, row)
             }) {
                 Ok(value) => value,
                 Err(error) => return error,
             };
+        // Terminal extraction above has released its lock before cwd discovery
+        // or filesystem checks. Only the clicked pane is inspected.
+        let url = target.and_then(|target| {
+            crate::app::links::url_from_target(target, || {
+                let (ws_idx, pane_id) = self.parse_pane_id(&params.pane_id)?;
+                self.state
+                    .runtime_for_pane_in_workspace(&self.terminal_runtimes, ws_idx, pane_id)
+                    .and_then(|runtime| runtime.foreground_cwd())
+                    .or_else(|| self.launch_cwd_for_pane_in_workspace(ws_idx, pane_id))
+            })
+        });
         let handled = match url.as_deref() {
             Some(url) => match self.invoke_plugin_link_handler_for_url(url, pane_id) {
                 Ok(handled) => handled,
@@ -887,6 +896,56 @@ mod tests {
             api_rx,
             crate::api::EventHub::default(),
         )
+    }
+
+    #[tokio::test]
+    async fn pane_link_activate_resolves_relative_paths_from_the_clicked_pane() {
+        let root = unique_temp_path("pane-file-links");
+        std::fs::create_dir_all(root.join("src")).unwrap();
+        std::fs::write(root.join("src/main.rs"), "fn main() {}\n").unwrap();
+        let mut app = test_app();
+        app.state.workspaces = vec![crate::workspace::Workspace::test_new("files")];
+        app.state.ensure_test_terminals();
+        app.state.active = Some(0);
+        let pane_id = app.state.workspaces[0].tabs[0].root_pane;
+        let public_id = app.public_pane_id(0, pane_id).unwrap();
+        let terminal_id = app.state.workspaces[0].tabs[0].panes[&pane_id]
+            .attached_terminal_id
+            .clone();
+        app.state.terminals.get_mut(&terminal_id).unwrap().cwd = root.clone();
+        let (runtime, mut rx) = crate::terminal::TerminalRuntime::test_with_channel(80, 4);
+        runtime.test_process_pty_bytes(b"`src/main.rs:42` missing.rs");
+        let revision = runtime.content_seq();
+        app.terminal_runtimes.insert(terminal_id, runtime);
+        let params = PaneLinkActivateParams {
+            pane_id: public_id,
+            viewport_row: 0,
+            col: 3,
+            content_revision: Some(revision),
+            offset_from_bottom: Some(0),
+        };
+        let response = app.handle_pane_link_resolve("hover".into(), params.clone());
+        assert!(
+            matches!(response_result(&response), ResponseResult::PaneLinkResolved { regions } if regions.len() == 1 && regions[0].start_col == 1 && regions[0].end_col == 14)
+        );
+        let response = app.handle_pane_link_activate("click".into(), params.clone());
+        assert!(
+            matches!(response_result(&response), ResponseResult::PaneLinkActivated { url: Some(url), handled: false } if url.starts_with("file:///") && url.ends_with("/src/main.rs")),
+            "{response}"
+        );
+        let response = app.handle_pane_link_activate(
+            "missing".into(),
+            PaneLinkActivateParams { col: 18, ..params },
+        );
+        assert!(matches!(
+            response_result(&response),
+            ResponseResult::PaneLinkActivated {
+                url: None,
+                handled: false
+            }
+        ));
+        assert!(rx.try_recv().is_err());
+        std::fs::remove_dir_all(root).unwrap();
     }
 
     fn response_result(response: &str) -> ResponseResult {
