@@ -1,0 +1,66 @@
+src/app/actions.rs
+  s_0e106a7d1a2358::t_e726289fa29c2b 1101-1103
+  s_0e106a7d1a2358::t_76730b2da32e38 1077
+  s_0e106a7d1a2358::t_895842695da56a 1025-1026,1083-1100,1104-1109
+  s_0e106a7d1a2358::t_6a77830e253fac 1027,1110
+src/client/shell_runtime.rs
+  s_0e106a7d1a2358::t_e30fa4e312d327 50-60
+src/client/shell/actions.rs
+  s_0e106a7d1a2358::t_e30fa4e312d327 733-742
+docs/next/website/src/content/docs/quick-start.mdx
+  s_0e106a7d1a2358::t_6cc9a8d3950b74 24-25
+src/app/mod.rs
+  s_0e106a7d1a2358::t_76730b2da32e38 22
+src/app/links.rs
+  s_0e106a7d1a2358::t_2990b85b061fe0 103-113,119-123,129-132,139-152,160-161,166-170,176-180,194-204,220-224
+  s_0e106a7d1a2358::t_f805cb8edbee7a 4,60,62-69
+  s_0e106a7d1a2358::t_cc5cf7440e86ca 79-81,183
+  s_0e106a7d1a2358::t_76730b2da32e38 1-3,5-59,61,70-78,82-102
+  s_0e106a7d1a2358::t_5baf39616a86d4 114-118,124-128,133-138,153-159,162-165,171-175,181-182,184-193,205-219
+src/platform/mod.rs
+  s_0e106a7d1a2358::t_0c2203593abdf0 135-138
+  s_310459e3288e50::t_d3fa83a9ecc8b9 134
+docs/next/website/src/content/docs/ja/quick-start.mdx
+  s_0e106a7d1a2358::t_6cc9a8d3950b74 24-25
+src/client/shell/state.rs
+  s_0e106a7d1a2358::t_e30fa4e312d327 322
+src/client/shell/link_hover.rs
+  s_0e106a7d1a2358::t_e30fa4e312d327 259-263
+docs/next/website/src/content/docs/zh-cn/quick-start.mdx
+  s_0e106a7d1a2358::t_6cc9a8d3950b74 24-25
+src/app/api/plugins/mod.rs
+  s_0e106a7d1a2358::t_46568c9932bf66 322,334,336,341-351
+  s_0e106a7d1a2358::t_5baf39616a86d4 912-914,921-925,928-930,932-946
+  s_0e106a7d1a2358::t_da0392a01a4472 901-911,915-920,926-927,931,947-948
+  s_0e106a7d1a2358::t_0b174d94c9e1bb 949-950
+src/client/shell/tests/mouse_selection.rs
+  s_0e106a7d1a2358::t_5baf39616a86d4 165-169,189-191,193-196,198-200
+  s_0e106a7d1a2358::t_da0392a01a4472 160-164,170-188,192,197,201-207
+  s_0e106a7d1a2358::t_1f927713fb24fe 159
+src/platform/windows.rs
+  s_0e106a7d1a2358::t_0c2203593abdf0 2310-2324
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "00b04b052d74f260fd887ce2163ba006778d4c94",
+  "prompts": {},
+  "sessions": {
+    "s_0e106a7d1a2358": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1083a-ad15-7b10-a63e-0bb2b5784f0b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    },
+    "s_310459e3288e50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "573c64bd-18f1-4119-a2ad-f8c4c48a655e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
