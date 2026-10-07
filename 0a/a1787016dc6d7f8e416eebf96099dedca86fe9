@@ -1,0 +1,66 @@
+src/protocol/wire.rs
+  s_310459e3288e50::t_c61473e5b659d1 1143-1148
+  s_310459e3288e50::t_a36ed0f2e8e3ee 2985
+src/client/shell/context_menu.rs
+  s_310459e3288e50::t_ec432fa29156c2 5-21,23,25-28,30-36,188,197,347-348,358,367-368,382-384,394,431-434,817,822-845,847-852,863-864,871-892
+  s_310459e3288e50::t_75245379a47bfb 818-821
+src/client/shell_runtime.rs
+  s_310459e3288e50::t_ec432fa29156c2 57-70
+src/client/shell/tests/agent_grid.rs
+  s_310459e3288e50::t_e42620b9cf8123 806-841,846-877
+  s_310459e3288e50::t_73ab3301785051 842-845
+docs/next/website/src/content/docs/configuration.mdx
+  s_310459e3288e50::t_7f3c3c8ce52401 141-142
+src/client/shell/config.rs
+  s_0e106a7d1a2358::t_e726289fa29c2b 150,181-182
+  s_0e106a7d1a2358::t_436c194b5efb42 183-185
+src/client/shell/tests/mod.rs
+  s_310459e3288e50::t_549f37845d5bc7 46
+src/server/client_shell.rs
+  s_310459e3288e50::t_c61473e5b659d1 76-80,108
+  s_310459e3288e50::t_1d97beddc640c0 900-936
+  s_b6ab8b5e304d6f::t_9249a355bbf751 899
+src/client/mod.rs
+  s_0e106a7d1a2358::t_e726289fa29c2b 175
+src/platform/mod.rs
+  s_310459e3288e50::t_108e13f6b41bb1 39-48
+src/client/shell/tests/agents_worktrees_notifications.rs
+  s_310459e3288e50::t_549f37845d5bc7 114
+src/client/shell/state.rs
+  s_0e106a7d1a2358::t_e30fa4e312d327 45
+  s_310459e3288e50::t_46dfc301c90026 42-44,328-329,795-796,808-809,843,851
+src/client/shell/tests/mobile.rs
+  s_310459e3288e50::t_549f37845d5bc7 379,582,626
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0aa1787016dc6d7f8e416eebf96099dedca86fe9",
+  "prompts": {},
+  "sessions": {
+    "s_0e106a7d1a2358": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a1083a-ad15-7b10-a63e-0bb2b5784f0b",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    },
+    "s_310459e3288e50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "573c64bd-18f1-4119-a2ad-f8c4c48a655e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    },
+    "s_b6ab8b5e304d6f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8818ac49-6ca4-4014-a315-4c4bf4a69d41",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
