@@ -1,0 +1,62 @@
+src/client/shell/context_menu.rs
+  s_310459e3288e50::t_7ecb125e8060e9 139,156-163,354-368,382
+  s_310459e3288e50::t_231f59f0e72c67 501-505
+  s_310459e3288e50::t_e4d1e42958a769 499-500
+src/client/shell/state.rs
+  s_310459e3288e50::t_7ecb125e8060e9 845-846,858-874,1298-1300,1475
+src/server/headless/agent_grid.rs
+  s_310459e3288e50::t_eb2338b4f73551 165-166
+  s_310459e3288e50::t_71c5cc4ccc4b11 22,65-66,71,106-107,135-136,142-151
+  s_310459e3288e50::t_231f59f0e72c67 137-141
+  s_310459e3288e50::t_99f7b41e1f3281 152-156
+src/ui.rs
+  s_310459e3288e50::t_eb2338b4f73551 17-18
+src/server/client_commands.rs
+  s_310459e3288e50::t_31e4bd2ca4b5ba 328-330
+  s_310459e3288e50::t_925e32fc7eb743 18
+  s_310459e3288e50::t_d41d7f67d86525 327
+src/server/headless/endpoint_requests.rs
+  s_310459e3288e50::t_925e32fc7eb743 82-93
+docs/next/website/src/content/docs/agents.mdx
+  s_310459e3288e50::t_1e46973a718a39 20-21
+src/api/server.rs
+  s_310459e3288e50::t_925e32fc7eb743 486-494,533
+src/client/shell/tests/agent_grid.rs
+  s_310459e3288e50::t_f832344db9d5ad 598-669
+src/client/shell/agent_grid.rs
+  s_310459e3288e50::t_7ecb125e8060e9 60-103,253-254
+docs/next/api/herdr-api.schema.json
+  s_310459e3288e50::t_1e46973a718a39 1836-1847,5380-5390,5393-5395
+  s_310459e3288e50::t_1c50d307afc236 5391-5392
+src/api/schema.rs
+  s_310459e3288e50::t_925e32fc7eb743 84-85
+src/api/schema/common.rs
+  s_310459e3288e50::t_925e32fc7eb743 119-126
+src/server/clients.rs
+  s_310459e3288e50::t_925e32fc7eb743 168-169,250
+src/server/headless/tests/agent_grid.rs
+  s_310459e3288e50::t_2897e659dce96f 199-284
+src/client/shell/actions.rs
+  s_310459e3288e50::t_ee19d6dc68ea86 185-199
+src/ui/agent_grid.rs
+  s_310459e3288e50::t_eb2338b4f73551 25-27,108-109,116-142,293-311,413,857,921
+  s_310459e3288e50::t_b7f1de3c9fe76b 779-808,810-821
+  s_310459e3288e50::t_2897e659dce96f 809
+  s_310459e3288e50::t_888309143e2c9e 778
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f9a8e4f73aa531abbfab2670d6550cd8b783a753",
+  "prompts": {},
+  "sessions": {
+    "s_310459e3288e50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "573c64bd-18f1-4119-a2ad-f8c4c48a655e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
