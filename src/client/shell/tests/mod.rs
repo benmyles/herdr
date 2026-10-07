@@ -43,6 +43,7 @@ pub(super) fn snapshot() -> ClientShellSnapshot {
             space_id: None,
             setup: None,
             pull_request: None,
+            directory: None,
         }],
         tabs: vec![ClientShellTab {
             tab_id: "tab_1".into(),

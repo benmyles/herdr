@@ -147,6 +147,7 @@ impl ClientShellConfig {
                 }),
             local_keys: config.keys.clone(),
             keybinding_source: ClientShellKeybindingSource::Local,
+            local_filesystem: true,
             prompt_new_tab_name: config.ui.prompt_new_tab_name,
             prompt_new_workspace_name: config.ui.prompt_new_workspace_name,
             confirm_close: config.ui.confirm_close,
@@ -174,6 +175,11 @@ impl ClientShellConfig {
 
     pub(crate) fn with_startup_onboarding(mut self, show: bool) -> Self {
         self.startup_onboarding = show;
+        self
+    }
+
+    pub(crate) fn with_local_filesystem(mut self, local: bool) -> Self {
+        self.local_filesystem = local;
         self
     }
 

@@ -54,6 +54,20 @@ pub(super) fn dispatch_client_shell_actions(
                     "client shell action awaits its presentation family"
                 );
             }
+            shell::ClientShellAction::OpenDirectory(directory) => {
+                // Only an existing absolute directory, so the opener can't
+                // read it as an option or a URL.
+                let path = directory.to_str().filter(|_| {
+                    !is_remote_client_process() && directory.is_absolute() && directory.is_dir()
+                });
+                if let Some(path) = path {
+                    match crate::platform::open_url(path) {
+                        Ok(Some(child)) => detached_process_children.push(child),
+                        Ok(None) => {}
+                        Err(err) => warn!(err = %err, path, "failed to open directory"),
+                    }
+                }
+            }
         }
     }
     // A source-off-first handoff leaves the registry's committed identity pointing at a

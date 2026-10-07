@@ -803,6 +803,78 @@ fn workspaces_agents_and_grid_tiles_with_a_pull_request_offer_to_open_it() {
     );
 }
 
+fn opens_directory(outcome: &ClientShellInput) -> Option<&std::path::Path> {
+    match &outcome.actions[..] {
+        [ClientShellAction::OpenDirectory(directory)] => Some(directory.as_path()),
+        _ => None,
+    }
+}
+
+#[test]
+fn local_workspaces_agents_and_grid_tiles_offer_to_open_their_directory() {
+    let open = crate::platform::OPEN_DIRECTORY_LABEL;
+    let directory = Some(std::path::Path::new("/repo/app"));
+    let mut state = two_agent_state(&[]);
+    let workspace = state.hits.workspaces[0].rect;
+    right_click(&mut state, workspace);
+    assert!(
+        !menu_labels(&state).contains(&open),
+        "the endpoint sent no directory"
+    );
+    state.overlay = None;
+
+    with_pull_request(&mut state);
+    let mut snapshot = state.snapshot.as_deref().cloned().expect("snapshot");
+    snapshot.workspaces[0].directory = Some("/repo/app".into());
+    state.set_snapshot(Box::new(snapshot));
+    state.compose(106, 30).expect("frame");
+    let workspace = state.hits.workspaces[0].rect;
+    right_click(&mut state, workspace);
+    assert_eq!(menu_labels(&state)[..2], ["Open PR", open]);
+    assert_eq!(
+        opens_directory(&activate_menu_item(&mut state, open)),
+        directory
+    );
+
+    state.compose(106, 30).expect("frame");
+    let row = agent_row(&state, "pane_3");
+    right_click(&mut state, row);
+    assert_eq!(
+        menu_labels(&state),
+        vec!["Open PR", open, "Exclude from grid"]
+    );
+    assert_eq!(
+        opens_directory(&activate_menu_item(&mut state, open)),
+        directory
+    );
+
+    state.show_test_agent_grid();
+    state.open_pane_context_menu("pane_2".into(), 40, 10);
+    assert_eq!(
+        menu_labels(&state)[..3],
+        ["Open PR", open, "Exclude from grid"]
+    );
+    assert_eq!(
+        opens_directory(&activate_menu_item(&mut state, open)),
+        directory
+    );
+
+    // Another machine's directories aren't this machine's to open.
+    state.active_endpoint_id = ClientEndpointId::Ssh(
+        crate::client::endpoint::ProfileId::parse("0123456789abcdef0123456789abcdef").unwrap(),
+    );
+    state.open_pane_context_menu("pane_2".into(), 40, 10);
+    assert!(!menu_labels(&state).contains(&open));
+    state.overlay = None;
+
+    // Nor is the local endpoint's, from the client `--remote` runs on an SSH
+    // host.
+    state.active_endpoint_id = ClientEndpointId::Local;
+    state.config.local_filesystem = false;
+    state.open_pane_context_menu("pane_2".into(), 40, 10);
+    assert!(!menu_labels(&state).contains(&open));
+}
+
 #[test]
 fn pull_request_badges_show_the_number_and_checks() {
     let mut state = two_agent_state(&[]);

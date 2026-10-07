@@ -1140,6 +1140,12 @@ pub struct ClientShellWorkspace {
     /// the same-build protocol is bincode, which has no field names.
     #[serde(default)]
     pub pull_request: Option<crate::api::schema::WorkspacePullRequest>,
+    /// The workspace's directory on the endpoint: its Git checkout, or
+    /// outside Git the directory its label comes from. Absent from servers
+    /// that do not send it. Always written: the same-build protocol is
+    /// bincode, which has no field names.
+    #[serde(default)]
+    pub directory: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2976,6 +2982,7 @@ mod tests {
                     checks: crate::api::schema::PullRequestChecks::Pending,
                     review: crate::api::schema::PullRequestReview::ChangesRequested,
                 }),
+                directory: Some("/repo/shell".into()),
             }],
             tabs: vec![ClientShellTab {
                 tab_id: "w1:t1".into(),

@@ -2,22 +2,38 @@ use super::*;
 
 impl ClientContextMenuOverlay {
     pub(super) fn items(&self) -> Vec<ClientContextMenuItem> {
-        let mut items = self.target_items();
-        let pull_request = match &self.target {
-            ClientContextMenuTarget::Workspace { pull_request, .. }
-            | ClientContextMenuTarget::Pane { pull_request, .. }
-            | ClientContextMenuTarget::Agent { pull_request, .. } => *pull_request,
-            _ => false,
+        let (pull_request, directory) = match &self.target {
+            ClientContextMenuTarget::Workspace {
+                pull_request,
+                directory,
+                ..
+            }
+            | ClientContextMenuTarget::Pane {
+                pull_request,
+                directory,
+                ..
+            }
+            | ClientContextMenuTarget::Agent {
+                pull_request,
+                directory,
+                ..
+            } => (*pull_request, *directory),
+            _ => (false, false),
         };
+        let mut items = Vec::new();
         if pull_request {
-            items.insert(
-                0,
-                ClientContextMenuItem {
-                    label: "Open PR",
-                    action: ClientContextMenuAction::OpenPullRequest,
-                },
-            );
+            items.push(ClientContextMenuItem {
+                label: "Open PR",
+                action: ClientContextMenuAction::OpenPullRequest,
+            });
         }
+        if directory {
+            items.push(ClientContextMenuItem {
+                label: crate::platform::OPEN_DIRECTORY_LABEL,
+                action: ClientContextMenuAction::OpenDirectory,
+            });
+        }
+        items.extend(self.target_items());
         items
     }
 
@@ -169,6 +185,7 @@ impl ClientShellState {
         let is_git = worktree.is_some() || workspace.branch.is_some();
         let is_linked_worktree = worktree.is_some_and(|worktree| worktree.is_linked_worktree);
         let pull_request = workspace.pull_request.is_some();
+        let directory = self.opens_local_directories() && workspace.directory.is_some();
         let space_worktrees = self.endpoint_supports_space_worktrees();
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Workspace {
@@ -177,6 +194,7 @@ impl ClientShellState {
                 is_linked_worktree,
                 space_worktrees,
                 pull_request,
+                directory,
             },
             x,
             y,
@@ -326,6 +344,8 @@ impl ClientShellState {
             .filter(|focused| focused != &pane_id);
         let agent_grid_tile = self.agent_grid_active() && self.agent_grid_exclusion_supported();
         let pull_request = workspace_pull_request_url(snapshot, &pane.workspace_id).is_some();
+        let directory = self.opens_local_directories()
+            && workspace_directory(snapshot, &pane.workspace_id).is_some();
         self.overlay = Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
             target: ClientContextMenuTarget::Pane {
                 pane_id,
@@ -335,6 +355,7 @@ impl ClientShellState {
                 right_click_passthrough: pane.right_click_passthrough,
                 agent_grid_tile,
                 pull_request,
+                directory,
             },
             x,
             y,
@@ -343,8 +364,8 @@ impl ClientShellState {
     }
 
     /// Opens the menu for an agent row: leaving the agent out of the live
-    /// agent grid, and opening its workspace's pull request. With neither,
-    /// nothing opens.
+    /// agent grid, and opening its workspace's pull request or directory.
+    /// With none of them, nothing opens.
     pub(super) fn open_agent_context_menu(&mut self, pane_id: String, x: u16, y: u16) -> bool {
         let exclusion = self.agent_grid_exclusion_supported();
         let Some(snapshot) = self.snapshot.as_deref() else {
@@ -358,7 +379,9 @@ impl ClientShellState {
             return false;
         };
         let pull_request = workspace_pull_request_url(snapshot, &agent.workspace_id).is_some();
-        if !exclusion && !pull_request {
+        let directory = self.opens_local_directories()
+            && workspace_directory(snapshot, &agent.workspace_id).is_some();
+        if !exclusion && !pull_request && !directory {
             return false;
         }
         let agent_grid_excluded =
@@ -368,6 +391,7 @@ impl ClientShellState {
                 pane_id,
                 agent_grid_excluded,
                 pull_request,
+                directory,
             },
             x,
             y,
@@ -402,6 +426,10 @@ impl ClientShellState {
         };
         if action == ClientContextMenuAction::OpenPullRequest {
             self.open_target_pull_request(&menu.target, outcome);
+            return;
+        }
+        if action == ClientContextMenuAction::OpenDirectory {
+            self.open_target_directory(&menu.target, outcome);
             return;
         }
         match menu.target {
@@ -786,7 +814,42 @@ pub(super) fn workspace_pull_request_url<'a>(
         .map(|pull_request| pull_request.url.as_str())
 }
 
+/// The directory of a workspace, when the endpoint sent one.
+fn workspace_directory<'a>(
+    snapshot: &'a ClientShellSnapshot,
+    workspace_id: &str,
+) -> Option<&'a str> {
+    snapshot
+        .workspaces
+        .iter()
+        .find(|workspace| workspace.workspace_id == workspace_id)
+        .and_then(|workspace| workspace.directory.as_deref())
+}
+
+/// The workspace a workspace, pane, or agent menu acts on.
+fn target_workspace_id<'a>(
+    snapshot: &'a ClientShellSnapshot,
+    target: &'a ClientContextMenuTarget,
+) -> Option<&'a str> {
+    match target {
+        ClientContextMenuTarget::Workspace { workspace_id, .. }
+        | ClientContextMenuTarget::Pane { workspace_id, .. } => Some(workspace_id.as_str()),
+        ClientContextMenuTarget::Agent { pane_id, .. } => snapshot
+            .agents
+            .iter()
+            .find(|agent| &agent.pane_id == pane_id)
+            .map(|agent| agent.workspace_id.as_str()),
+        _ => None,
+    }
+}
+
 impl ClientShellState {
+    /// Whether this client can open the active endpoint's directories: the
+    /// endpoint is local and this client runs on its machine.
+    fn opens_local_directories(&self) -> bool {
+        self.active_endpoint_id.is_local() && self.config.local_filesystem
+    }
+
     /// Opens the pull request of the menu target's workspace in the local
     /// browser, so it works the same for a remote endpoint.
     fn open_target_pull_request(
@@ -797,22 +860,34 @@ impl ClientShellState {
         let Some(snapshot) = self.snapshot.as_deref() else {
             return;
         };
-        let workspace_id = match target {
-            ClientContextMenuTarget::Workspace { workspace_id, .. }
-            | ClientContextMenuTarget::Pane { workspace_id, .. } => Some(workspace_id.as_str()),
-            ClientContextMenuTarget::Agent { pane_id, .. } => snapshot
-                .agents
-                .iter()
-                .find(|agent| &agent.pane_id == pane_id)
-                .map(|agent| agent.workspace_id.as_str()),
-            _ => None,
-        };
-        if let Some(url) =
-            workspace_id.and_then(|workspace_id| workspace_pull_request_url(snapshot, workspace_id))
+        if let Some(url) = target_workspace_id(snapshot, target)
+            .and_then(|workspace_id| workspace_pull_request_url(snapshot, workspace_id))
         {
             outcome
                 .actions
                 .push(ClientShellAction::OpenSafeWebUrl(url.to_owned()));
+        }
+    }
+
+    /// Shows the menu target's workspace directory in the desktop file
+    /// manager. Only the local endpoint's directories are this machine's.
+    fn open_target_directory(
+        &mut self,
+        target: &ClientContextMenuTarget,
+        outcome: &mut ClientShellInput,
+    ) {
+        if !self.opens_local_directories() {
+            return;
+        }
+        let Some(snapshot) = self.snapshot.as_deref() else {
+            return;
+        };
+        if let Some(directory) = target_workspace_id(snapshot, target)
+            .and_then(|workspace_id| workspace_directory(snapshot, workspace_id))
+        {
+            outcome
+                .actions
+                .push(ClientShellAction::OpenDirectory(directory.into()));
         }
     }
 }

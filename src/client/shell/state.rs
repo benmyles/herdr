@@ -39,6 +39,10 @@ pub(crate) struct ClientShellConfig {
     pub(super) keybinds: LiveKeybindConfig,
     pub(super) local_keys: crate::config::KeysConfig,
     pub(super) keybinding_source: ClientShellKeybindingSource,
+    /// Whether this client runs on the machine whose files the local endpoint
+    /// serves, so it can open them with desktop apps. The client that
+    /// `--remote` runs on an SSH host cannot.
+    pub(super) local_filesystem: bool,
     pub(super) prompt_new_tab_name: bool,
     pub(super) prompt_new_workspace_name: bool,
     pub(super) confirm_close: bool,
@@ -321,6 +325,8 @@ pub(crate) enum ClientShellAction {
     },
     ReplayMouse(Vec<crossterm::event::MouseEvent>),
     Keybind(crate::input::KeybindAction),
+    /// Shows a local directory in the desktop file manager.
+    OpenDirectory(std::path::PathBuf),
 }
 
 #[derive(Default)]
@@ -786,6 +792,8 @@ pub(super) enum ClientContextMenuAction {
     ToggleSpaceAgentContext,
     /// Opens the GitHub pull request of the target's workspace.
     OpenPullRequest,
+    /// Shows the target's workspace directory in the desktop file manager.
+    OpenDirectory,
 }
 
 #[derive(Debug)]
@@ -797,6 +805,8 @@ pub(super) enum ClientContextMenuTarget {
         /// Worktrees are created from spaces, so the repo-parent actions hide.
         space_worktrees: bool,
         pull_request: bool,
+        /// Set when the workspace's directory can be opened on this machine.
+        directory: bool,
     },
     Space {
         space_id: String,
@@ -830,6 +840,7 @@ pub(super) enum ClientContextMenuTarget {
         /// Set when the pane is a live agent grid tile that can be left out.
         agent_grid_tile: bool,
         pull_request: bool,
+        directory: bool,
     },
     /// An agent row in the agents panel.
     Agent {
@@ -837,6 +848,7 @@ pub(super) enum ClientContextMenuTarget {
         /// `None` when the endpoint can't leave agents out of its grid.
         agent_grid_excluded: Option<bool>,
         pull_request: bool,
+        directory: bool,
     },
 }
 

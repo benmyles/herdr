@@ -73,6 +73,11 @@ pub(super) fn snapshot_with_completions(
                     .and_then(|(tab_workspace_index, tab_index)| {
                         (tab_workspace_index == workspace_index).then_some(tab_index)
                     });
+            let directory = workspace
+                .worktree
+                .as_ref()
+                .map(|worktree| worktree.checkout_path.clone())
+                .unwrap_or_else(|| state.cached_identity_cwd.display().to_string());
             protocol::ClientShellWorkspace {
                 focused: focused_workspace_id.as_deref() == Some(workspace_id.as_str()),
                 workspace_id,
@@ -100,6 +105,7 @@ pub(super) fn snapshot_with_completions(
                 // their output shows; older servers ran them out of sight.
                 setup: None,
                 pull_request: workspace.pull_request,
+                directory: Some(directory),
             }
         })
         .collect();
@@ -887,6 +893,44 @@ mod tests {
         assert_eq!(
             snapshot.spaces[0].closed[0].branch.as_deref(),
             Some("knowledge")
+        );
+    }
+
+    #[test]
+    fn snapshot_gives_each_workspace_its_checkout_or_identity_directory() {
+        let (_api_tx, api_rx) = tokio::sync::mpsc::unbounded_channel();
+        let mut app = crate::app::App::new(
+            &crate::config::Config::default(),
+            crate::app::AppPolicy::TEST,
+            None,
+            api_rx,
+            crate::api::EventHub::default(),
+        );
+        let mut checkout = crate::workspace::Workspace::test_new("checkout");
+        // A pane can wander into a subdirectory; the checkout stays the root.
+        checkout.cached_identity_cwd = "/wt/app/feature/src".into();
+        checkout.worktree_space = Some(crate::workspace::WorktreeSpaceMembership {
+            key: "/code/app/.git".into(),
+            label: "app".into(),
+            repo_root: "/code/app".into(),
+            checkout_path: "/wt/app/feature".into(),
+            is_linked_worktree: true,
+        });
+        let mut plain = crate::workspace::Workspace::test_new("plain");
+        plain.cached_identity_cwd = "/notes".into();
+        app.state.workspaces = vec![checkout, plain];
+        app.state.active = Some(0);
+        app.state.ensure_test_terminals();
+
+        let snapshot = snapshot(&app, "boot", 1, None, None);
+
+        assert_eq!(
+            snapshot
+                .workspaces
+                .iter()
+                .map(|workspace| workspace.directory.as_deref())
+                .collect::<Vec<_>>(),
+            [Some("/wt/app/feature"), Some("/notes")]
         );
     }
 

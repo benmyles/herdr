@@ -36,6 +36,16 @@ fn monitor_host_shutdown(
     None
 }
 
+/// What menus call showing a directory in the desktop file manager, which
+/// `open_url` does when given a directory path.
+pub(crate) const OPEN_DIRECTORY_LABEL: &str = if cfg!(target_os = "macos") {
+    "Open in Finder"
+} else if cfg!(windows) {
+    "Open in File Explorer"
+} else {
+    "Open in file manager"
+};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ForegroundProcess {
     pub pid: u32,
