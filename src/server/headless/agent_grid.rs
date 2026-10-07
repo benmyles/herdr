@@ -19,6 +19,7 @@ impl HeadlessServer {
             selected: self
                 .shell_focus_target(client_id)
                 .map(|target| (target.workspace_index, target.pane_id)),
+            zoomed: client.shell_agent_grid_zoomed,
         })
     }
 
@@ -61,12 +62,13 @@ impl HeadlessServer {
                 })
     }
 
-    /// Panes shown by active grids, for immediate PTY presentation.
+    /// Panes shown by active grids, for immediate PTY presentation. A zoomed
+    /// grid shows only its selected agent.
     pub(super) fn agent_grid_pane_ids(&self) -> Vec<crate::layout::PaneId> {
         let mut pane_ids = Vec::new();
         for view in self.shown_agent_grid_views() {
             for target in
-                crate::ui::live_agent_targets(&self.app.state, &self.app.terminal_runtimes, view)
+                crate::ui::shown_agent_targets(&self.app.state, &self.app.terminal_runtimes, view)
             {
                 if !pane_ids.contains(&target.pane_id) {
                     pane_ids.push(target.pane_id);
@@ -101,6 +103,8 @@ impl HeadlessServer {
             return false;
         }
         client.shell_agent_grid = active;
+        // Every grid opens showing all its tiles.
+        client.shell_agent_grid_zoomed = false;
         client.request_repaint();
         self.sync_agent_grid_geometry();
         true
@@ -128,6 +132,28 @@ impl HeadlessServer {
         true
     }
 
+    /// Zooms one client's grid onto its selected agent, or shows every tile
+    /// again. Returns whether presentation changed.
+    pub(super) fn set_client_shell_agent_grid_zoom(
+        &mut self,
+        client_id: u64,
+        zoomed: bool,
+    ) -> bool {
+        let Some(client) = self.clients.get_mut(&client_id) else {
+            return false;
+        };
+        if !client.is_shell_client()
+            || !client.shell_agent_grid
+            || client.shell_agent_grid_zoomed == zoomed
+        {
+            return false;
+        }
+        client.shell_agent_grid_zoomed = zoomed;
+        client.request_repaint();
+        self.sync_agent_grid_geometry();
+        true
+    }
+
     /// Keeps agent PTY sizes and resize locks in step with the grids that are
     /// shown. While a grid is visible its tiles own every live agent's size and
     /// tab geometry leaves those terminals alone; closing the last grid
@@ -136,6 +162,8 @@ impl HeadlessServer {
     pub(super) fn sync_agent_grid_geometry(&mut self) -> bool {
         let owner = self.agent_grid_geometry_client();
         let owner_view = owner.and_then(|client_id| self.client_agent_grid_view(client_id));
+        // Agents a zoomed grid hides keep their tile sizes, so unzooming
+        // doesn't resize them twice.
         let locks = match owner_view {
             Some(view) => {
                 crate::ui::live_agent_targets(&self.app.state, &self.app.terminal_runtimes, view)

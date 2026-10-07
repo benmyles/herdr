@@ -196,6 +196,92 @@ async fn agent_grid_owns_agent_geometry_until_it_closes() {
     shutdown_test_runtimes(&mut server);
 }
 
+fn set_grid_zoom(server: &mut HeadlessServer, client_id: u64, zoomed: bool) -> bool {
+    server.handle_server_event(ServerEvent::ClientShellEndpointRequest {
+        client_id,
+        boot_id: server.client_shell_boot_id.clone(),
+        request: Box::new(api::schema::Request {
+            id: format!("zoom-{zoomed}"),
+            method: api::schema::Method::ClientShellAgentGridZoomSet(
+                api::schema::ClientShellAgentGridZoomSetParams { zoomed },
+            ),
+        }),
+    })
+}
+
+#[tokio::test]
+async fn a_zoomed_grid_gives_its_selected_agent_the_whole_surface() {
+    let GridFixture {
+        mut server,
+        first_agent,
+        second_agent,
+        ..
+    } = grid_fixture();
+    // The client's selected agent is the second workspace's.
+    server.app.state.active = Some(1);
+    server.app.state.selected = 1;
+    let (control, render) = connect_test_shell(&mut server, 7, 100, 30);
+    let _ = client_shell_snapshot(&control);
+    server.render_and_stream();
+    let _ = recv_pane_surface(&render, "tab surface");
+    assert!(
+        !set_grid_zoom(&mut server, 7, true),
+        "a hidden grid has nothing to zoom"
+    );
+    let _ = control.recv().expect("zoom response");
+
+    assert!(set_grid(&mut server, 7, true));
+    let _ = control.recv().expect("grid response");
+    server.render_and_stream();
+    let grid = recv_pane_surface(&render, "grid");
+    assert_eq!(grid.panes.len(), 2);
+    let tile_size = runtime_size(&server, 0, first_agent);
+
+    assert!(set_grid_zoom(&mut server, 7, true));
+    let _ = control.recv().expect("zoom response");
+    server.render_and_stream();
+    let zoomed = recv_pane_surface(&render, "zoomed grid");
+    let second_id = server.app.public_pane_id(1, second_agent).unwrap();
+    assert_eq!(
+        zoomed
+            .panes
+            .iter()
+            .map(|pane| pane.pane_id.as_str())
+            .collect::<Vec<_>>(),
+        vec![second_id.as_str()]
+    );
+    let tile = &zoomed.panes[0];
+    assert_eq!(
+        runtime_size(&server, 1, second_agent),
+        (tile.inner_rect.height, tile.inner_rect.width),
+        "the zoomed agent is sized to the whole grid"
+    );
+    assert!(tile.inner_rect.width > grid.panes[1].inner_rect.width);
+    assert_eq!(
+        runtime_size(&server, 0, first_agent),
+        tile_size,
+        "a hidden agent keeps its tile size"
+    );
+    assert!(!server.pty_sources_visible_to_any_render_target(&HashSet::from([first_agent])));
+
+    assert!(set_grid_zoom(&mut server, 7, false));
+    let _ = control.recv().expect("unzoom response");
+    server.render_and_stream();
+    assert_eq!(recv_pane_surface(&render, "unzoomed grid").panes.len(), 2);
+
+    // Closing the grid ends the zoom, so it reopens with every tile.
+    assert!(set_grid_zoom(&mut server, 7, true));
+    let _ = control.recv().expect("zoom response");
+    assert!(set_grid(&mut server, 7, false));
+    let _ = control.recv().expect("grid close response");
+    assert!(set_grid(&mut server, 7, true));
+    let _ = control.recv().expect("grid response");
+    server.render_and_stream();
+    assert_eq!(recv_pane_surface(&render, "reopened grid").panes.len(), 2);
+
+    shutdown_test_runtimes(&mut server);
+}
+
 #[tokio::test]
 async fn excluding_an_agent_returns_it_to_tab_geometry_and_regrids_the_rest() {
     let GridFixture {

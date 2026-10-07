@@ -81,6 +81,8 @@ pub enum Method {
     ClientShellAgentGridSet(ClientShellAgentGridSetParams),
     #[serde(rename = "client_shell.agent_grid.filter.set")]
     ClientShellAgentGridFilterSet(ClientShellAgentGridFilterSetParams),
+    #[serde(rename = "client_shell.agent_grid.zoom.set")]
+    ClientShellAgentGridZoomSet(ClientShellAgentGridZoomSetParams),
     #[serde(rename = "session.snapshot")]
     SessionSnapshot(EmptyParams),
     #[serde(rename = "space.list")]

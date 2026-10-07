@@ -1833,6 +1833,18 @@
           ],
           "type": "object"
         },
+        "ClientShellAgentGridZoomSetParams": {
+          "description": "Shows only the requesting client shell's selected agent, over the grid's\nwhole area, or every tile again. The zoom is per connection and follows the\nselection; showing or hiding the grid turns it off.",
+          "properties": {
+            "zoomed": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "zoomed"
+          ],
+          "type": "object"
+        },
         "ClientShellSurfaceSetParams": {
           "description": "Updates whether the requesting client shell receives and controls pane presentation.",
           "properties": {
@@ -5357,6 +5369,22 @@
             },
             "params": {
               "$ref": "#/schemas/request/$defs/ClientShellAgentGridFilterSetParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "client_shell.agent_grid.zoom.set",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/ClientShellAgentGridZoomSetParams"
             }
           },
           "required": [

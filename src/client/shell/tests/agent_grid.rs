@@ -595,6 +595,78 @@ fn the_active_view_keeps_agents_idle_for_under_an_hour() {
     );
 }
 
+fn grid_zoom(zoomed: bool) -> crate::api::schema::Method {
+    crate::api::schema::Method::ClientShellAgentGridZoomSet(
+        crate::api::schema::ClientShellAgentGridZoomSetParams { zoomed },
+    )
+}
+
+#[test]
+fn zooming_a_grid_tile_selects_it_and_fills_the_grid_until_unzoomed() {
+    let mut state = two_agent_state(&[]);
+    state.show_test_agent_grid();
+    state.open_pane_context_menu("pane_3".into(), 40, 10);
+    assert!(menu_labels(&state).contains(&"Zoom"));
+    assert_eq!(
+        methods(&activate_menu_item(&mut state, "Zoom")),
+        vec![pane_focus("pane_3"), grid_zoom(true)],
+        "zoom selects the tile so the grid shows it"
+    );
+    update_agents(&mut state, "pane_3", &[]);
+
+    state.open_pane_context_menu("pane_3".into(), 40, 10);
+    assert!(!menu_labels(&state).contains(&"Zoom"));
+    assert_eq!(
+        methods(&activate_menu_item(&mut state, "Unzoom")),
+        vec![grid_zoom(false)]
+    );
+
+    // The zoom shortcut zooms the grid too, not the tab hidden behind it.
+    let mut outcome = ClientShellInput::default();
+    state.record_binding(
+        crate::input::KeybindMatch::Action(crate::input::KeybindAction::Zoom),
+        &mut outcome,
+    );
+    assert_eq!(methods(&outcome), vec![grid_zoom(true)]);
+
+    // Every grid opens unzoomed.
+    state.set_agent_grid(false, &mut ClientShellInput::default());
+    state.show_test_agent_grid();
+    state.open_pane_context_menu("pane_3".into(), 40, 10);
+    assert!(menu_labels(&state).contains(&"Zoom"));
+}
+
+#[test]
+fn zoom_acts_on_the_tab_outside_the_grid_and_hides_where_the_grid_cannot_zoom() {
+    let mut state = two_agent_state(&[]);
+    state.open_pane_context_menu("pane_2".into(), 40, 10);
+    assert!(menu_labels(&state).contains(&"Zoom"));
+    state.overlay = None;
+    let mut snapshot = state.snapshot.as_deref().cloned().expect("snapshot");
+    for tab in &mut snapshot.tabs {
+        tab.zoomed = true;
+    }
+    state.set_snapshot(Box::new(snapshot));
+    state.open_pane_context_menu("pane_2".into(), 40, 10);
+    assert!(matches!(
+        &methods(&activate_menu_item(&mut state, "Unzoom"))[..],
+        [crate::api::schema::Method::PaneZoom(_)]
+    ));
+
+    state.set_endpoint_methods(Some(vec![
+        "pane.focus".into(),
+        "pane.zoom".into(),
+        "client_shell.agent_grid.set".into(),
+    ]));
+    state.show_test_agent_grid();
+    state.open_pane_context_menu("pane_2".into(), 40, 10);
+    let labels = menu_labels(&state);
+    assert!(
+        !labels.contains(&"Zoom") && !labels.contains(&"Unzoom"),
+        "zooming a tile's hidden tab would show nothing: {labels:?}"
+    );
+}
+
 #[test]
 fn grid_tiles_offer_exclusion_first_in_their_pane_menu() {
     let mut state = two_agent_state(&[]);

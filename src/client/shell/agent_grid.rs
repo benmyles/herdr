@@ -57,6 +57,50 @@ impl ClientShellState {
         ))
     }
 
+    pub(super) fn agent_grid_zoom_supported(&self) -> bool {
+        self.supports_endpoint_method(&crate::api::schema::Method::ClientShellAgentGridZoomSet(
+            crate::api::schema::ClientShellAgentGridZoomSetParams { zoomed: true },
+        ))
+    }
+
+    /// Whether the shown grid has only its selected agent, at full size.
+    pub(super) fn agent_grid_is_zoomed(&self) -> bool {
+        self.agent_grid_active() && self.agent_grid_zoomed
+    }
+
+    /// Zooms the grid onto the agent in `pane_id`, selecting it first, or
+    /// shows every tile again. The zoom follows the selection, so stepping
+    /// to another agent shows that one at full size.
+    pub(super) fn set_agent_grid_zoom(
+        &mut self,
+        pane_id: String,
+        zoomed: bool,
+        outcome: &mut ClientShellInput,
+    ) {
+        if !self.agent_grid_active() || !self.agent_grid_zoom_supported() {
+            return;
+        }
+        let focused = self
+            .snapshot
+            .as_deref()
+            .and_then(|snapshot| snapshot.focused_pane_id.as_deref())
+            == Some(pane_id.as_str());
+        if zoomed && !focused {
+            self.push_endpoint_method(
+                crate::api::schema::Method::PaneFocus(crate::api::schema::PaneTarget { pane_id }),
+                outcome,
+            );
+        }
+        self.agent_grid_zoomed = zoomed;
+        self.push_endpoint_method(
+            crate::api::schema::Method::ClientShellAgentGridZoomSet(
+                crate::api::schema::ClientShellAgentGridZoomSetParams { zoomed },
+            ),
+            outcome,
+        );
+        outcome.repaint = true;
+    }
+
     /// Toggle state for the agents heading: `None` when the endpoint cannot
     /// show a grid.
     pub(super) fn agent_grid_toggle_state(&self) -> Option<AgentGridHeading> {
@@ -206,6 +250,8 @@ impl ClientShellState {
         } else {
             None
         };
+        // The server opens and closes every grid unzoomed.
+        self.agent_grid_zoomed = false;
         // The server keeps the view per connection; send it before showing.
         if active {
             self.push_agent_grid_filter(outcome);

@@ -14,8 +14,8 @@ mod widgets;
 
 pub(crate) use self::agent_grid::{
     agent_grid_cursor, agent_grid_hyperlinks, compute_agent_grid, live_agent_targets,
-    next_agent_activity_expiry, pane_in_agent_grid, render_agent_grid, AgentGridTile,
-    AgentGridView,
+    next_agent_activity_expiry, pane_in_agent_grid, render_agent_grid, shown_agent_targets,
+    AgentGridTile, AgentGridView,
 };
 pub(crate) use self::onboarding::{
     onboarding_welcome_continue_rect, ONBOARDING_DESCRIPTION, ONBOARDING_HELP_LABEL,

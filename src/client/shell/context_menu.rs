@@ -136,6 +136,7 @@ impl ClientContextMenuOverlay {
                 has_manual_label,
                 right_click_passthrough,
                 agent_grid_tile,
+                zoom,
                 ..
             } => {
                 let mut items = Vec::new();
@@ -152,7 +153,14 @@ impl ClientContextMenuOverlay {
                 items.extend([
                     item("Split right", Action::SplitRight),
                     item("Split down", Action::SplitDown),
-                    item("Zoom", Action::Zoom),
+                ]);
+                if let Some(zoom) = zoom {
+                    items.push(item(
+                        if zoom.zoomed() { "Unzoom" } else { "Zoom" },
+                        Action::Zoom,
+                    ));
+                }
+                items.extend([
                     item(
                         if *right_click_passthrough {
                             "Use Herdr right-click menu"
@@ -343,6 +351,21 @@ impl ClientShellState {
             .clone()
             .filter(|focused| focused != &pane_id);
         let agent_grid_tile = self.agent_grid_active() && self.agent_grid_exclusion_supported();
+        // A grid tile zooms within the grid; zooming its hidden tab would show
+        // nothing, so an endpoint that can't zoom its grid offers no zoom.
+        let zoom = if self.agent_grid_active() {
+            self.agent_grid_zoom_supported()
+                .then(|| ClientPaneZoom::AgentGrid {
+                    zoomed: self.agent_grid_is_zoomed(),
+                })
+        } else {
+            Some(ClientPaneZoom::Tab {
+                zoomed: snapshot
+                    .tabs
+                    .iter()
+                    .any(|tab| tab.tab_id == pane.tab_id && tab.zoomed),
+            })
+        };
         let pull_request = workspace_pull_request_url(snapshot, &pane.workspace_id).is_some();
         let directory = self.opens_local_directories()
             && workspace_directory(snapshot, &pane.workspace_id).is_some();
@@ -356,6 +379,7 @@ impl ClientShellState {
                 agent_grid_tile,
                 pull_request,
                 directory,
+                zoom,
             },
             x,
             y,
@@ -472,6 +496,13 @@ impl ClientShellState {
                 }
                 _ => {}
             },
+            ClientContextMenuTarget::Pane {
+                pane_id,
+                zoom: Some(ClientPaneZoom::AgentGrid { zoomed }),
+                ..
+            } if action == ClientContextMenuAction::Zoom => {
+                self.set_agent_grid_zoom(pane_id, !zoomed, outcome)
+            }
             ClientContextMenuTarget::Pane {
                 pane_id,
                 workspace_id,

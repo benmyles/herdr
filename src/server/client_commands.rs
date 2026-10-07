@@ -15,6 +15,7 @@ const ENDPOINT_RESPONSE_CHUNK_BYTES: usize = 512 * 1024;
 const CLIENT_SHELL_METHODS: &[&str] = &[
     "client_shell.agent_grid.filter.set",
     "client_shell.agent_grid.set",
+    "client_shell.agent_grid.zoom.set",
     "client_shell.surface.set",
     "command.invoke",
     "integration.install",
@@ -322,6 +323,10 @@ mod tests {
                 .remove("client_shell.agent_grid.filter.set")
                 .as_deref(),
             Some("3c179b4b748011395c04e3b64f8fecdebdc10cad80635a9b32fb6b507f832807")
+        );
+        assert_eq!(
+            actual.remove("client_shell.agent_grid.zoom.set").as_deref(),
+            Some("97ae8b5491b5f6a4fc5d34429c5f718cd4562ec30455c76a10f94f0266e88e5e")
         );
         assert_eq!(
             actual.remove("client_shell.agent_grid.set").as_deref(),

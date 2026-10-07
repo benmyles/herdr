@@ -182,6 +182,21 @@ impl ClientShellState {
                 if self.handle_endpoint_navigation(action, outcome) {
                     return;
                 }
+                // The grid zooms its selected tile; the tab behind it is hidden.
+                if action == crate::input::KeybindAction::Zoom
+                    && self.agent_grid_active()
+                    && self.agent_grid_zoom_supported()
+                {
+                    if let Some(pane_id) = self
+                        .snapshot
+                        .as_deref()
+                        .and_then(|snapshot| snapshot.focused_pane_id.clone())
+                    {
+                        let zoomed = !self.agent_grid_is_zoomed();
+                        self.set_agent_grid_zoom(pane_id, zoomed, outcome);
+                    }
+                    return;
+                }
                 if let Some(method) = self.endpoint_method_for_action(action) {
                     self.push_endpoint_method(method, outcome);
                     return;

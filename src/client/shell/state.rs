@@ -842,6 +842,8 @@ pub(super) enum ClientContextMenuTarget {
         agent_grid_tile: bool,
         pull_request: bool,
         directory: bool,
+        /// What Zoom acts on; `None` hides it.
+        zoom: Option<ClientPaneZoom>,
     },
     /// An agent row in the agents panel.
     Agent {
@@ -851,6 +853,23 @@ pub(super) enum ClientContextMenuTarget {
         pull_request: bool,
         directory: bool,
     },
+}
+
+/// What a pane menu's Zoom item acts on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum ClientPaneZoom {
+    /// The pane's tab, zoomed onto one pane or not.
+    Tab { zoomed: bool },
+    /// The live agent grid, showing only the selected tile or every tile.
+    AgentGrid { zoomed: bool },
+}
+
+impl ClientPaneZoom {
+    pub(super) fn zoomed(self) -> bool {
+        match self {
+            Self::Tab { zoomed } | Self::AgentGrid { zoomed } => zoomed,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -1276,6 +1295,9 @@ pub(crate) struct ClientShellState {
     pub(super) agent_grid_owner: Option<super::agent_grid::ClientAgentGridOwner>,
     /// The grid view last chosen; the grid opens in it.
     pub(super) agent_grid_filter: crate::api::schema::AgentGridFilter,
+    /// Whether the grid shows only the selected agent. Every grid opens
+    /// unzoomed, as the server keeps the zoom per connection.
+    pub(super) agent_grid_zoomed: bool,
     pub(super) palette_usage: super::palette_usage::PaletteUsage,
 }
 
@@ -1450,6 +1472,7 @@ impl ClientShellState {
             dismissed_product_announcement: None,
             agent_grid_owner: None,
             agent_grid_filter: preferences.agent_grid_filter.unwrap_or_default(),
+            agent_grid_zoomed: false,
             palette_usage,
         }
     }

@@ -22,6 +22,9 @@ const UNSELECTED_TILE_COLOR_PERCENT: u8 = 25;
 pub(crate) struct AgentGridView {
     pub(crate) filter: crate::api::schema::AgentGridFilter,
     pub(crate) selected: Option<(usize, PaneId)>,
+    /// Whether the grid shows only its selected agent, over its whole area.
+    /// Without a selected agent among its tiles it shows them all.
+    pub(crate) zoomed: bool,
 }
 
 impl AgentGridView {
@@ -102,8 +105,36 @@ fn is_live_agent(
 
 /// Whether a pane belongs in a live agent grid: a detected agent terminal
 /// with a running runtime that the user has not left out and `view` shows.
-/// Ordinary shell panes never appear in the grid.
+/// Ordinary shell panes never appear in the grid, and a zoomed grid holds only
+/// its selected agent.
 pub(crate) fn pane_in_agent_grid(
+    app: &AppState,
+    terminal_runtimes: &TerminalRuntimeRegistry,
+    workspace_index: usize,
+    pane_id: PaneId,
+    view: AgentGridView,
+) -> bool {
+    if let Some(selected) = zoom_target(app, terminal_runtimes, view) {
+        return selected == (workspace_index, pane_id);
+    }
+    pane_has_tile(app, terminal_runtimes, workspace_index, pane_id, view)
+}
+
+/// The agent a zoomed grid shows alone: its selected agent, when the view
+/// gives it a tile.
+fn zoom_target(
+    app: &AppState,
+    terminal_runtimes: &TerminalRuntimeRegistry,
+    view: AgentGridView,
+) -> Option<(usize, PaneId)> {
+    view.selected
+        .filter(|_| view.zoomed)
+        .filter(|&(workspace_index, pane_id)| {
+            pane_has_tile(app, terminal_runtimes, workspace_index, pane_id, view)
+        })
+}
+
+fn pane_has_tile(
     app: &AppState,
     terminal_runtimes: &TerminalRuntimeRegistry,
     workspace_index: usize,
@@ -259,6 +290,25 @@ pub(crate) fn live_agent_targets(
     targets
 }
 
+/// The agents `view` draws tiles for: every agent it shows, or only the
+/// selected one while it is zoomed.
+pub(crate) fn shown_agent_targets(
+    app: &AppState,
+    terminal_runtimes: &TerminalRuntimeRegistry,
+    view: AgentGridView,
+) -> Vec<AgentGridTarget> {
+    let mut targets = live_agent_targets(app, terminal_runtimes, view);
+    if let Some(selected) = view.selected.filter(|_| view.zoomed) {
+        if targets
+            .iter()
+            .any(|target| (target.workspace_index, target.pane_id) == selected)
+        {
+            targets.retain(|target| (target.workspace_index, target.pane_id) == selected);
+        }
+    }
+    targets
+}
+
 /// Deterministically tile `count` surfaces along an edge-connected snake path.
 ///
 /// Candidate row counts are scored against a roughly square physical terminal
@@ -360,7 +410,7 @@ pub(crate) fn compute_agent_grid(
     resize: Option<crate::kitty_graphics::HostCellSize>,
 ) -> Vec<AgentGridTile> {
     let focused = view.selected;
-    let targets = live_agent_targets(app, terminal_runtimes, view);
+    let targets = shown_agent_targets(app, terminal_runtimes, view);
     let raw_infos = targets
         .iter()
         .zip(auto_tile_rects(area, targets.len()))
@@ -726,6 +776,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_zoomed_grid_shows_only_its_selected_agent_over_the_whole_area() {
+        let (app, _, first_agent, second_agent) = cross_workspace_agent_app();
+        let zoomed = |selected| AgentGridView {
+            selected,
+            zoomed: true,
+            ..AgentGridView::default()
+        };
+        let tiles = |view| {
+            compute_agent_grid(
+                &app,
+                &TerminalRuntimeRegistry::new(),
+                Rect::new(0, 0, 120, 40),
+                view,
+                None,
+            )
+            .into_iter()
+            .map(|tile| (tile.info.id, tile.info.rect))
+            .collect::<Vec<_>>()
+        };
+        let in_grid = |workspace_index, pane_id, view| {
+            pane_in_agent_grid(
+                &app,
+                &TerminalRuntimeRegistry::new(),
+                workspace_index,
+                pane_id,
+                view,
+            )
+        };
+
+        let view = zoomed(Some((1, second_agent)));
+        assert_eq!(tiles(view), vec![(second_agent, Rect::new(0, 0, 120, 40))]);
+        assert!(in_grid(1, second_agent, view));
+        assert!(
+            !in_grid(0, first_agent, view),
+            "a zoomed grid hides the other agents"
+        );
+
+        // Without a selected agent among its tiles, it shows them all.
+        assert_eq!(tiles(zoomed(None)).len(), 2);
+        assert!(in_grid(0, first_agent, zoomed(None)));
+        assert_eq!(tiles(zoomed(Some((0, PaneId::from_raw(999))))).len(), 2);
+    }
+
+    #[tokio::test]
     async fn grid_projects_live_agents_across_workspaces_without_shells() {
         let (app, shell, first_agent, second_agent) = cross_workspace_agent_app();
         let tiles = grid(&app, None);
@@ -760,6 +854,7 @@ mod tests {
         let active = |selected| AgentGridView {
             filter: crate::api::schema::AgentGridFilter::Active,
             selected,
+            zoomed: false,
         };
         let shown = |app: &AppState, view| {
             compute_agent_grid(
@@ -823,6 +918,7 @@ mod tests {
         let active = AgentGridView {
             filter: crate::api::schema::AgentGridFilter::Active,
             selected: None,
+            zoomed: false,
         };
         let shown = |app: &AppState| {
             compute_agent_grid(

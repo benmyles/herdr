@@ -116,6 +116,14 @@ pub struct ClientShellAgentGridFilterSetParams {
     pub filter: AgentGridFilter,
 }
 
+/// Shows only the requesting client shell's selected agent, over the grid's
+/// whole area, or every tile again. The zoom is per connection and follows the
+/// selection; showing or hiding the grid turns it off.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct ClientShellAgentGridZoomSetParams {
+    pub zoomed: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SplitDirection {
