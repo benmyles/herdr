@@ -1,0 +1,75 @@
+src/client/shell/tests/mod.rs
+  s_310459e3288e50::t_147abbc60c5fa7 262
+src/client/shell/context_menu.rs
+  s_310459e3288e50::t_38870558a18596 35-38,463-466,932-969
+src/client/shell/mouse.rs
+  s_310459e3288e50::t_334d2ae504bb35 1803-1804
+  s_310459e3288e50::t_f2ea879a890281 1610-1611
+docs/next/website/src/data/config-reference.json
+  s_310459e3288e50::t_8b3825e78cf56a 1093-1111
+src/integration/mod.rs
+  s_310459e3288e50::t_dc6496a53e4afe 25-27
+src/editor.rs
+  s_310459e3288e50::t_dc6496a53e4afe 1-193,198-229
+  s_310459e3288e50::t_38870558a18596 194-197
+docs/next/website/src/content/docs/configuration.mdx
+  s_310459e3288e50::t_65f2fb6d5d2c20 143-152
+src/client/mod.rs
+  s_310459e3288e50::t_c59bb88bb76c29 176
+src/main.rs
+  s_310459e3288e50::t_dc6496a53e4afe 25
+src/config.rs
+  s_310459e3288e50::t_dd0cd76bb6f8d7 26
+  s_310459e3288e50::t_38870558a18596 27-30
+src/client/shell/tests/agent_grid.rs
+  s_310459e3288e50::t_147abbc60c5fa7 951-999
+  s_310459e3288e50::t_58051d034f2fcb 916,926-927
+  s_310459e3288e50::t_f4f2979795f495 950
+src/config/write.rs
+  s_310459e3288e50::t_dd0cd76bb6f8d7 7-9,19,49-68,105-119
+  s_310459e3288e50::t_ee561c80a0709c 120
+Cargo.toml
+  s_310459e3288e50::t_dc6496a53e4afe 47
+src/client/shell/settings_overlay.rs
+  s_310459e3288e50::t_a2513f4603ce57 203-205,313-355
+  s_310459e3288e50::t_a41907b36beaef 356-359
+src/client/shell/tests/graphics.rs
+  s_310459e3288e50::t_df8428dcdb814f 323-324
+src/client/shell/tests/editor_settings.rs
+  s_310459e3288e50::t_147abbc60c5fa7 1-148
+src/config/model.rs
+  s_310459e3288e50::t_dd0cd76bb6f8d7 151-187,1069-1070,1294
+src/client/shell/state.rs
+  s_310459e3288e50::t_c59bb88bb76c29 46-49
+  s_310459e3288e50::t_567860a2fc22c2 335-339,412-413,486,497,508,525-527,815-816
+src/client/shell/config.rs
+  s_310459e3288e50::t_c59bb88bb76c29 151-152,188,193-196,361
+  s_310459e3288e50::t_38870558a18596 189-192
+src/client/shell/overlay_input.rs
+  s_310459e3288e50::t_334d2ae504bb35 910,936-952,957-960,1042-1043
+src/client/shell_runtime.rs
+  s_310459e3288e50::t_38870558a18596 68-81
+src/client/shell/settings.rs
+  s_310459e3288e50::t_38870558a18596 318-319
+  s_310459e3288e50::t_f2ea879a890281 29-71,88-105,107-127,136,185,313-317,320-325
+src/client/shell/tests/startup_overlays.rs
+  s_310459e3288e50::t_db7cec79721642 1179-1180
+Cargo.lock
+  s_310459e3288e50::t_570f490fe1044f 796
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "da511e90c6e14daf9d2f1e0af986576de00e0b72",
+  "prompts": {},
+  "sessions": {
+    "s_310459e3288e50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "573c64bd-18f1-4119-a2ad-f8c4c48a655e",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
