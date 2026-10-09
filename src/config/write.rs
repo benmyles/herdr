@@ -4,6 +4,9 @@ pub(crate) enum ConfigEdit<'a> {
     StatusIndicators(super::StatusIndicatorStyle),
     Sound(bool),
     ToastDelivery(super::ToastDelivery),
+    EditorApp(super::EditorAppConfig),
+    /// A custom editor command, which also selects it.
+    EditorCommand(&'a str),
 }
 
 impl ConfigEdit<'_> {
@@ -13,6 +16,7 @@ impl ConfigEdit<'_> {
             Self::StatusIndicators(_) => "status indicators",
             Self::Sound(_) => "sound setting",
             Self::ToastDelivery(_) => "toast setting",
+            Self::EditorApp(_) | Self::EditorCommand(_) => "editor setting",
         }
     }
 
@@ -41,6 +45,26 @@ impl ConfigEdit<'_> {
                 };
                 let content = super::upsert_section_value(content, "ui.toast", "delivery", value);
                 super::remove_section_key(&content, "ui.toast", "enabled")
+            }
+            Self::EditorApp(app) => super::upsert_section_value(
+                content,
+                "ui.editor",
+                "app",
+                &format!("\"{}\"", app.as_str()),
+            ),
+            Self::EditorCommand(command) => {
+                let content = super::upsert_section_value(
+                    content,
+                    "ui.editor",
+                    "app",
+                    &format!("\"{}\"", super::EditorAppConfig::Custom.as_str()),
+                );
+                super::upsert_section_value(
+                    &content,
+                    "ui.editor",
+                    "command",
+                    &toml::Value::String(command.to_owned()).to_string(),
+                )
             }
         }
     }
@@ -77,6 +101,22 @@ pub(crate) fn write_edit(edit: ConfigEdit<'_>) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn editor_edits_choose_an_app_or_a_quoted_custom_command() {
+        let content = ConfigEdit::EditorApp(crate::config::EditorAppConfig::Zed).apply("");
+        let parsed: toml::Value = toml::from_str(&content).unwrap();
+        assert_eq!(parsed["ui"]["editor"]["app"].as_str(), Some("zed"));
+
+        let command = r#"code --profile "Herdr \ work""#;
+        let content = ConfigEdit::EditorCommand(command).apply(&content);
+        let parsed: toml::Value = toml::from_str(&content).unwrap();
+        assert_eq!(parsed["ui"]["editor"]["app"].as_str(), Some("custom"));
+        assert_eq!(parsed["ui"]["editor"]["command"].as_str(), Some(command));
+        let config: crate::config::Config = toml::from_str(&content).unwrap();
+        assert_eq!(config.ui.editor.app, crate::config::EditorAppConfig::Custom);
+        assert_eq!(config.ui.editor.command, command);
+    }
 
     #[test]
     fn update_file_at_does_not_move_a_leading_bom_into_the_file() {

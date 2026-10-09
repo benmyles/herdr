@@ -1091,6 +1091,25 @@
           "description": "Animate the working spinner and the blocked pulse. Off keeps the marks still."
         },
         {
+          "key": "ui.editor.app",
+          "type": "enum",
+          "default": "\"auto\"",
+          "description": "Editor that Open in Editor opens a workspace's directory in, as a project in a new window. auto uses the first of VS Code (code), Zed (zed), and Cursor (cursor) found on PATH; custom runs ui.editor.command.",
+          "values": [
+            "auto",
+            "vscode",
+            "zed",
+            "cursor",
+            "custom"
+          ]
+        },
+        {
+          "key": "ui.editor.command",
+          "type": "string",
+          "default": "\"\"",
+          "description": "Command for app = \"custom\", split like a shell command line without running a shell. The workspace directory is added as its last argument."
+        },
+        {
           "key": "ui.sidebar.agents.row_gap",
           "type": "integer",
           "default": "0",

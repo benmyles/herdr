@@ -32,6 +32,10 @@ impl ClientContextMenuOverlay {
                 label: crate::platform::OPEN_DIRECTORY_LABEL,
                 action: ClientContextMenuAction::OpenDirectory,
             });
+            items.push(ClientContextMenuItem {
+                label: "Open in Editor",
+                action: ClientContextMenuAction::OpenInEditor,
+            });
         }
         items.extend(self.target_items());
         items
@@ -454,6 +458,10 @@ impl ClientShellState {
         }
         if action == ClientContextMenuAction::OpenDirectory {
             self.open_target_directory(&menu.target, outcome);
+            return;
+        }
+        if action == ClientContextMenuAction::OpenInEditor {
+            self.open_target_in_editor(&menu.target, outcome);
             return;
         }
         match menu.target {
@@ -920,5 +928,43 @@ impl ClientShellState {
                 .actions
                 .push(ClientShellAction::OpenDirectory(directory.into()));
         }
+    }
+
+    /// Opens the menu target's workspace directory as a project in a new
+    /// window of the configured editor. Without one to use, it opens the
+    /// editor settings instead.
+    fn open_target_in_editor(
+        &mut self,
+        target: &ClientContextMenuTarget,
+        outcome: &mut ClientShellInput,
+    ) {
+        if !self.opens_local_directories() {
+            return;
+        }
+        let Some(snapshot) = self.snapshot.as_deref() else {
+            return;
+        };
+        let Some(directory) = target_workspace_id(snapshot, target)
+            .and_then(|workspace_id| workspace_directory(snapshot, workspace_id))
+            .map(std::path::PathBuf::from)
+        else {
+            return;
+        };
+        match crate::editor::editor_command(&self.config.editor, &self.config.installed_editors) {
+            Some(command) => outcome
+                .actions
+                .push(ClientShellAction::OpenInEditor { command, directory }),
+            None => self.open_editor_settings(outcome),
+        }
+    }
+
+    /// Reports an editor that could not be started, pointing at the editor
+    /// settings when its command is missing.
+    pub(crate) fn report_editor_failure(&mut self, program: &str, error: &std::io::Error) {
+        self.set_endpoint_error(if error.kind() == std::io::ErrorKind::NotFound {
+            format!("`{program}` was not found; choose an editor in settings → editor")
+        } else {
+            format!("could not open `{program}`: {error}")
+        });
     }
 }

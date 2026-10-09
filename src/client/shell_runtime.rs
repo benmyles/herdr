@@ -65,6 +65,20 @@ pub(super) fn dispatch_client_shell_actions(
                     "client shell action awaits its presentation family"
                 );
             }
+            shell::ClientShellAction::OpenInEditor { command, directory } => {
+                if !is_remote_client_process() && directory.is_absolute() && directory.is_dir() {
+                    match crate::editor::spawn(&command, &directory) {
+                        Ok(child) => detached_process_children.push(child),
+                        Err(err) => {
+                            warn!(err = %err, program = %command.program, "failed to open editor");
+                            if let Some(shell) = shell.as_deref_mut() {
+                                shell.report_editor_failure(&command.program, &err);
+                                repaint = true;
+                            }
+                        }
+                    }
+                }
+            }
             shell::ClientShellAction::OpenDirectory(directory) => {
                 // Only an existing absolute directory, so the opener can't
                 // read it as an option or a URL.

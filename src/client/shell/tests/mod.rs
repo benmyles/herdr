@@ -259,6 +259,7 @@ mod chrome_context;
 mod close_tab;
 mod command_palette;
 mod copy;
+mod editor_settings;
 mod endpoint_requests;
 mod endpoints;
 mod graphics;

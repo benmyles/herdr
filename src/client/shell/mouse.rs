@@ -1607,7 +1607,8 @@ impl ClientShellState {
                         Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
                             section: ClientSettingsSection::Indicators
                                 | ClientSettingsSection::Sound
-                                | ClientSettingsSection::Toast,
+                                | ClientSettingsSection::Toast
+                                | ClientSettingsSection::Editor,
                             ..
                         }))
                     );
@@ -1799,6 +1800,8 @@ impl ClientShellState {
                     rename.input.clear();
                     outcome.repaint = true;
                 }
+            } else if matches!(self.overlay, Some(ClientShellOverlay::Rename(_))) {
+                self.cancel_rename_overlay(outcome);
             } else {
                 self.overlay = None;
                 outcome.repaint = true;

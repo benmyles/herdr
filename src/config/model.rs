@@ -148,6 +148,43 @@ impl Default for AgentMarksConfig {
     }
 }
 
+/// The editor that Open in Editor opens a workspace's directory in, as a
+/// project in a new window.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Default)]
+#[serde(default)]
+pub struct EditorConfig {
+    /// "auto", "vscode", "zed", "cursor", or "custom". auto uses the first of
+    /// VS Code (`code`), Zed (`zed`), and Cursor (`cursor`) found on PATH.
+    /// Default: auto.
+    pub app: EditorAppConfig,
+    /// The command for app = "custom", split like a shell command line, with
+    /// the directory added as its last argument. Default: empty.
+    pub command: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum EditorAppConfig {
+    #[default]
+    Auto,
+    Vscode,
+    Zed,
+    Cursor,
+    Custom,
+}
+
+impl EditorAppConfig {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Vscode => "vscode",
+            Self::Zed => "zed",
+            Self::Cursor => "cursor",
+            Self::Custom => "custom",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum StatusIndicatorStyle {
@@ -1029,6 +1066,8 @@ pub struct UiConfig {
     pub toast: ToastConfig,
     /// Play sounds when agents change state in background workspaces.
     pub sound: SoundConfig,
+    /// The editor Open in Editor uses.
+    pub editor: EditorConfig,
 }
 
 /// Cursor shape (DECSCUSR) used for the forced IME anchor.
@@ -1252,6 +1291,7 @@ impl Default for UiConfig {
             accent: "cyan".into(),
             toast: ToastConfig::default(),
             sound: SoundConfig::default(),
+            editor: EditorConfig::default(),
         }
     }
 }

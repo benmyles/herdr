@@ -907,8 +907,7 @@ impl ClientShellState {
             return;
         }
         if key.code == KeyCode::Esc {
-            self.overlay = None;
-            outcome.repaint = true;
+            self.cancel_rename_overlay(outcome);
             return;
         }
         if key
@@ -934,10 +933,31 @@ impl ClientShellState {
         }
     }
 
+    /// Closes the text prompt without saving. The editor command prompt goes
+    /// back to the editor settings it came from.
+    pub(super) fn cancel_rename_overlay(&mut self, outcome: &mut ClientShellInput) {
+        let from_settings = matches!(
+            self.overlay,
+            Some(ClientShellOverlay::Rename(ClientRenameOverlay {
+                target: ClientRenameTarget::EditorCommand,
+                ..
+            }))
+        );
+        self.overlay = None;
+        if from_settings {
+            self.open_editor_settings(outcome);
+        }
+        outcome.repaint = true;
+    }
+
     pub(super) fn save_rename_overlay(&mut self, outcome: &mut ClientShellInput) {
         let Some(ClientShellOverlay::Rename(rename)) = self.overlay.take() else {
             return;
         };
+        if matches!(rename.target, ClientRenameTarget::EditorCommand) {
+            self.save_editor_command(rename, outcome);
+            return;
+        }
         let trimmed = rename.input.trim();
         if let ClientRenameTarget::NewSpace { workspace_id: None } = &rename.target {
             if !trimmed.is_empty() {
@@ -1019,6 +1039,8 @@ impl ClientShellState {
                     name: trimmed.to_owned(),
                 })
             }),
+            // Saved above, into the local config.
+            ClientRenameTarget::EditorCommand => None,
         };
         if let Some(method) = method {
             self.push_endpoint_method(method, outcome);

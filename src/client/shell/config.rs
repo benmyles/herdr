@@ -148,6 +148,8 @@ impl ClientShellConfig {
             local_keys: config.keys.clone(),
             keybinding_source: ClientShellKeybindingSource::Local,
             local_filesystem: true,
+            editor: config.ui.editor.clone(),
+            installed_editors: Vec::new(),
             prompt_new_tab_name: config.ui.prompt_new_tab_name,
             prompt_new_workspace_name: config.ui.prompt_new_workspace_name,
             confirm_close: config.ui.confirm_close,
@@ -180,6 +182,15 @@ impl ClientShellConfig {
 
     pub(crate) fn with_local_filesystem(mut self, local: bool) -> Self {
         self.local_filesystem = local;
+        self
+    }
+
+    /// The editors on PATH, found once: the client's PATH does not change.
+    pub(crate) fn with_installed_editors(
+        mut self,
+        editors: Vec<crate::editor::KnownEditor>,
+    ) -> Self {
+        self.installed_editors = editors;
         self
     }
 
@@ -347,6 +358,7 @@ impl ClientShellConfig {
                 self.status_indicators = ui.status_indicators;
                 self.agent_marks = super::agent_marks::AgentMarks::from_config(&ui.agents);
                 self.sound_enabled = ui.sound.enabled;
+                self.editor = ui.editor.clone();
                 self.toast_delivery = ui.toast.delivery;
                 self.toast_delay_seconds = ui.toast.delay_seconds;
                 self.toast_position = ui.toast.herdr.position;

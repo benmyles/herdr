@@ -200,6 +200,9 @@ pub(super) fn render_settings_overlay(
                 &mut choice_hits,
             );
         }
+        ClientSettingsSection::Editor => {
+            render_editor(buffer, content, settings, palette, &mut choice_hits);
+        }
         ClientSettingsSection::Integrations => {
             render_integrations(buffer, content, settings, palette);
         }
@@ -303,6 +306,53 @@ fn render_choice_section(
         }
         let rect = Rect::new(area.x, y, area.width, 1);
         draw_choice(buffer, rect, choice, index == selected, false, palette);
+        hits.push((rect, index));
+    }
+}
+
+fn render_editor(
+    buffer: &mut Buffer,
+    area: Rect,
+    settings: &ClientSettingsOverlay,
+    palette: &Palette,
+    hits: &mut Vec<(Rect, usize)>,
+) {
+    put_text(
+        buffer,
+        area.x,
+        area.y,
+        area.width,
+        "editor",
+        Style::default()
+            .fg(palette.text)
+            .bg(palette.panel_bg)
+            .add_modifier(Modifier::BOLD),
+    );
+    put_text(
+        buffer,
+        area.x,
+        area.y + 1,
+        area.width,
+        "Open in Editor opens a workspace's directory here, in a new window",
+        Style::default().fg(palette.overlay1).bg(palette.panel_bg),
+    );
+    let current = super::super::settings::editor_index(&settings.editor);
+    let labels =
+        super::super::settings::editor_choice_labels(&settings.editor, &settings.installed_editors);
+    for (index, label) in labels.iter().enumerate() {
+        let y = area.y + 3 + index as u16 * 2;
+        if y >= area.bottom() {
+            break;
+        }
+        let rect = Rect::new(area.x, y, area.width, 1);
+        draw_choice(
+            buffer,
+            rect,
+            label,
+            index == settings.selected,
+            index == current,
+            palette,
+        );
         hits.push((rect, index));
     }
 }

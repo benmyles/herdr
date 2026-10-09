@@ -26,6 +26,49 @@ fn toast_index(delivery: crate::config::ToastDelivery) -> usize {
     }
 }
 
+/// The editor tab's rows after `auto`, in order; the custom command follows.
+const EDITOR_APPS: [crate::config::EditorAppConfig; 4] = [
+    crate::config::EditorAppConfig::Auto,
+    crate::config::EditorAppConfig::Vscode,
+    crate::config::EditorAppConfig::Zed,
+    crate::config::EditorAppConfig::Cursor,
+];
+
+/// The editor tab row of the chosen editor.
+pub(super) fn editor_index(editor: &crate::config::EditorConfig) -> usize {
+    EDITOR_APPS
+        .iter()
+        .position(|app| *app == editor.app)
+        .unwrap_or(EDITOR_APPS.len())
+}
+
+/// The editor tab's rows: automatic, each known editor and whether its
+/// command is on PATH, then the custom command.
+pub(super) fn editor_choice_labels(
+    editor: &crate::config::EditorConfig,
+    installed: &[crate::editor::KnownEditor],
+) -> Vec<String> {
+    let mut labels = vec![match crate::editor::auto_editor(installed) {
+        Some(found) => format!("automatic        uses {}", found.label()),
+        None => "automatic        no editor found on PATH".to_owned(),
+    }];
+    labels.extend(crate::editor::KnownEditor::ALL.into_iter().map(|known| {
+        let found = if installed.contains(&known) {
+            "on PATH"
+        } else {
+            "not found"
+        };
+        format!("{:<17}{} {found}", known.label(), known.program())
+    }));
+    let command = editor.command.trim();
+    labels.push(if command.is_empty() {
+        "custom command…".to_owned()
+    } else {
+        format!("custom command…  {command}")
+    });
+    labels
+}
+
 pub(super) fn integration_needs_install(info: &crate::api::schema::IntegrationInfo) -> bool {
     info.state == crate::api::schema::IntegrationState::Outdated
         || info.available && info.state == crate::api::schema::IntegrationState::NotInstalled
@@ -42,7 +85,46 @@ impl ClientShellState {
             integration_messages: Vec::new(),
             loading_integrations: false,
             installing_integrations: false,
+            editor: self.config.editor.clone(),
+            installed_editors: self.config.installed_editors.clone(),
         }));
+    }
+
+    /// Opens settings on the editor tab.
+    pub(super) fn open_editor_settings(&mut self, outcome: &mut ClientShellInput) {
+        self.open_settings_overlay();
+        self.select_settings_section(ClientSettingsSection::Editor, outcome);
+    }
+
+    /// Asks for the custom editor command, starting from the saved one.
+    fn begin_editor_command(&mut self, outcome: &mut ClientShellInput) {
+        self.cancel_settings_overlay();
+        self.overlay = Some(ClientShellOverlay::Rename(ClientRenameOverlay {
+            title: "editor command; the directory is added last",
+            input: TextEditor::new(&self.config.editor.command, false),
+            target: ClientRenameTarget::EditorCommand,
+        }));
+        outcome.repaint = true;
+    }
+
+    /// Saves the custom editor command and returns to the editor tab. An
+    /// empty command changes nothing; an unmatched quote keeps it open.
+    pub(super) fn save_editor_command(
+        &mut self,
+        rename: ClientRenameOverlay,
+        outcome: &mut ClientShellInput,
+    ) {
+        let command = rename.input.trim().to_owned();
+        if !command.is_empty() {
+            if crate::editor::custom_command(&command).is_none() {
+                self.set_endpoint_error("the editor command has an unmatched quote");
+                self.overlay = Some(ClientShellOverlay::Rename(rename));
+                outcome.repaint = true;
+                return;
+            }
+            self.save_settings_edit(crate::config::ConfigEdit::EditorCommand(&command), outcome);
+        }
+        self.open_editor_settings(outcome);
     }
 
     fn selected_index_for_settings_section(&self, section: ClientSettingsSection) -> usize {
@@ -51,6 +133,7 @@ impl ClientShellState {
             ClientSettingsSection::Indicators => indicator_index(self.config.status_indicators),
             ClientSettingsSection::Sound => usize::from(!self.config.sound_enabled),
             ClientSettingsSection::Toast => toast_index(self.config.toast_delivery),
+            ClientSettingsSection::Editor => editor_index(&self.config.editor),
             ClientSettingsSection::Integrations | ClientSettingsSection::Repos => 0,
         }
     }
@@ -99,6 +182,7 @@ impl ClientShellState {
                 ClientSettingsSection::Theme => crate::config::THEME_NAMES.len(),
                 ClientSettingsSection::Indicators | ClientSettingsSection::Sound => 2,
                 ClientSettingsSection::Toast => 4,
+                ClientSettingsSection::Editor => EDITOR_APPS.len() + 1,
                 ClientSettingsSection::Integrations => settings.integrations.len(),
                 ClientSettingsSection::Repos => self
                     .snapshot
@@ -226,6 +310,19 @@ impl ClientShellState {
                     outcome,
                 );
             }
+            ClientSettingsSection::Editor => match EDITOR_APPS.get(selected) {
+                Some(app) => {
+                    if self.save_settings_edit(crate::config::ConfigEdit::EditorApp(*app), outcome)
+                    {
+                        let editor = self.config.editor.clone();
+                        if let Some(ClientShellOverlay::Settings(settings)) = self.overlay.as_mut()
+                        {
+                            settings.editor = editor;
+                        }
+                    }
+                }
+                None => self.begin_editor_command(outcome),
+            },
             ClientSettingsSection::Integrations => self.install_recommended_integrations(outcome),
             ClientSettingsSection::Repos => {
                 let has_repos = self

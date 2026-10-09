@@ -913,7 +913,7 @@ fn local_workspaces_agents_and_grid_tiles_offer_to_open_their_directory() {
     right_click(&mut state, row);
     assert_eq!(
         menu_labels(&state),
-        vec!["Open PR", open, "Exclude from grid"]
+        vec!["Open PR", open, "Open in Editor", "Exclude from grid"]
     );
     assert_eq!(
         opens_directory(&activate_menu_item(&mut state, open)),
@@ -923,8 +923,8 @@ fn local_workspaces_agents_and_grid_tiles_offer_to_open_their_directory() {
     state.show_test_agent_grid();
     state.open_pane_context_menu("pane_2".into(), 40, 10);
     assert_eq!(
-        menu_labels(&state)[..3],
-        ["Open PR", open, "Exclude from grid"]
+        menu_labels(&state)[..4],
+        ["Open PR", open, "Open in Editor", "Exclude from grid"]
     );
     assert_eq!(
         opens_directory(&activate_menu_item(&mut state, open)),
@@ -945,6 +945,56 @@ fn local_workspaces_agents_and_grid_tiles_offer_to_open_their_directory() {
     state.config.local_filesystem = false;
     state.open_pane_context_menu("pane_2".into(), 40, 10);
     assert!(!menu_labels(&state).contains(&open));
+}
+
+#[test]
+fn open_in_editor_opens_the_workspace_directory_in_a_new_editor_window() {
+    use crate::editor::{EditorCommand, KnownEditor};
+
+    let finder = crate::platform::OPEN_DIRECTORY_LABEL;
+    let mut state = two_agent_state(&[]);
+    with_pull_request(&mut state);
+    let mut snapshot = state.snapshot.as_deref().cloned().expect("snapshot");
+    snapshot.workspaces[0].directory = Some("/repo/app".into());
+    state.set_snapshot(Box::new(snapshot));
+    state.compose(106, 30).expect("frame");
+    state.config.installed_editors = vec![KnownEditor::Cursor, KnownEditor::Zed];
+
+    let row = agent_row(&state, "pane_3");
+    right_click(&mut state, row);
+    assert_eq!(
+        menu_labels(&state)[..3],
+        ["Open PR", finder, "Open in Editor"]
+    );
+    let outcome = activate_menu_item(&mut state, "Open in Editor");
+    let [ClientShellAction::OpenInEditor { command, directory }] = &outcome.actions[..] else {
+        panic!("expected the editor to open: {:?}", outcome.actions);
+    };
+    assert_eq!(
+        command,
+        &EditorCommand {
+            program: "zed".into(),
+            args: vec!["--new".into()],
+        },
+        "auto takes Zed when VS Code is not on PATH"
+    );
+    assert_eq!(directory, std::path::Path::new("/repo/app"));
+
+    // With no editor to use, it opens the editor settings instead.
+    state.config.installed_editors.clear();
+    state.compose(106, 30).expect("frame");
+    let workspace = state.hits.workspaces[0].rect;
+    right_click(&mut state, workspace);
+    let outcome = activate_menu_item(&mut state, "Open in Editor");
+    assert!(outcome.actions.is_empty());
+    assert!(matches!(
+        state.overlay,
+        Some(ClientShellOverlay::Settings(ClientSettingsOverlay {
+            section: ClientSettingsSection::Editor,
+            selected: 0,
+            ..
+        }))
+    ));
 }
 
 #[test]

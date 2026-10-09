@@ -43,6 +43,10 @@ pub(crate) struct ClientShellConfig {
     /// serves, so it can open them with desktop apps. The client that
     /// `--remote` runs on an SSH host cannot.
     pub(super) local_filesystem: bool,
+    /// The editor Open in Editor uses.
+    pub(super) editor: crate::config::EditorConfig,
+    /// The known editors found on PATH when the client started.
+    pub(super) installed_editors: Vec<crate::editor::KnownEditor>,
     pub(super) prompt_new_tab_name: bool,
     pub(super) prompt_new_workspace_name: bool,
     pub(super) confirm_close: bool,
@@ -328,6 +332,11 @@ pub(crate) enum ClientShellAction {
     Keybind(crate::input::KeybindAction),
     /// Shows a local directory in the desktop file manager.
     OpenDirectory(std::path::PathBuf),
+    /// Opens a local directory as a project in a new editor window.
+    OpenInEditor {
+        command: crate::editor::EditorCommand,
+        directory: std::path::PathBuf,
+    },
 }
 
 #[derive(Default)]
@@ -400,6 +409,8 @@ pub(super) enum ClientRenameTarget {
     Space {
         space_id: String,
     },
+    /// The custom editor command, edited from the editor settings.
+    EditorCommand,
 }
 
 #[derive(Debug)]
@@ -472,6 +483,7 @@ pub(super) enum ClientSettingsSection {
     Indicators,
     Sound,
     Toast,
+    Editor,
     Integrations,
     Repos,
 }
@@ -482,6 +494,7 @@ impl ClientSettingsSection {
         Self::Indicators,
         Self::Sound,
         Self::Toast,
+        Self::Editor,
         Self::Integrations,
         Self::Repos,
     ];
@@ -492,6 +505,7 @@ impl ClientSettingsSection {
             Self::Indicators => "indicators",
             Self::Sound => "sound",
             Self::Toast => "toasts",
+            Self::Editor => "editor",
             Self::Integrations => "integrations",
             Self::Repos => "repos",
         }
@@ -508,6 +522,9 @@ pub(super) struct ClientSettingsOverlay {
     pub(super) integration_messages: Vec<String>,
     pub(super) loading_integrations: bool,
     pub(super) installing_integrations: bool,
+    /// The editor setting and the editors on PATH, for the editor tab.
+    pub(super) editor: crate::config::EditorConfig,
+    pub(super) installed_editors: Vec<crate::editor::KnownEditor>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -795,6 +812,8 @@ pub(super) enum ClientContextMenuAction {
     OpenPullRequest,
     /// Shows the target's workspace directory in the desktop file manager.
     OpenDirectory,
+    /// Opens the target's workspace directory in the configured editor.
+    OpenInEditor,
 }
 
 #[derive(Debug)]

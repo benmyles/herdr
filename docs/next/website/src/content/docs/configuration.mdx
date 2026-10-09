@@ -140,6 +140,16 @@ start_command = "claude"
 
 To browse a checkout's files, right-click its workspace, one of its agents, or the agent's grid tile and choose `Open in Finder` (`Open in File Explorer` on Windows, `Open in file manager` on Linux). It opens the checkout's root directory even when a pane has moved into a subdirectory; a workspace outside Git opens the directory it is named after. The item appears only for workspaces on this machine, not for another machine connected over SSH.
 
+`Open in Editor`, in the same menus, opens that directory as a project in a new window of your editor. Choose the editor in settings → editor, which shows whether each known editor's command is on your `PATH`: VS Code (`code`), Zed (`zed`), or Cursor (`cursor`). The default, `automatic`, uses the first of those three it finds. `custom command…` takes any command, split like a shell command line, and adds the directory as its last argument:
+
+```toml
+[ui.editor]
+app = "custom"
+command = "subl --new-window"
+```
+
+When no editor is found, `Open in Editor` opens the editor settings instead.
+
 To delete a worktree checkout, use `Delete worktree checkout...` on its workspace. The dialog opens right away and fills in the checkout's path once the server finds it; while Herdr works, its button shows a spinner and how long it has taken. Herdr runs `git worktree remove`, first asking Git to remove safely. If Git refuses because the checkout has modified or untracked files, Herdr asks again before running the forced remove. Branches are not deleted.
 
 ### Pull requests

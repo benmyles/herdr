@@ -23,10 +23,11 @@ pub use self::{
     },
     model::{
         validated_sidebar_bounds, AgentIconsConfig, AgentMarksConfig, AgentPanelSortConfig, Config,
-        ConfigReloadReport, ConfigReloadStatus, HostCursorModeConfig, NewTerminalCwdConfig,
-        PaneBordersConfig, ShellModeConfig, SidebarCollapsedModeConfig, StatusIndicatorStyle,
-        TabBarPositionConfig, ToastClipboardPosition, ToastConfig, ToastDelivery,
-        ToastHerdrPosition, UpdateChannelConfig, MAX_TOAST_DELAY_SECONDS,
+        ConfigReloadReport, ConfigReloadStatus, EditorAppConfig, EditorConfig,
+        HostCursorModeConfig, NewTerminalCwdConfig, PaneBordersConfig, ShellModeConfig,
+        SidebarCollapsedModeConfig, StatusIndicatorStyle, TabBarPositionConfig,
+        ToastClipboardPosition, ToastConfig, ToastDelivery, ToastHerdrPosition,
+        UpdateChannelConfig, MAX_TOAST_DELAY_SECONDS,
     },
     sidebar::{
         AgentSidebarToken, AgentsSidebarConfig, SidebarConfig, SidebarTokenColor,

@@ -22,9 +22,9 @@ pub(crate) use env::{
     HERDR_WORKSPACE_ID_ENV_VAR,
 };
 pub(crate) use registry::{
-    experimental_crush_integration_status, experimental_letta_integration_status,
-    installed_integration_statuses, integration_recommendations, integration_target_label,
-    print_outdated_update_notice,
+    command_available, experimental_crush_integration_status,
+    experimental_letta_integration_status, installed_integration_statuses,
+    integration_recommendations, integration_target_label, print_outdated_update_notice,
 };
 pub(crate) use types::{
     ExperimentalIntegrationStatus, IntegrationRecommendation, IntegrationStatus,

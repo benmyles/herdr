@@ -793,6 +793,7 @@ dependencies = [
  "serde_ignored",
  "serde_json",
  "sha2",
+ "shell-words",
  "time",
  "tokio",
  "toml",
