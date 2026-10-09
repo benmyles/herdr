@@ -26,6 +26,24 @@ pub(crate) fn agent_context_hook_command() -> String {
     }
 }
 
+/// The prompt-submit hook command that keeps a Claude Code agent's title in
+/// step with its work. Like the context hook, it runs the Herdr binary that
+/// started the pane, and does nothing in other terminals.
+pub(crate) fn agent_title_hook_command() -> String {
+    let var = super::HERDR_BIN_PATH_ENV_VAR;
+    #[cfg(windows)]
+    {
+        format!(
+            "powershell -NoProfile -Command \"if ($env:{var}) {{ & $env:{var} agent-title prompt-submit }}\""
+        )
+    }
+
+    #[cfg(not(windows))]
+    {
+        format!("[ -n \"${{{var}:-}}\" ] && \"${var}\" agent-title prompt-submit || true")
+    }
+}
+
 pub(crate) fn hook_command(hook_path: &Path, action: Option<&str>) -> String {
     let path = hook_path.display().to_string();
     #[cfg(windows)]

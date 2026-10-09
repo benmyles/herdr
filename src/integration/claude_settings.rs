@@ -8,7 +8,7 @@ use jsonc_parser::cst::{CstInputValue, CstNode, CstObject, CstRootNode};
 use jsonc_parser::{json, parse_to_ast, CollectOptions, ParseOptions};
 use serde_json::{json as serde_json_value, Map, Value};
 
-use super::command::{agent_context_hook_command, hook_command};
+use super::command::{agent_context_hook_command, agent_title_hook_command, hook_command};
 use super::config_edit::{
     ensure_command_hook, ensure_hooks_object, hook_command_variants, hooks_object_if_present,
     is_matching_command_hook,
@@ -94,12 +94,35 @@ pub(crate) fn install(content: &str, settings_path: &Path, hook_path: &Path) -> 
     )
 }
 
-/// Whether the settings run the agent context session-start hook.
-pub(crate) fn has_agent_context(content: &str) -> bool {
-    let command = agent_context_hook_command();
+/// A hook the fork adds beside the stock ones, identified by its command.
+pub(crate) struct ForkHook {
+    pub(crate) event: &'static str,
+    matcher: Option<&'static str>,
+    pub(crate) command: String,
+}
+
+/// The fork's Claude Code hooks: the space context at session start, and the
+/// title that follows the work on each prompt.
+pub(crate) fn fork_hooks() -> [ForkHook; 2] {
+    [
+        ForkHook {
+            event: "SessionStart",
+            matcher: Some(SESSION_START_MATCHER),
+            command: agent_context_hook_command(),
+        },
+        ForkHook {
+            event: "UserPromptSubmit",
+            matcher: None,
+            command: agent_title_hook_command(),
+        },
+    ]
+}
+
+/// Whether the settings run `command` on `event`.
+pub(crate) fn has_hook(content: &str, event: &str, command: &str) -> bool {
     serde_json::from_str::<Value>(content)
         .ok()
-        .and_then(|settings| settings.pointer("/hooks/SessionStart").cloned())
+        .and_then(|settings| settings.pointer(&format!("/hooks/{event}")).cloned())
         .and_then(|entries| entries.as_array().cloned())
         .is_some_and(|entries| {
             entries.iter().any(|entry| {
@@ -109,15 +132,45 @@ pub(crate) fn has_agent_context(content: &str) -> bool {
                     .is_some_and(|hooks| {
                         hooks
                             .iter()
-                            .any(|hook| is_matching_command_hook(hook, &command))
+                            .any(|hook| is_matching_command_hook(hook, command))
                     })
             })
         })
 }
 
-/// Adds the agent context session-start hook, keeping the file's formatting.
-pub(crate) fn install_agent_context(content: &str, settings_path: &Path) -> io::Result<String> {
-    let command = agent_context_hook_command();
+/// Whether the settings run the agent context session-start hook.
+pub(crate) fn has_agent_context(content: &str) -> bool {
+    has_hook(content, "SessionStart", &agent_context_hook_command())
+}
+
+/// Whether the settings run every fork hook.
+pub(crate) fn has_fork_hooks(content: &str) -> bool {
+    fork_hooks()
+        .iter()
+        .all(|hook| has_hook(content, hook.event, &hook.command))
+}
+
+/// Adds the fork hooks, keeping the file's formatting.
+pub(crate) fn install_fork_hooks(content: &str, settings_path: &Path) -> io::Result<String> {
+    fork_hooks()
+        .iter()
+        .try_fold(content.to_string(), |content, hook| {
+            install_hook(&content, settings_path, hook)
+        })
+}
+
+/// Removes the fork hooks, keeping the file's formatting.
+pub(crate) fn uninstall_fork_hooks(content: &str, settings_path: &Path) -> io::Result<String> {
+    fork_hooks()
+        .iter()
+        .try_fold(content.to_string(), |content, hook| {
+            uninstall_hook(&content, settings_path, hook)
+        })
+}
+
+fn install_hook(content: &str, settings_path: &Path, hook: &ForkHook) -> io::Result<String> {
+    let event = hook.event;
+    let command = hook.command.clone();
     let original = parse_value(content, settings_path)?;
     let mut desired = original.clone();
     let hooks = ensure_hooks_object(
@@ -126,13 +179,7 @@ pub(crate) fn install_agent_context(content: &str, settings_path: &Path) -> io::
         "claude settings",
         "claude settings hooks",
     )?;
-    ensure_command_hook(
-        hooks,
-        "SessionStart",
-        command.clone(),
-        10,
-        Some(SESSION_START_MATCHER),
-    )?;
+    ensure_command_hook(hooks, event, command.clone(), 10, hook.matcher)?;
     if desired == original {
         return Ok(content.to_string());
     }
@@ -151,30 +198,36 @@ pub(crate) fn install_agent_context(content: &str, settings_path: &Path) -> io::
             .object_value()
             .ok_or_else(|| io::Error::other("failed to create claude settings hooks object"))?,
     };
-    let session_start = match hooks.get("SessionStart") {
-        Some(property) => property
-            .array_value()
-            .ok_or_else(|| io::Error::other("hook entries for SessionStart must be an array"))?,
+    let entries = match hooks.get(event) {
+        Some(property) => property.array_value().ok_or_else(|| {
+            io::Error::other(format!("hook entries for {event} must be an array"))
+        })?,
         None => hooks
-            .append("SessionStart", CstInputValue::Array(Vec::new()))
+            .append(event, CstInputValue::Array(Vec::new()))
             .array_value()
-            .ok_or_else(|| io::Error::other("failed to create SessionStart hook array"))?,
+            .ok_or_else(|| io::Error::other(format!("failed to create {event} hook array")))?,
     };
-    session_start.append(json!({
-        matcher: SESSION_START_MATCHER,
-        hooks: [{
-            "type": "command",
-            command: command,
-            timeout: 10u64,
-        }],
-    }));
+    entries.append(match hook.matcher {
+        Some(matcher) => json!({
+            matcher: matcher,
+            hooks: [{
+                "type": "command",
+                command: command,
+                timeout: 10u64,
+            }],
+        }),
+        None => json!({
+            hooks: [{
+                "type": "command",
+                command: command,
+                timeout: 10u64,
+            }],
+        }),
+    });
     verify_updated(root.to_string(), settings_path, &desired)
 }
 
-/// Removes the agent context session-start hook, keeping the file's
-/// formatting.
-pub(crate) fn uninstall_agent_context(content: &str, settings_path: &Path) -> io::Result<String> {
-    let command = agent_context_hook_command();
+fn uninstall_hook(content: &str, settings_path: &Path, hook: &ForkHook) -> io::Result<String> {
     let original = parse_value(content, settings_path)?;
     let mut desired = original.clone();
     let Some(hooks) = hooks_object_if_present(
@@ -186,7 +239,7 @@ pub(crate) fn uninstall_agent_context(content: &str, settings_path: &Path) -> io
     else {
         return Ok(content.to_string());
     };
-    if !remove_value_event_commands(hooks, "SessionStart", std::slice::from_ref(&command), None)? {
+    if !remove_value_event_commands(hooks, hook.event, std::slice::from_ref(&hook.command), None)? {
         return Ok(content.to_string());
     }
 
@@ -197,7 +250,13 @@ pub(crate) fn uninstall_agent_context(content: &str, settings_path: &Path) -> io
         .and_then(|root| root.get("hooks"))
         .and_then(|property| property.object_value())
         .ok_or_else(|| not_an_object(settings_path, "claude settings hooks"))?;
-    remove_event_commands(&hooks, "SessionStart", &[command], false, &Value::Null)?;
+    remove_event_commands(
+        &hooks,
+        hook.event,
+        std::slice::from_ref(&hook.command),
+        false,
+        &Value::Null,
+    )?;
     verify_updated(root.to_string(), settings_path, &desired)
 }
 

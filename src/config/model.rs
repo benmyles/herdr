@@ -135,6 +135,10 @@ pub struct AgentMarksConfig {
     pub stale_minutes: u64,
     /// Animate the working spinner and blocked pulse. Default: true.
     pub animate: bool,
+    /// Keep Claude Code agents' titles in step with their work: after each
+    /// substantial prompt, Claude Haiku renames the session when the work
+    /// changed. Default: true.
+    pub live_titles: bool,
 }
 
 impl Default for AgentMarksConfig {
@@ -144,6 +148,7 @@ impl Default for AgentMarksConfig {
             fresh_minutes: 15,
             stale_minutes: 120,
             animate: true,
+            live_titles: true,
         }
     }
 }

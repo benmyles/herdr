@@ -43,6 +43,7 @@ pub(super) fn command() -> Command {
         .subcommand(notification_command())
         .subcommand(agent_command())
         .subcommand(agent_context_command())
+        .subcommand(agent_title_command())
         .subcommand(pane_command())
         .subcommand(terminal_command())
         .subcommand(session_command())
@@ -327,6 +328,21 @@ fn agent_context_command() -> Command {
         .subcommand(
             Command::new("session-start")
                 .about("Read hook input on stdin and print the space context as hook output"),
+        )
+}
+
+/// Run by the Claude Code prompt-submit hook, not by people, so it stays out
+/// of help.
+fn agent_title_command() -> Command {
+    Command::new("agent-title")
+        .hide(true)
+        .about("Keep an agent's title in step with its work from a prompt-submit hook")
+        .subcommand(
+            Command::new("prompt-submit")
+                .about("Read hook input on stdin and title the pane in the background"),
+        )
+        .subcommand(
+            Command::new("generate").about("Ask the model for the pane's title and report it"),
         )
 }
 

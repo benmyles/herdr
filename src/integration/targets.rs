@@ -5,9 +5,8 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Map, Value};
 
 use super::claude_settings::{
-    install as install_claude_settings, install_agent_context as install_claude_agent_context,
-    uninstall as uninstall_claude_settings,
-    uninstall_agent_context as uninstall_claude_agent_context,
+    install as install_claude_settings, install_fork_hooks as install_claude_fork_hooks,
+    uninstall as uninstall_claude_settings, uninstall_fork_hooks as uninstall_claude_fork_hooks,
 };
 #[cfg(windows)]
 use super::command::powershell_encoded_hook_command;
@@ -150,7 +149,7 @@ pub(crate) fn install_claude() -> io::Result<ClaudeInstallPaths> {
         "{}".to_string()
     };
     let updated_settings = install_claude_settings(&existing_settings, &settings_path, &hook_path)?;
-    let updated_settings = install_claude_agent_context(&updated_settings, &settings_path)?;
+    let updated_settings = install_claude_fork_hooks(&updated_settings, &settings_path)?;
     remove_legacy_bash_hook_file(&hook_path)?;
 
     if updated_settings != existing_settings {
@@ -595,7 +594,7 @@ pub(crate) fn uninstall_claude() -> io::Result<ClaudeUninstallResult> {
         let existing_settings = fs::read_to_string(&settings_path)?;
         let new_settings =
             uninstall_claude_settings(&existing_settings, &settings_path, &hook_path)?;
-        let new_settings = uninstall_claude_agent_context(&new_settings, &settings_path)?;
+        let new_settings = uninstall_claude_fork_hooks(&new_settings, &settings_path)?;
         updated_settings = new_settings != existing_settings;
         if updated_settings {
             write_config(&settings_path, new_settings)?;

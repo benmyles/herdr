@@ -1091,6 +1091,12 @@
           "description": "Animate the working spinner and the blocked pulse. Off keeps the marks still."
         },
         {
+          "key": "ui.agents.live_titles",
+          "type": "boolean",
+          "default": "true",
+          "description": "Keep Claude Code agents' titles in step with their work. After each prompt of three or more words, the Claude Code integration asks Claude Haiku, through your claude login, whether the work changed, and renames the agent in the agents panel and grid when it did. Off leaves the title Claude Code chose from the first prompt."
+        },
+        {
           "key": "ui.editor.app",
           "type": "enum",
           "default": "\"auto\"",

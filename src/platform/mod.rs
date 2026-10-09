@@ -163,6 +163,22 @@ pub(crate) fn configure_background_command(command: &mut std::process::Command) 
     configure_background_command_platform(command);
 }
 
+/// Starts `command` in a process group of its own, so it outlives a signal
+/// to the group of the process that started it.
+pub(crate) fn detach_from_process_group(command: &mut std::process::Command) {
+    detach_from_process_group_platform(command);
+}
+
+#[cfg(unix)]
+fn detach_from_process_group_platform(command: &mut std::process::Command) {
+    use std::os::unix::process::CommandExt;
+
+    command.process_group(0);
+}
+
+#[cfg(not(unix))]
+fn detach_from_process_group_platform(_command: &mut std::process::Command) {}
+
 #[cfg(not(windows))]
 fn configure_background_command_platform(_command: &mut std::process::Command) {}
 

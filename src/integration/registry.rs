@@ -400,29 +400,31 @@ pub(crate) fn print_outdated_update_notice() -> bool {
     true
 }
 
-/// Whether the Herdr-owned Grok hook config exactly matches the installed
-/// integration. JSON formatting and object key order do not affect validity.
-/// Whether Claude Code or Codex runs the agent context session-start hook.
-/// Other targets have none to install.
-fn agent_context_hook_is_installed(
+/// Whether Claude Code runs every fork hook, or Codex the agent context
+/// session-start hook. Other targets have none to install.
+fn fork_hooks_are_installed(
     target: crate::api::schema::IntegrationTarget,
     hook_path: &Path,
 ) -> bool {
     use crate::api::schema::IntegrationTarget;
 
-    let settings_path = match target {
-        IntegrationTarget::Claude => hook_path
-            .parent()
-            .and_then(Path::parent)
-            .map(|dir| dir.join("settings.json")),
-        IntegrationTarget::Codex => hook_path.parent().map(|dir| dir.join("hooks.json")),
-        _ => return true,
-    };
-    settings_path
-        .and_then(|path| fs::read_to_string(path).ok())
-        .is_some_and(|content| super::claude_settings::has_agent_context(&content))
+    let read = |path: Option<PathBuf>| path.and_then(|path| fs::read_to_string(path).ok());
+    match target {
+        IntegrationTarget::Claude => read(
+            hook_path
+                .parent()
+                .and_then(Path::parent)
+                .map(|dir| dir.join("settings.json")),
+        )
+        .is_some_and(|content| super::claude_settings::has_fork_hooks(&content)),
+        IntegrationTarget::Codex => read(hook_path.parent().map(|dir| dir.join("hooks.json")))
+            .is_some_and(|content| super::claude_settings::has_agent_context(&content)),
+        _ => true,
+    }
 }
 
+/// Whether the Herdr-owned Grok hook config exactly matches the installed
+/// integration. JSON formatting and object key order do not affect validity.
 fn grok_hook_config_is_valid(hook_path: &Path) -> bool {
     let Some(hooks_dir) = hook_path.parent() else {
         return false;
@@ -520,9 +522,7 @@ pub(crate) fn integration_status_at(
     }
     // The fork's space context hook sits beside the shared stock hook, so a
     // current stock install without it still needs the fork's reinstall.
-    if state == super::IntegrationStatusKind::Current
-        && !agent_context_hook_is_installed(target, &path)
-    {
+    if state == super::IntegrationStatusKind::Current && !fork_hooks_are_installed(target, &path) {
         state = super::IntegrationStatusKind::Outdated;
     }
 

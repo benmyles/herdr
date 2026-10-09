@@ -967,7 +967,7 @@ fn install_claude_writes_hook_and_updates_settings() {
         .as_str()
         .unwrap()
         .contains(" session"));
-    assert!(settings["hooks"].get("UserPromptSubmit").is_none());
+    assert_only_fork_prompt_hook(&settings);
     assert!(settings["hooks"].get("PreToolUse").is_none());
     assert!(settings["hooks"].get("PermissionRequest").is_none());
     assert!(settings["hooks"].get("PostToolUse").is_none());
@@ -1020,10 +1020,17 @@ fn install_claude_is_idempotent_for_hook_entries() {
         settings["hooks"]["SessionStart"].as_array().unwrap().len(),
         2
     );
-    assert!(super::claude_settings::has_agent_context(
+    // The fork's agent title hook is the only prompt hook.
+    assert_eq!(
+        settings["hooks"]["UserPromptSubmit"]
+            .as_array()
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(super::claude_settings::has_fork_hooks(
         &settings.to_string()
     ));
-    assert!(settings["hooks"].get("UserPromptSubmit").is_none());
     assert!(settings["hooks"].get("PreToolUse").is_none());
     assert!(settings["hooks"].get("PermissionRequest").is_none());
     assert!(settings["hooks"].get("PostToolUse").is_none());
@@ -1034,6 +1041,21 @@ fn install_claude_is_idempotent_for_hook_entries() {
 
     std::env::remove_var("HOME");
     let _ = fs::remove_dir_all(base);
+}
+
+/// A Claude Code install's only prompt hook is the fork's agent title hook;
+/// the stock integration reports no state on prompts.
+fn assert_only_fork_prompt_hook(settings: &Value) {
+    assert_eq!(
+        settings["hooks"]["UserPromptSubmit"],
+        json!([{
+            "hooks": [{
+                "type": "command",
+                "command": agent_title_hook_command(),
+                "timeout": 10,
+            }],
+        }])
+    );
 }
 
 #[test]
@@ -1105,7 +1127,7 @@ fn install_claude_removes_deprecated_completion_hooks_and_preserves_user_hooks()
         settings["hooks"]["SessionEnd"][0]["hooks"][0]["command"],
         "echo keep-session-end"
     );
-    assert!(settings["hooks"].get("UserPromptSubmit").is_none());
+    assert_only_fork_prompt_hook(&settings);
     assert!(settings["hooks"].get("PreToolUse").is_none());
     assert!(settings["hooks"].get("Stop").is_none());
 
@@ -1446,11 +1468,11 @@ fn installing_outdated_targets_repairs_installed_integrations_only() {
 
     assert!(install_outdated_targets().is_empty(), "nothing installed");
 
-    // A stock install: current hooks, but no space context hook.
+    // A stock install: current hooks, but none of the fork's.
     let claude = install_claude().unwrap();
     let settings = fs::read_to_string(&claude.settings_path).unwrap();
     let stock =
-        super::claude_settings::uninstall_agent_context(&settings, &claude.settings_path).unwrap();
+        super::claude_settings::uninstall_fork_hooks(&settings, &claude.settings_path).unwrap();
     fs::write(&claude.settings_path, &stock).unwrap();
 
     let repaired = install_outdated_targets();
@@ -1461,7 +1483,7 @@ fn installing_outdated_targets_repairs_installed_integrations_only() {
             .collect::<Vec<_>>(),
         vec![(crate::api::schema::IntegrationTarget::Claude, true)]
     );
-    assert!(super::claude_settings::has_agent_context(
+    assert!(super::claude_settings::has_fork_hooks(
         &fs::read_to_string(&claude.settings_path).unwrap()
     ));
     assert!(
@@ -1518,10 +1540,10 @@ fn agent_context_hook_is_required_for_a_current_claude_or_codex_install() {
         IntegrationStatusKind::Current
     );
 
-    // A stock install leaves the context hook out.
+    // A stock install leaves the fork's hooks out.
     let settings = fs::read_to_string(&claude.settings_path).unwrap();
     let without =
-        super::claude_settings::uninstall_agent_context(&settings, &claude.settings_path).unwrap();
+        super::claude_settings::uninstall_fork_hooks(&settings, &claude.settings_path).unwrap();
     assert!(!super::claude_settings::has_agent_context(&without));
     fs::write(&claude.settings_path, &without).unwrap();
     assert_eq!(
@@ -1548,21 +1570,33 @@ fn agent_context_hook_is_required_for_a_current_claude_or_codex_install() {
 }
 
 #[test]
-fn claude_agent_context_hook_install_keeps_existing_settings() {
+fn claude_fork_hooks_install_keeps_existing_settings() {
     let path = Path::new("/tmp/settings.json");
     let content = "{\n  \"model\": \"opus\",\n  \"hooks\": {\n    \"Stop\": []\n  }\n}\n";
-    let installed = super::claude_settings::install_agent_context(content, path).unwrap();
+    let installed = super::claude_settings::install_fork_hooks(content, path).unwrap();
     assert!(
         installed.starts_with("{\n  \"model\": \"opus\",\n"),
         "{installed}"
     );
-    assert!(super::claude_settings::has_agent_context(&installed));
+    assert!(super::claude_settings::has_fork_hooks(&installed));
+    let value: Value = serde_json::from_str(&installed).unwrap();
     assert_eq!(
-        super::claude_settings::install_agent_context(&installed, path).unwrap(),
+        value["hooks"]["UserPromptSubmit"],
+        json!([{
+            "hooks": [{
+                "type": "command",
+                "command": agent_title_hook_command(),
+                "timeout": 10,
+            }],
+        }]),
+        "prompt hooks take no matcher"
+    );
+    assert_eq!(
+        super::claude_settings::install_fork_hooks(&installed, path).unwrap(),
         installed,
         "installing twice changes nothing"
     );
-    let removed = super::claude_settings::uninstall_agent_context(&installed, path).unwrap();
+    let removed = super::claude_settings::uninstall_fork_hooks(&installed, path).unwrap();
     let value: Value = serde_json::from_str(&removed).unwrap();
     assert_eq!(value, json!({"model": "opus", "hooks": {"Stop": []}}));
 }
