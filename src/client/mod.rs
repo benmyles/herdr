@@ -1096,6 +1096,30 @@ async fn run_client_loop(
                 }
             }
             #[cfg(windows)]
+            ClientLoopEvent::NavigateHistory { forward } => {
+                if let Some(shell) = state.shell.as_mut() {
+                    let outcome = shell.handle_raw_events(vec![
+                        crate::raw_input::RawInputEvent::NavigateHistory { forward },
+                    ]);
+                    let frame = outcome
+                        .repaint
+                        .then(|| shell.compose(state.reported_size.0, state.reported_size.1))
+                        .flatten();
+                    if finish_client_shell_input(
+                        &mut state,
+                        outcome,
+                        frame,
+                        &mut write_stream,
+                        &mut pending_activation,
+                        &mut endpoint_commands,
+                        &mut prefix_input_source,
+                        &mut scheduled_activation,
+                    )? {
+                        return Ok(());
+                    }
+                }
+            }
+            #[cfg(windows)]
             ClientLoopEvent::StdinEvents(events) => {
                 let image_bridge_active = endpoint_accepts_local_images(
                     is_remote_client,
@@ -2244,6 +2268,9 @@ async fn run_client_loop(
                     let (effects, outcome, frame) = {
                         let shell = state.shell.as_mut().expect("checked shell mode");
                         let mut outcome = shell.tick_selection_autoscroll(now);
+                        if pending_activation.is_none() {
+                            shell.resume_navigation_history(&mut outcome);
+                        }
                         for expired in expired_endpoints {
                             if !shell.endpoint_is_active(&expired.endpoint_id) {
                                 continue;

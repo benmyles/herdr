@@ -6,6 +6,7 @@ mod agent_marks;
 mod agent_sidebar;
 mod aggregate_navigation;
 mod machine_diagnostics;
+mod navigation_history;
 mod workspace_navigation;
 use workspace_navigation::{PendingWorkspaceHighlight, WorkspaceNavigationTarget};
 mod composition;

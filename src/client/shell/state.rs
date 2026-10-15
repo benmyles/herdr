@@ -1209,6 +1209,7 @@ pub(super) struct ClientCopyModeState {
 }
 
 pub(crate) struct ClientShellState {
+    pub(super) navigation_history: super::navigation_history::NavigationHistory,
     pub(super) machine_diagnostics: super::machine_diagnostics::MachineDiagnostics,
     pub(super) config: ClientShellConfig,
     pub(super) snapshot: Option<Box<ClientShellSnapshot>>,
@@ -1489,6 +1490,7 @@ impl ClientShellState {
             endpoint_error: None,
             endpoint_error_deadline: None,
             dismissed_product_announcement: None,
+            navigation_history: Default::default(),
             agent_grid_owner: None,
             agent_grid_filter: preferences.agent_grid_filter.unwrap_or_default(),
             agent_grid_zoomed: false,

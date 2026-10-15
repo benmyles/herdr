@@ -576,10 +576,27 @@ fn send_windows_raw_events(
     event_tx: &mpsc::Sender<ClientLoopEvent>,
 ) -> bool {
     let raw_event_count = events.len();
-    let events = events
-        .into_iter()
-        .filter_map(windows_client_input_event_from_raw)
-        .collect::<Vec<_>>();
+    let mut forwarded = Vec::new();
+    for event in events {
+        if let crate::raw_input::RawInputEvent::NavigateHistory { forward } = event {
+            if !forwarded.is_empty()
+                && event_tx
+                    .blocking_send(ClientLoopEvent::StdinEvents(std::mem::take(&mut forwarded)))
+                    .is_err()
+            {
+                return false;
+            }
+            if event_tx
+                .blocking_send(ClientLoopEvent::NavigateHistory { forward })
+                .is_err()
+            {
+                return false;
+            }
+        } else if let Some(event) = windows_client_input_event_from_raw(event) {
+            forwarded.push(event);
+        }
+    }
+    let events = forwarded;
     if events.is_empty() {
         return true;
     }
@@ -645,6 +662,7 @@ fn windows_client_input_event_from_raw(
         | crate::raw_input::RawInputEvent::HostPaletteColors { .. }
         | crate::raw_input::RawInputEvent::HostColorSchemeChanged(_)
         | crate::raw_input::RawInputEvent::HostCellSizeReport { .. }
+        | crate::raw_input::RawInputEvent::NavigateHistory { .. }
         | crate::raw_input::RawInputEvent::Unsupported => None,
     }
 }

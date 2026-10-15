@@ -106,7 +106,12 @@ impl ClientShellState {
             return ClientShellInput::default();
         };
         let events = crate::raw_input::parse_raw_input_bytes_sync(&cell_report);
-        if events.len() != 1 || !matches!(events[0], RawInputEvent::Mouse(_)) {
+        if events.len() != 1
+            || !matches!(
+                events[0],
+                RawInputEvent::Mouse(_) | RawInputEvent::NavigateHistory { .. }
+            )
+        {
             return ClientShellInput::default();
         }
         self.host_mouse_pixels = Some(crate::input::mouse::HostPixels { x, y, geometry });
@@ -163,6 +168,22 @@ impl ClientShellState {
             outcome.repaint = true;
         }
         for event in events {
+            if let RawInputEvent::NavigateHistory { forward } = event {
+                self.navigate_history(forward, &mut outcome);
+                continue;
+            }
+            if let RawInputEvent::Key(key) = &event {
+                if key.modifiers == (KeyModifiers::CONTROL | KeyModifiers::ALT)
+                    && matches!(key.code, KeyCode::Left | KeyCode::Right)
+                {
+                    if key.kind != KeyEventKind::Release {
+                        self.navigate_history(key.code == KeyCode::Right, &mut outcome);
+                    }
+                    continue;
+                }
+            }
+            self.observe_navigation_location();
+            let navigation_start = outcome.actions.len();
             if self.handle_machine_badge_event(&event, &mut outcome) {
                 continue;
             }
@@ -293,8 +314,10 @@ impl ClientShellState {
                 RawInputEvent::HostDefaultColor { .. }
                 | RawInputEvent::HostPaletteColors { .. }
                 | RawInputEvent::HostCellSizeReport { .. }
+                | RawInputEvent::NavigateHistory { .. }
                 | RawInputEvent::Unsupported => {}
             }
+            self.record_navigation_actions(&outcome.actions[navigation_start..]);
             self.reconcile_input_source();
         }
         outcome.repaint |= self.resume_mobile_switcher_if_ready();
@@ -351,7 +374,7 @@ impl ClientShellState {
         }
     }
 
-    fn release_input_leases(&mut self, outcome: &mut ClientShellInput) {
+    pub(super) fn release_input_leases(&mut self, outcome: &mut ClientShellInput) {
         for lease in self.input_leases.remove_source(LOCAL_INPUT_SOURCE) {
             self.push_pane_key(
                 lease.target,

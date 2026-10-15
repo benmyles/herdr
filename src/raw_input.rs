@@ -52,6 +52,10 @@ pub enum RawInputEvent {
     Text(TextCommit),
     Paste(String),
     Mouse(MouseEvent),
+    /// Host side buttons belong to the client, never to a pane's mouse protocol.
+    NavigateHistory {
+        forward: bool,
+    },
     OuterFocusGained,
     OuterFocusLost,
     HostDefaultColor {
@@ -611,8 +615,12 @@ fn extract_one_event(buffer: &[u8]) -> Option<(RawInputEvent, usize)> {
     if buffer[0] == ESC {
         let seq_len = complete_escape_sequence_len(buffer)?;
         if buffer[..seq_len].starts_with(b"\x1b[M") {
-            let event = parse_default_mouse(&buffer[..seq_len])
-                .map(RawInputEvent::Mouse)
+            let navigation = buffer
+                .get(3)
+                .and_then(|cb| cb.checked_sub(32))
+                .and_then(|cb| navigation_mouse_button(cb, false));
+            let event = navigation
+                .or_else(|| parse_default_mouse(&buffer[..seq_len]).map(RawInputEvent::Mouse))
                 .unwrap_or(RawInputEvent::Unsupported);
             return Some((event, seq_len));
         }
@@ -650,6 +658,9 @@ fn extract_one_event(buffer: &[u8]) -> Option<(RawInputEvent, usize)> {
             ));
         }
 
+        if let Some(event) = parse_navigation_mouse(seq) {
+            return Some((event, seq_len));
+        }
         if let Some(mouse) = parse_sgr_mouse(seq) {
             return Some((RawInputEvent::Mouse(mouse), seq_len));
         }
@@ -805,7 +816,7 @@ fn complete_escape_sequence_len(buffer: &[u8]) -> Option<usize> {
     if buffer.starts_with(b"\x1b\x1b[<") {
         if let Some(mouse_len) = find_csi_final(&buffer[1..], b"Mm") {
             let mouse_sequence = std::str::from_utf8(&buffer[1..1 + mouse_len]).ok()?;
-            if parse_sgr_mouse(mouse_sequence).is_some() {
+            if valid_sgr_mouse(mouse_sequence) {
                 return Some(1);
             }
         }
@@ -913,7 +924,7 @@ fn discard_complete_orphaned_sgr_mouse_tail(buffer: &mut Vec<u8>) -> bool {
     let Ok(sequence) = std::str::from_utf8(&sequence) else {
         return false;
     };
-    if parse_sgr_mouse(sequence).is_none() {
+    if !valid_sgr_mouse(sequence) {
         return false;
     }
     buffer.drain(..terminator_len);
@@ -965,8 +976,7 @@ fn classify_sgr_mouse_continuation(prefix: &[u8], tail: &[u8]) -> SgrMouseContin
         report.push(tail[index]);
         let valid = std::str::from_utf8(&report)
             .ok()
-            .and_then(parse_sgr_mouse)
-            .is_some();
+            .is_some_and(valid_sgr_mouse);
         return if valid {
             SgrMouseContinuation::Complete(index + 1)
         } else {
@@ -1007,7 +1017,10 @@ fn plausible_sgr_mouse_prefix(report: &[u8]) -> bool {
             return false;
         }
         if fields.peek().is_some()
-            && ((field == 0 && parse_mouse_cb(value as u8).is_none()) || (field == 1 && value == 0))
+            && ((field == 0
+                && parse_mouse_cb(value as u8).is_none()
+                && navigation_mouse_button(value as u8, false).is_none())
+                || (field == 1 && value == 0))
         {
             return false;
         }
@@ -1058,6 +1071,40 @@ fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     haystack
         .windows(needle.len())
         .position(|window| window == needle)
+}
+
+fn navigation_mouse_button(cb: u8, released: bool) -> Option<RawInputEvent> {
+    match cb & !0b0001_1100 {
+        128 | 129 => Some(if released {
+            RawInputEvent::Unsupported
+        } else {
+            RawInputEvent::NavigateHistory {
+                forward: cb & 1 != 0,
+            }
+        }),
+        _ => None,
+    }
+}
+
+fn parse_navigation_mouse(sequence: &str) -> Option<RawInputEvent> {
+    let payload = sequence.strip_prefix("\x1b[<")?;
+    let released = match payload.as_bytes().last()? {
+        b'M' => false,
+        b'm' => true,
+        _ => return None,
+    };
+    let mut parts = payload[..payload.len() - 1].split(';');
+    let cb = parts.next()?.parse::<u8>().ok()?;
+    let _column = parts.next()?.parse::<u16>().ok()?.checked_sub(1)?;
+    let _row = parts.next()?.parse::<u16>().ok()?.checked_sub(1)?;
+    if parts.next().is_some() {
+        return None;
+    }
+    navigation_mouse_button(cb, released)
+}
+
+fn valid_sgr_mouse(sequence: &str) -> bool {
+    parse_sgr_mouse(sequence).is_some() || parse_navigation_mouse(sequence).is_some()
 }
 
 fn parse_default_mouse(sequence: &[u8]) -> Option<MouseEvent> {
@@ -1146,6 +1193,44 @@ fn parse_mouse_cb(cb: u8) -> Option<(MouseEventKind, KeyModifiers)> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn navigation_history_mouse_buttons_fragmentation_and_modifiers() {
+        for (cb, forward) in [(128, false), (129, true), (132, false), (157, true)] {
+            let report = format!("\x1b[<{cb};20;10M");
+            for split in 1..report.len() {
+                let mut framer = super::RawInputFramer::default();
+                let mut events = framer.push(&report.as_bytes()[..split]);
+                events.extend(framer.push(&report.as_bytes()[split..]));
+                assert!(
+                    matches!(events.as_slice(), [super::RawInputEvent::NavigateHistory { forward: actual }] if *actual == forward)
+                );
+            }
+        }
+        let events = super::parse_raw_input_bytes_sync(b"\x1b[<128;1;1m\x1b[<129;1;1m");
+        assert!(events
+            .iter()
+            .all(|event| matches!(event, super::RawInputEvent::Unsupported)));
+    }
+
+    #[test]
+    fn navigation_history_mouse_x10_and_escape_prefix() {
+        let events = super::parse_raw_input_bytes_sync(b"\x1b[M\xa0!!\x1b[M\xa1!!");
+        assert!(matches!(
+            events.as_slice(),
+            [
+                super::RawInputEvent::NavigateHistory { forward: false },
+                super::RawInputEvent::NavigateHistory { forward: true }
+            ]
+        ));
+        let events = super::parse_raw_input_bytes_sync(b"\x1b\x1b[<128;1;1M");
+        assert!(matches!(
+            events.as_slice(),
+            [
+                super::RawInputEvent::Key(_),
+                super::RawInputEvent::NavigateHistory { forward: false }
+            ]
+        ));
+    }
     use super::*;
     use crossterm::event::{KeyCode, KeyEventKind};
 

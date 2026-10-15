@@ -31,6 +31,14 @@ If you want to end the session and stop its panes, stop the server:
 herdr server stop
 ```
 
+## Back and Forward
+
+Use your mouse's Back and Forward buttons to retrace views in the current client. `ctrl+alt+left` and `ctrl+alt+right` do the same thing. The buttons require mouse capture and a terminal that forwards side-button reports; if your terminal consumes them, map the buttons to these shortcuts in your mouse or terminal settings.
+
+History remembers the selected workspace, tab, and pane, tab zoom, and the agents grid's filter and zoom. For example, opening the agents grid from tab 2 and zooming a tile creates three destinations: tab 2, the tiled grid, and the zoomed tile. Back walks through them in reverse; Forward retraces them.
+
+Selecting a new destination after going Back clears the forward path. Closed panes and unavailable connections are skipped. History belongs to each attached client and resets when that client exits. It restores navigation, not terminal output, commands, or closed panes.
+
 ## Remote work through normal SSH
 
 SSH to the machine that has the code and credentials, then run Herdr there:

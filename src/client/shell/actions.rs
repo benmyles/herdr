@@ -532,6 +532,7 @@ impl ClientShellState {
         request_id: &str,
         result: Result<crate::api::schema::ResponseResult, ClientShellEndpointError>,
     ) -> (bool, Vec<ClientShellAction>) {
+        self.navigation_request_finished(request_id, result.is_ok());
         let Some(pending) = self.pending_requests.remove(request_id) else {
             return (false, Vec::new());
         };
