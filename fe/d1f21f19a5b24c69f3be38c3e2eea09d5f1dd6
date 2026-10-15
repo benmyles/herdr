@@ -1,0 +1,55 @@
+src/client/shell/tests/navigation_history.rs
+  s_4b6ec90f873f23::t_3a0006b4d5e885 1-359
+src/client/mod.rs
+  s_4b6ec90f873f23::t_b14d7116bcb12a 1099-1101,1103-1122
+  s_4b6ec90f873f23::t_754ccba743cb51 2271-2273
+  s_4b6ec90f873f23::t_2ecce5f9004f69 1102
+src/client/shell/actions.rs
+  s_4b6ec90f873f23::t_754ccba743cb51 535
+src/raw_input.rs
+  s_4b6ec90f873f23::t_b14d7116bcb12a 55-56,58,618-623,661-663,819,927,979,1020-1023,1076-1081,1083-1108
+  s_4b6ec90f873f23::t_593f3312ab0649 1196-1233
+  s_4b6ec90f873f23::t_da0b200a8f6b7b 57,1082,1109
+src/client/input.rs
+  s_4b6ec90f873f23::t_b14d7116bcb12a 579-599,665
+docs/next/website/src/content/docs/zh-cn/how-to-work.mdx
+  s_4b6ec90f873f23::t_de5b254765c38f 34-41
+src/client/shell/state.rs
+  s_4b6ec90f873f23::t_8da8e4896d0a5d 1212,1493
+src/client/events.rs
+  s_4b6ec90f873f23::t_b14d7116bcb12a 13-14,16
+  s_4b6ec90f873f23::t_c41f0c8bc53487 15
+src/client/shell/navigation_history.rs
+  s_4b6ec90f873f23::t_56ace461a80ce4 27,33-35,46,48,51,53-54,57,62-66,69-72,82-84,88-89,236-238,244,246-248,362-364,370,481,569
+  s_4b6ec90f873f23::t_94cfecb308f527 25-26,235,239-243,245,249-250,278,296-308,311,368-369,379-385,480,568,570
+  s_4b6ec90f873f23::t_3a0006b4d5e885 60-61,67-68,73-81,85-87,119-121,155-158,165-176,376-377,418-430,438-441,575-578
+  s_4b6ec90f873f23::t_6d59bcb5d5e9ac 227-233,416-417
+  s_4b6ec90f873f23::t_010a317b375a21 437,483
+  s_4b6ec90f873f23::t_de5b254765c38f 468-470,476
+  s_4b6ec90f873f23::t_175d36ebc621d0 1-24,28-32,36-45,47,49-50,52,55-56,58-59,90-118,122-154,159-164,177-224,226,234,251-273,275-277,279-295,309-310,312-316,318-323,325-326,328-333,335-348,350-361,365-367,371-375,378,386-400,402,405-414,431-436,442-450,452-467,471-475,477-479,482,484-498,500-517,519,521-524,526,528-540,542-543,545-556,558-567,571-574
+  s_4b6ec90f873f23::t_aa29bfd235243a 225,274,317,324,327,334,349,401,403-404,415,451,499,518,520,525,527,541,544,557
+src/client/shell/input.rs
+  s_4b6ec90f873f23::t_754ccba743cb51 109-114,171-186,317,320,377
+src/server/pane_input.rs
+  s_4b6ec90f873f23::t_b14d7116bcb12a 334
+docs/next/website/src/content/docs/how-to-work.mdx
+  s_4b6ec90f873f23::t_010a317b375a21 34-41
+src/client/shell.rs
+  s_4b6ec90f873f23::t_8da8e4896d0a5d 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fed1f21f19a5b24c69f3be38c3e2eea09d5f1dd6",
+  "prompts": {},
+  "sessions": {
+    "s_4b6ec90f873f23": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "01a14078-107a-7823-9ada-f5eddb094078",
+        "model": "gpt-6-astra"
+      },
+      "human_author": "Ben Myles <ben@shiftupai.com>"
+    }
+  }
+}
