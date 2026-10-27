@@ -1058,11 +1058,16 @@ impl App {
             Method::SpaceAgentContextSet(params) => {
                 return self.handle_space_agent_context_set(request.id, params);
             }
-            Method::SpaceWorktreeCreate(_) => {
+            Method::SpaceWorktreeCreate(_)
+            | Method::SpaceWorktreeCheckout(_)
+            | Method::RepoRemoteBranches(_) => {
                 return responses::encode_error(
                     request.id,
                     "invalid_request",
-                    "space.worktree.create is handled asynchronously by the app runtime",
+                    format!(
+                        "{} is handled asynchronously by the app runtime",
+                        crate::api::api_method_name(&request.method)
+                    ),
                 );
             }
             Method::SpaceWorktreeOpen(params) => {

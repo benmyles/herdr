@@ -570,6 +570,7 @@ impl ClientShellState {
                 PendingEndpointKind::SpaceWorktreeCreate { .. }
                     | PendingEndpointKind::SpaceWorktreeList { .. }
                     | PendingEndpointKind::SpaceWorktreeOpen
+                    | PendingEndpointKind::RepoRemoteBranches { .. }
                     | PendingEndpointKind::RepoSave
             ) && !matches!(
                 code,
@@ -885,7 +886,8 @@ impl ClientShellState {
                 return self.handle_settings_endpoint_result(kind, result);
             }
             kind @ (PendingEndpointKind::SpaceWorktreeList { .. }
-            | PendingEndpointKind::SpaceWorktreeOpen) => {
+            | PendingEndpointKind::SpaceWorktreeOpen
+            | PendingEndpointKind::RepoRemoteBranches { .. }) => {
                 return (
                     self.handle_existing_worktree_result(kind, result),
                     Vec::new(),

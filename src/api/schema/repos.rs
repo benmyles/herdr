@@ -152,3 +152,39 @@ pub struct SpaceWorktreeCreatedInfo {
     pub worktree: WorktreeInfo,
     pub sync: WorktreeSyncInfo,
 }
+
+/// Lists the branches on a repo's remote, most recently committed first.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct RepoRemoteBranchesParams {
+    pub repo: String,
+    /// Fetch the remote first. A failed fetch still lists the branches
+    /// already known, with `fetch_error` set.
+    #[serde(default)]
+    pub fetch: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct RemoteBranchInfo {
+    /// Branch name without the remote, e.g. `feature/login`.
+    pub name: String,
+    /// Committer date of the branch tip, in Unix seconds.
+    pub committed_at: i64,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub author: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub subject: String,
+    /// Where a local branch of the same name is checked out, if anywhere.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub checkout_path: Option<String>,
+}
+
+/// Checks out an existing branch, local or remote-only, as a new worktree
+/// for a space. The branch is used as-is, without the repo's branch prefix.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct SpaceWorktreeCheckoutParams {
+    pub space_id: String,
+    pub repo: String,
+    pub branch: String,
+    #[serde(default)]
+    pub focus: bool,
+}

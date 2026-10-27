@@ -34,6 +34,7 @@ mod notifications;
 mod overlay_input;
 mod palette_usage;
 mod preferences;
+mod remote_branches;
 mod render;
 mod scroll;
 mod settings;

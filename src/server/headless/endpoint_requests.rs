@@ -143,6 +143,7 @@ impl HeadlessServer {
                 &request.method,
                 api::schema::Method::WorktreeCreate(_)
                     | api::schema::Method::SpaceWorktreeCreate(_)
+                    | api::schema::Method::SpaceWorktreeCheckout(_)
                     | api::schema::Method::WorktreeRemove(_)
                     | api::schema::Method::WorktreeList(_)
                     | api::schema::Method::WorktreeOpen(_)
@@ -150,6 +151,7 @@ impl HeadlessServer {
             let deferred_navigation = match &request.method {
                 api::schema::Method::WorktreeCreate(params) => params.focus,
                 api::schema::Method::SpaceWorktreeCreate(params) => params.focus,
+                api::schema::Method::SpaceWorktreeCheckout(params) => params.focus,
                 api::schema::Method::WorktreeOpen(params) => params.focus,
                 _ => false,
             };

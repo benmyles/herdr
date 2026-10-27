@@ -103,6 +103,8 @@ Spaces organize workspaces by what you are working on, such as a feature that sp
 
 If the fetch fails, for example when offline, the dialog offers to create the worktree from the local base branch instead. When some repos fail, the dialog stays open with only those repos checked, so `↵` retries just them.
 
+The dialog's **remote branch** tab (click it, or press `ctrl+t`) checks out a branch that already exists on a repo's remote instead. It lists the remote's branches newest first, from what is already fetched, then fetches and refreshes the list. Typing filters by branch name or author, and `tab` moves to the next repo. Picking a branch creates a local branch that tracks it and opens the checkout in the space; the checkout is named after the branch without the repo's branch prefix. A branch that is already checked out somewhere is marked as such, and picking it opens that checkout instead.
+
 Checkouts are placed according to a path template:
 
 ```toml

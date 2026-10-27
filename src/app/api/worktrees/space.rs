@@ -1,14 +1,27 @@
 use std::path::PathBuf;
 
 use crate::api::schema::{
-    ResponseResult, SpaceWorktreeCreateParams, SpaceWorktreeCreatedInfo, WorktreeBranchSource,
-    WorktreeSyncInfo,
+    RemoteBranchInfo, RepoRemoteBranchesParams, ResponseResult, SpaceWorktreeCheckoutParams,
+    SpaceWorktreeCreateParams, SpaceWorktreeCreatedInfo, WorktreeBranchSource, WorktreeSyncInfo,
 };
 use crate::app::App;
 use crate::events::{ApiWorktreeAddRequest, AppEvent, WorktreeAddResult};
 use crate::worktree::{BranchSource, SpaceWorktreeReport};
 
 use super::super::responses::{encode_error, encode_success};
+
+/// A space worktree to create, from `space.worktree.create` or
+/// `space.worktree.checkout`.
+struct SpaceWorktreeRequest {
+    space_id: String,
+    repo: String,
+    /// Names the checkout folder.
+    name: String,
+    /// The branch as-is; `None` derives it from the name and branch prefix.
+    branch: Option<String>,
+    sync: bool,
+    focus: bool,
+}
 
 fn sync_info(report: &SpaceWorktreeReport) -> WorktreeSyncInfo {
     let (branch_source, start_point) = match &report.branch_source {
@@ -48,6 +61,67 @@ impl App {
         params: SpaceWorktreeCreateParams,
         respond_to: std::sync::mpsc::Sender<String>,
     ) {
+        let request = SpaceWorktreeRequest {
+            space_id: params.space_id,
+            repo: params.repo,
+            name: params.name.trim().to_owned(),
+            branch: None,
+            sync: params.sync,
+            focus: params.focus,
+        };
+        if request.name.is_empty() {
+            Self::send_api_response(
+                respond_to,
+                encode_error(id, "invalid_request", "worktree name is required"),
+            );
+            return;
+        }
+        self.start_space_worktree(id, request, respond_to);
+    }
+
+    /// An existing branch as a new worktree. It is named after the branch
+    /// without the repo's branch prefix, so its checkout lands where a
+    /// worktree created under that name would.
+    pub(super) fn start_space_worktree_checkout(
+        &mut self,
+        id: String,
+        params: SpaceWorktreeCheckoutParams,
+        respond_to: std::sync::mpsc::Sender<String>,
+    ) {
+        let branch = params.branch.trim().to_owned();
+        if branch.is_empty() {
+            Self::send_api_response(
+                respond_to,
+                encode_error(id, "invalid_request", "branch is required"),
+            );
+            return;
+        }
+        let prefix = crate::repos::find(&self.state.repos, &params.repo)
+            .map(|repo| repo.settings.branch_prefix.as_str())
+            .unwrap_or_default();
+        let name = branch
+            .strip_prefix(prefix)
+            .filter(|name| !prefix.is_empty() && !name.is_empty())
+            .unwrap_or(&branch)
+            .to_owned();
+        let request = SpaceWorktreeRequest {
+            space_id: params.space_id,
+            repo: params.repo,
+            name,
+            branch: Some(branch),
+            // The branch list fetched already; checking out needs no base.
+            sync: false,
+            focus: params.focus,
+        };
+        self.start_space_worktree(id, request, respond_to);
+    }
+
+    fn start_space_worktree(
+        &mut self,
+        id: String,
+        params: SpaceWorktreeRequest,
+        respond_to: std::sync::mpsc::Sender<String>,
+    ) {
         let fail = |respond_to, code: &str, message: String| {
             Self::send_api_response(respond_to, encode_error(id.clone(), code, message));
         };
@@ -67,15 +141,7 @@ impl App {
             );
             return;
         };
-        let name = params.name.trim().to_owned();
-        if name.is_empty() {
-            fail(
-                respond_to,
-                "invalid_request",
-                "worktree name is required".into(),
-            );
-            return;
-        }
+        let name = params.name;
         let repo_root = repo.root_path();
         let Some(git_space) = crate::workspace::git_space_metadata(&repo_root) else {
             fail(
@@ -120,7 +186,7 @@ impl App {
         self.pending_api_worktree_creates
             .insert(checkout_key.clone(), operation_id);
 
-        let branch = repo.branch_for(&name);
+        let branch = params.branch.unwrap_or_else(|| repo.branch_for(&name));
         let space_name = self.state.spaces[space_idx].name.clone();
         let settings = &repo.settings;
         let setup = crate::events::WorktreeSetupPlan {
@@ -169,6 +235,66 @@ impl App {
                     space_outcome: Some(outcome.map_err(|failure| failure.code)),
                 },
             )));
+        });
+    }
+
+    pub(super) fn start_repo_remote_branches(
+        &mut self,
+        id: String,
+        params: RepoRemoteBranchesParams,
+        respond_to: std::sync::mpsc::Sender<String>,
+    ) {
+        let Some(repo) = crate::repos::find(&self.state.repos, &params.repo).cloned() else {
+            Self::send_api_response(
+                respond_to,
+                encode_error(
+                    id,
+                    "repo_not_found",
+                    format!("repo {} not found", params.repo),
+                ),
+            );
+            return;
+        };
+        let Some(remote) = repo.remote.clone().filter(|remote| !remote.is_empty()) else {
+            Self::send_api_response(
+                respond_to,
+                encode_error(
+                    id,
+                    "repo_has_no_remote",
+                    format!("repo {} has no remote", repo.name),
+                ),
+            );
+            return;
+        };
+        let root = repo.root_path();
+        std::thread::spawn(move || {
+            let response = match crate::worktree::list_remote_branches(&root, &remote, params.fetch)
+            {
+                Ok(list) => encode_success(
+                    id,
+                    ResponseResult::RepoRemoteBranches {
+                        repo: repo.name,
+                        remote,
+                        branches: list
+                            .branches
+                            .into_iter()
+                            .map(|branch| RemoteBranchInfo {
+                                name: branch.name,
+                                committed_at: branch.committed_at,
+                                author: branch.author,
+                                subject: branch.subject,
+                                checkout_path: branch
+                                    .checkout
+                                    .map(|path| path.display().to_string()),
+                            })
+                            .collect(),
+                        truncated: list.truncated,
+                        fetch_error: list.fetch_error,
+                    },
+                ),
+                Err(err) => encode_error(id, "repo_unavailable", err),
+            };
+            Self::send_api_response(respond_to, response);
         });
     }
 

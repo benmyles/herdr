@@ -667,6 +667,7 @@ impl ClientShellState {
                 | PendingEndpointKind::SpaceCreate
                 | PendingEndpointKind::SpaceWorktreeList { .. }
                 | PendingEndpointKind::SpaceWorktreeOpen
+                | PendingEndpointKind::RepoRemoteBranches { .. }
                 | PendingEndpointKind::SpaceWorktreeCreate { .. }
                 | PendingEndpointKind::RepoSave
                 | PendingEndpointKind::RepoRemove,

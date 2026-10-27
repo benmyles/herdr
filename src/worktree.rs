@@ -2,9 +2,11 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 mod hooks;
+mod remote_branches;
 mod space_create;
 
 pub(crate) use hooks::{hook_env, hook_log_path, WorktreeHook};
+pub(crate) use remote_branches::list_remote_branches;
 pub(crate) use space_create::{
     create_space_worktree, BranchSource, SpaceWorktreePlan, SpaceWorktreeReport,
 };

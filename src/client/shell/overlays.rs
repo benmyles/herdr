@@ -1,6 +1,7 @@
 use super::*;
 
 mod command_palette_overlay;
+mod remote_branch_overlay;
 mod repo_overlays;
 mod settings_overlay;
 

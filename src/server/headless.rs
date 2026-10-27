@@ -2957,11 +2957,16 @@ impl HeadlessServer {
             &msg.request.method,
             api::schema::Method::WorktreeCreate(_)
                 | api::schema::Method::SpaceWorktreeCreate(_)
+                | api::schema::Method::SpaceWorktreeCheckout(_)
+                | api::schema::Method::RepoRemoteBranches(_)
                 | api::schema::Method::WorktreeRemove(_)
                 | api::schema::Method::WorktreeList(_)
                 | api::schema::Method::WorktreeOpen(_)
         ) {
-            let read_only = matches!(&msg.request.method, api::schema::Method::WorktreeList(_));
+            let read_only = matches!(
+                &msg.request.method,
+                api::schema::Method::WorktreeList(_) | api::schema::Method::RepoRemoteBranches(_)
+            );
             let deferred_changed = self.app.handle_deferred_worktree_api_request(
                 msg.request,
                 msg.respond_to,

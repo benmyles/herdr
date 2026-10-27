@@ -107,6 +107,8 @@ pub enum Method {
     SpaceWorktreeCreate(SpaceWorktreeCreateParams),
     #[serde(rename = "space.worktree.open")]
     SpaceWorktreeOpen(SpaceWorktreeOpenParams),
+    #[serde(rename = "space.worktree.checkout")]
+    SpaceWorktreeCheckout(SpaceWorktreeCheckoutParams),
     #[serde(rename = "repo.list")]
     RepoList(EmptyParams),
     #[serde(rename = "repo.add")]
@@ -117,6 +119,8 @@ pub enum Method {
     RepoRemove(RepoTarget),
     #[serde(rename = "repo.settings.set")]
     RepoSettingsSet(RepoSettingsSetParams),
+    #[serde(rename = "repo.remote_branches")]
+    RepoRemoteBranches(RepoRemoteBranchesParams),
     #[serde(rename = "workspace.create")]
     WorkspaceCreate(WorkspaceCreateParams),
     #[serde(rename = "workspace.list")]

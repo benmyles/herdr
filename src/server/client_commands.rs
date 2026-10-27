@@ -43,6 +43,7 @@ const CLIENT_SHELL_METHODS: &[&str] = &[
     "release_notes.dismiss",
     "repo.add",
     "repo.list",
+    "repo.remote_branches",
     "repo.remove",
     "repo.settings.set",
     "repo.update",
@@ -56,6 +57,7 @@ const CLIENT_SHELL_METHODS: &[&str] = &[
     "space.member.remove",
     "space.move",
     "space.rename",
+    "space.worktree.checkout",
     "space.worktree.create",
     "space.worktree.open",
     "tab.close",
@@ -399,6 +401,14 @@ mod tests {
         assert_eq!(
             actual.remove("repo.update").as_deref(),
             Some("51cda2972d737344655ae26655f60d136e539adeb820bf79ddc1017634787a10")
+        );
+        assert_eq!(
+            actual.remove("repo.remote_branches").as_deref(),
+            Some("180cc228e227193d08147769866b8dc09ae3dcafe8067e3ee3d0ed0f72fc78d0")
+        );
+        assert_eq!(
+            actual.remove("space.worktree.checkout").as_deref(),
+            Some("b4ea871a8ed20d2548e58c938e1da62b7ec4192bf10944014ee40b274a7a4554")
         );
 
         assert_eq!(

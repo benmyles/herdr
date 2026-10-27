@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
-const FETCH_TIMEOUT: Duration = Duration::from_secs(90);
+pub(super) const FETCH_TIMEOUT: Duration = Duration::from_secs(90);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SpaceWorktreePlan {
@@ -113,7 +113,7 @@ pub(crate) fn create_space_worktree(
     let remote = plan.remote.as_deref().filter(|remote| !remote.is_empty());
     if plan.sync {
         if let Some(remote) = remote {
-            git.fetch(remote).map_err(|err| {
+            git.fetch(remote, FETCH_TIMEOUT).map_err(|err| {
                 SpaceWorktreeFailure::new(
                     "sync_fetch_failed",
                     format!("couldn't fetch {remote}: {err}"),
@@ -292,12 +292,12 @@ fn directory_has_entries(path: &Path) -> bool {
     }
 }
 
-struct Git<'a> {
+pub(super) struct Git<'a> {
     repo_root: &'a Path,
 }
 
 impl<'a> Git<'a> {
-    fn new(repo_root: &'a Path) -> Self {
+    pub(super) fn new(repo_root: &'a Path) -> Self {
         Self { repo_root }
     }
 
@@ -345,6 +345,23 @@ impl<'a> Git<'a> {
             .is_ok_and(|output| output.status.success() && output.stdout.is_empty())
     }
 
+    /// Standard output of a successful command.
+    pub(super) fn stdout(&self, args: &[&str]) -> Result<String, String> {
+        let output = self
+            .command()
+            .args(args)
+            .output()
+            .map_err(|err| err.to_string())?;
+        if output.status.success() {
+            return Ok(String::from_utf8_lossy(&output.stdout).into_owned());
+        }
+        Err(failure_message(
+            &output.stdout,
+            &output.stderr,
+            output.status,
+        ))
+    }
+
     fn run(&self, args: &[&str]) -> Result<(), String> {
         let output = self
             .command()
@@ -361,7 +378,7 @@ impl<'a> Git<'a> {
         ))
     }
 
-    fn fetch(&self, remote: &str) -> Result<(), String> {
+    pub(super) fn fetch(&self, remote: &str, timeout: Duration) -> Result<(), String> {
         let mut child = self
             .command()
             .args(["fetch", "--quiet", remote])
@@ -369,7 +386,7 @@ impl<'a> Git<'a> {
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|err| err.to_string())?;
-        let deadline = Instant::now() + FETCH_TIMEOUT;
+        let deadline = Instant::now() + timeout;
         loop {
             match child.try_wait() {
                 Ok(Some(status)) => {
@@ -386,10 +403,7 @@ impl<'a> Git<'a> {
                 Ok(None) if Instant::now() >= deadline => {
                     let _ = child.kill();
                     let _ = child.wait();
-                    return Err(format!(
-                        "timed out after {} seconds",
-                        FETCH_TIMEOUT.as_secs()
-                    ));
+                    return Err(format!("timed out after {} seconds", timeout.as_secs()));
                 }
                 Ok(None) => std::thread::sleep(Duration::from_millis(50)),
                 Err(err) => return Err(err.to_string()),
@@ -429,7 +443,7 @@ fn failure_message(stdout: &[u8], stderr: &[u8], status: std::process::ExitStatu
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
 
     fn temp_dir(name: &str) -> PathBuf {
@@ -445,7 +459,7 @@ mod tests {
         crate::worktree::canonical_or_original(&path)
     }
 
-    fn git(dir: &Path, args: &[&str]) -> String {
+    pub(in crate::worktree) fn git(dir: &Path, args: &[&str]) -> String {
         let output = Command::new("git")
             .arg("-C")
             .arg(dir)
@@ -462,14 +476,14 @@ mod tests {
         String::from_utf8_lossy(&output.stdout).trim().to_owned()
     }
 
-    fn commit(dir: &Path, file: &str) {
+    pub(in crate::worktree) fn commit(dir: &Path, file: &str) {
         std::fs::write(dir.join(file), file).unwrap();
         git(dir, &["add", file]);
         git(dir, &["commit", "--quiet", "-m", file]);
     }
 
     /// An "origin" repo plus a clone of it acting as the configured root.
-    fn origin_and_root(name: &str) -> (PathBuf, PathBuf, PathBuf) {
+    pub(in crate::worktree) fn origin_and_root(name: &str) -> (PathBuf, PathBuf, PathBuf) {
         let base = temp_dir(name);
         let origin = base.join("origin");
         std::fs::create_dir_all(&origin).unwrap();

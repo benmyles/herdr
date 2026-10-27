@@ -159,7 +159,7 @@ fn optional(text: &str) -> Option<String> {
 }
 
 impl ClientShellState {
-    fn endpoint_repos(&self) -> &[crate::protocol::ClientShellRepo] {
+    pub(super) fn endpoint_repos(&self) -> &[crate::protocol::ClientShellRepo] {
         self.snapshot
             .as_deref()
             .map(|snapshot| snapshot.repos.as_slice())
@@ -238,6 +238,11 @@ impl ClientShellState {
                 checked,
                 sync: true,
                 field: SpaceWorktreeField::Name,
+                tab: SpaceWorktreeTab::NewBranch,
+                remote: Box::new(ClientRemoteBranchPicker {
+                    available: self.endpoint_supports_remote_branches(),
+                    ..ClientRemoteBranchPicker::default()
+                }),
                 error: None,
                 offer_without_sync: false,
                 creating: false,
@@ -693,6 +698,11 @@ impl ClientShellState {
 
     pub(super) fn insert_repo_overlay_text(&mut self, text: &str) -> bool {
         match self.overlay.as_mut() {
+            Some(ClientShellOverlay::SpaceWorktree(dialog))
+                if dialog.tab == SpaceWorktreeTab::RemoteBranch =>
+            {
+                self.insert_remote_branch_text(text)
+            }
             Some(ClientShellOverlay::SpaceWorktree(dialog)) if !dialog.creating => {
                 dialog.field = SpaceWorktreeField::Name;
                 if dialog.name.insert(text) {
@@ -716,6 +726,9 @@ impl ClientShellState {
     ) -> bool {
         let (code, modifiers) = crate::config::normalize_key_combo((key.code, key.modifiers));
         let ctrl = modifiers == KeyModifiers::CONTROL;
+        if self.route_space_worktree_tab_key(key, outcome) {
+            return true;
+        }
         match self.overlay.as_ref() {
             Some(ClientShellOverlay::SpaceWorktree(dialog)) => {
                 outcome.repaint = true;
@@ -799,7 +812,13 @@ impl ClientShellState {
         outcome: &mut ClientShellInput,
     ) {
         outcome.repaint = true;
+        if self.click_remote_branch_hit(hit, outcome) {
+            return;
+        }
         match hit {
+            ClientOverlayHit::SpaceWorktreeTab(_)
+            | ClientOverlayHit::RemoteBranchRepo(_)
+            | ClientOverlayHit::RemoteBranch(_) => {}
             ClientOverlayHit::SpaceWorktreeRepo(index) => self.toggle_space_worktree_repo(index),
             ClientOverlayHit::SpaceWorktreeName => {
                 if let Some(ClientShellOverlay::SpaceWorktree(dialog)) = self.overlay.as_mut() {
@@ -864,6 +883,9 @@ impl ClientShellState {
     }
 
     pub(super) fn scroll_repo_overlay(&mut self, delta: isize) {
+        if self.scroll_remote_branches(delta) {
+            return;
+        }
         match self.overlay.as_ref() {
             Some(ClientShellOverlay::SpaceWorktree(_)) => self.move_space_worktree_repo(delta),
             Some(ClientShellOverlay::SpaceWorktreeOpen(_)) => {
@@ -875,6 +897,11 @@ impl ClientShellState {
 
     pub(super) fn submit_repo_overlay(&mut self, outcome: &mut ClientShellInput) {
         match self.overlay.as_ref() {
+            Some(ClientShellOverlay::SpaceWorktree(dialog))
+                if dialog.tab == SpaceWorktreeTab::RemoteBranch =>
+            {
+                self.submit_remote_branch(outcome)
+            }
             Some(ClientShellOverlay::SpaceWorktree(_)) => self.submit_space_worktree(outcome),
             Some(ClientShellOverlay::RepoEdit(_)) => self.submit_repo_edit(outcome),
             Some(ClientShellOverlay::SpaceWorktreeOpen(_)) => {
@@ -1169,18 +1196,39 @@ impl ClientShellState {
                 }
                 true
             }
+            // The remote branch tab opens a branch's existing checkout too.
             (PendingEndpointKind::SpaceWorktreeOpen, Ok(_)) => {
-                if matches!(self.overlay, Some(ClientShellOverlay::SpaceWorktreeOpen(_))) {
+                if matches!(
+                    self.overlay,
+                    Some(
+                        ClientShellOverlay::SpaceWorktreeOpen(_)
+                            | ClientShellOverlay::SpaceWorktree(ClientSpaceWorktreeOverlay {
+                                creating: true,
+                                ..
+                            })
+                    )
+                ) {
                     self.overlay = None;
                 }
                 true
             }
             (PendingEndpointKind::SpaceWorktreeOpen, Err(error)) => {
-                if let Some(ClientShellOverlay::SpaceWorktreeOpen(picker)) = self.overlay.as_mut() {
-                    picker.opening = false;
-                    picker.error = Some(error.message);
+                match self.overlay.as_mut() {
+                    Some(ClientShellOverlay::SpaceWorktreeOpen(picker)) => {
+                        picker.opening = false;
+                        picker.error = Some(error.message);
+                    }
+                    Some(ClientShellOverlay::SpaceWorktree(dialog)) if dialog.creating => {
+                        dialog.creating = false;
+                        dialog.in_flight.clear();
+                        dialog.error = Some(error.message);
+                    }
+                    _ => {}
                 }
                 true
+            }
+            (PendingEndpointKind::RepoRemoteBranches { repo, fetch }, result) => {
+                self.handle_remote_branches_result(repo, fetch, result)
             }
             _ => false,
         }

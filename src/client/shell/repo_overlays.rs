@@ -1,3 +1,4 @@
+use super::remote_branch_overlay::{render_remote_branch_tab, render_space_worktree_tabs};
 use super::*;
 
 const MAX_VISIBLE_REPOS: usize = 6;
@@ -220,7 +221,14 @@ pub(super) fn render_space_worktree_overlay(
     }
 
     let list_height = repos.len().min(MAX_VISIBLE_REPOS) as u16;
-    let popup = popup(b.area, 84, 17 + list_height)?;
+    // Both tabs share one height so switching doesn't move the dialog.
+    let tabs = dialog.remote.available;
+    let height = if tabs {
+        (19 + list_height).max(26)
+    } else {
+        17 + list_height
+    };
+    let popup = popup(b.area, 84, height)?;
     let inner = panel(b, popup, p.accent, p.panel_bg)?;
     let mut hits = Vec::new();
     put_text(
@@ -231,10 +239,17 @@ pub(super) fn render_space_worktree_overlay(
         &format!("new worktree in {}", dialog.space_name),
         title_style(p),
     );
+    if tabs {
+        render_space_worktree_tabs(b, inner, dialog, p, &mut hits);
+        if dialog.tab == SpaceWorktreeTab::RemoteBranch {
+            return render_remote_branch_tab(b, popup, inner, dialog, s, p, hits);
+        }
+    }
+    let top = if tabs { inner.y + 2 } else { inner.y };
     put_text(
         b,
         inner.x,
-        inner.y + 2,
+        top + 2,
         inner.width,
         " repos  (space checks)",
         label_style(p),
@@ -242,7 +257,7 @@ pub(super) fn render_space_worktree_overlay(
     let add_label = " + add repo ";
     let add = Rect::new(
         inner.right().saturating_sub(display_width(add_label) + 1),
-        inner.y + 2,
+        top + 2,
         display_width(add_label),
         1,
     );
@@ -255,7 +270,7 @@ pub(super) fn render_space_worktree_overlay(
         Style::default().fg(p.accent).bg(p.panel_bg),
     );
     hits.push((add, ClientOverlayHit::SpaceWorktreeAddRepo));
-    let list = Rect::new(inner.x, inner.y + 3, inner.width, list_height);
+    let list = Rect::new(inner.x, top + 3, inner.width, list_height);
     let selected = super::super::space_worktrees::selected_repo_index(dialog, repos);
     for (rect, index) in render_repo_rows(b, list, repos, selected, Some(&dialog.checked), p) {
         hits.push((rect, ClientOverlayHit::SpaceWorktreeRepo(index)));

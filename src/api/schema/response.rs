@@ -15,7 +15,7 @@ use super::plugins::{
     InstalledPluginInfo, PluginActionInfo, PluginCommandLogInfo, PluginInvocationContext,
     PluginPaneInfo,
 };
-use super::repos::{RepoInfo, SpaceWorktreeCreatedInfo};
+use super::repos::{RemoteBranchInfo, RepoInfo, SpaceWorktreeCreatedInfo};
 use super::server::ServerCapabilities;
 use super::session::SessionSnapshot;
 use super::spaces::SpaceInfo;
@@ -82,6 +82,16 @@ pub enum ResponseResult {
     },
     RepoList {
         repos: Vec<RepoInfo>,
+    },
+    RepoRemoteBranches {
+        repo: String,
+        remote: String,
+        branches: Vec<RemoteBranchInfo>,
+        /// Set when only the newest branches are listed.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        truncated: bool,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        fetch_error: Option<String>,
     },
     WorktreeList {
         source: WorktreeSourceInfo,

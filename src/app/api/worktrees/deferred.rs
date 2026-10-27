@@ -32,6 +32,14 @@ impl App {
                 self.start_space_worktree_create(request.id, params, respond_to);
                 true
             }
+            crate::api::schema::Method::SpaceWorktreeCheckout(params) => {
+                self.start_space_worktree_checkout(request.id, params, respond_to);
+                true
+            }
+            crate::api::schema::Method::RepoRemoteBranches(params) => {
+                self.start_repo_remote_branches(request.id, params, respond_to);
+                true
+            }
             crate::api::schema::Method::WorktreeRemove(params) => {
                 self.start_api_worktree_remove(request.id, params, respond_to);
                 true

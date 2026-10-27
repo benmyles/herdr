@@ -533,6 +533,70 @@ pub(super) enum SpaceWorktreeField {
     Sync,
 }
 
+/// The new worktree dialog's tabs.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(super) enum SpaceWorktreeTab {
+    /// A new branch for each checked repo.
+    #[default]
+    NewBranch,
+    /// An existing branch from one repo's remote.
+    RemoteBranch,
+}
+
+/// One repo's remote branches, for the dialog's remote branch tab.
+#[derive(Debug, Default)]
+pub(super) struct ClientRemoteBranchPicker {
+    /// The endpoint can list and check out remote branches.
+    pub(super) available: bool,
+    /// The listed repo, by name.
+    pub(super) repo: Option<String>,
+    pub(super) remote: Option<String>,
+    /// Most recently committed first.
+    pub(super) branches: Vec<crate::api::schema::RemoteBranchInfo>,
+    pub(super) truncated: bool,
+    /// Waiting for the first list of `repo`.
+    pub(super) loading: bool,
+    pub(super) fetching: bool,
+    /// Repos fetched since the dialog opened; switching back only re-lists.
+    pub(super) fetched: Vec<String>,
+    pub(super) fetch_error: Option<String>,
+    /// When the list arrived, in Unix seconds; ages are relative to it.
+    pub(super) listed_at: i64,
+    pub(super) query: TextEditor,
+    /// Index into `branches`.
+    pub(super) selected: usize,
+}
+
+impl ClientRemoteBranchPicker {
+    /// Branches matching every word of the query, in list order.
+    pub(super) fn filtered_indices(&self) -> Vec<usize> {
+        let query = self.query.trim().to_lowercase();
+        let words = query.split_whitespace().collect::<Vec<_>>();
+        self.branches
+            .iter()
+            .enumerate()
+            .filter(|(_, branch)| {
+                let name = branch.name.to_lowercase();
+                let author = branch.author.to_lowercase();
+                words
+                    .iter()
+                    .all(|word| name.contains(word) || author.contains(word))
+            })
+            .map(|(index, _)| index)
+            .collect()
+    }
+
+    /// The highlighted branch, or the first match when it is filtered out.
+    pub(super) fn selected_index(&self) -> Option<usize> {
+        let filtered = self.filtered_indices();
+        if filtered.contains(&self.selected) {
+            Some(self.selected)
+        } else {
+            filtered.first().copied()
+        }
+    }
+}
+
 /// New worktrees for a space, one per checked repo, all with one name.
 #[derive(Debug)]
 pub(super) struct ClientSpaceWorktreeOverlay {
@@ -545,6 +609,8 @@ pub(super) struct ClientSpaceWorktreeOverlay {
     pub(super) name: TextEditor,
     pub(super) sync: bool,
     pub(super) field: SpaceWorktreeField,
+    pub(super) tab: SpaceWorktreeTab,
+    pub(super) remote: Box<ClientRemoteBranchPicker>,
     pub(super) error: Option<String>,
     /// Set after a failed fetch: offer creating from the local base instead.
     pub(super) offer_without_sync: bool,
@@ -671,6 +737,9 @@ pub(super) enum ClientOverlayHit {
     SpaceWorktreeName,
     SpaceWorktreeSync,
     SpaceWorktreeAddRepo,
+    SpaceWorktreeTab(SpaceWorktreeTab),
+    RemoteBranchRepo(usize),
+    RemoteBranch(usize),
     ExistingWorktree(usize),
     RepoEditField(usize),
     SettingsAddRepo,
@@ -1000,6 +1069,11 @@ pub(super) enum PendingEndpointKind {
         repo: String,
     },
     SpaceWorktreeOpen,
+    /// One repo's remote branches for the new worktree dialog.
+    RepoRemoteBranches {
+        repo: String,
+        fetch: bool,
+    },
     RepoSave,
     RepoRemove,
     SelectionCopy,

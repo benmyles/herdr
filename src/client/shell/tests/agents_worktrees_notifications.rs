@@ -2763,3 +2763,202 @@ fn dragging_a_space_header_reorders_spaces() {
         "dragging a header does not collapse it"
     );
 }
+
+fn remote_branches(
+    repo: &str,
+    branches: &[(&str, i64, Option<&str>)],
+    fetch_error: Option<&str>,
+) -> crate::api::schema::ResponseResult {
+    crate::api::schema::ResponseResult::RepoRemoteBranches {
+        repo: repo.into(),
+        remote: "origin".into(),
+        branches: branches
+            .iter()
+            .map(
+                |(name, committed_at, checkout)| crate::api::schema::RemoteBranchInfo {
+                    name: (*name).into(),
+                    committed_at: *committed_at,
+                    author: "Ada".into(),
+                    subject: format!("work on {name}"),
+                    checkout_path: checkout.map(str::to_owned),
+                },
+            )
+            .collect(),
+        truncated: false,
+        fetch_error: fetch_error.map(str::to_owned),
+    }
+}
+
+fn remote_branch_requests(outcome: &ClientShellInput) -> Vec<(String, String, bool)> {
+    outcome
+        .actions
+        .iter()
+        .filter_map(|action| match action {
+            ClientShellAction::Endpoint { request, .. } => match &request.method {
+                crate::api::schema::Method::RepoRemoteBranches(params) => {
+                    Some((request.id.clone(), params.repo.clone(), params.fetch))
+                }
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn remote_branch_tab_lists_filters_and_checks_out_a_branch() {
+    let mut state = repo_state();
+    state.open_space_worktree_dialog("space_knowledge");
+    let text = screen_text(&mut state);
+    assert!(
+        text.contains("new branch") && text.contains("remote branch"),
+        "{text}"
+    );
+
+    // ctrl+t lists what is fetched already, then fetches and lists again.
+    let switched = state.handle_input_bytes(b"\x14");
+    let requests = remote_branch_requests(&switched);
+    let [(listed, repo, false), (fetched, _, true)] = &requests[..] else {
+        panic!("expected a list then a fetch, got {requests:?}");
+    };
+    assert_eq!(repo, "guided", "starts on the dialog's repo");
+    assert!(screen_text(&mut state).contains("loading…"));
+
+    state.handle_endpoint_result(
+        "boot-1",
+        listed,
+        Ok(remote_branches("guided", &[("main", 100, None)], None)),
+    );
+    let text = screen_text(&mut state);
+    assert!(text.contains("fetching origin"), "{text}");
+    state.handle_endpoint_result(
+        "boot-1",
+        fetched,
+        Ok(remote_branches(
+            "guided",
+            &[
+                ("feature/login", 200, None),
+                ("main", 100, Some("/code/guided")),
+                ("fix/crash", 50, None),
+            ],
+            None,
+        )),
+    );
+    let text = screen_text(&mut state);
+    assert!(text.contains("3 branches"), "{text}");
+    assert!(text.contains("feature/login"), "{text}");
+    assert!(text.contains("checked out"), "{text}");
+    assert!(
+        text.contains("/tmp/herdr-worktrees/knowledge/guided/feature-login"),
+        "{text}"
+    );
+
+    // Typing filters; the highlight moves to the first match.
+    state.handle_input_bytes(b"crash");
+    let text = screen_text(&mut state);
+    assert!(
+        text.contains("1 branches") && !text.contains("feature/login"),
+        "{text}"
+    );
+    let submit = state.handle_input_bytes(b"\r");
+    let [ClientShellAction::Endpoint { request, .. }] = &submit.actions[..] else {
+        panic!("expected space.worktree.checkout, got {:?}", submit.actions);
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::SpaceWorktreeCheckout(params)
+            if params.space_id == "space_knowledge"
+                && params.repo == "guided"
+                && params.branch == "fix/crash"
+    ));
+    let (_, actions) =
+        state.handle_endpoint_result("boot-1", &request.id, Ok(created_in_tab("ws_9:t1", &[])));
+    assert!(state.overlay.is_none());
+    assert!(matches!(
+        &actions[..],
+        [ClientShellAction::Endpoint { request, .. }]
+            if matches!(&request.method, crate::api::schema::Method::TabFocus(_))
+    ));
+}
+
+#[test]
+fn remote_branch_tab_opens_a_checked_out_branch_and_switches_repos() {
+    let mut state = repo_state();
+    state.open_space_worktree_dialog("space_knowledge");
+    let switched = state.handle_input_bytes(b"\x14");
+    let requests = remote_branch_requests(&switched);
+    for (id, _, fetch) in &requests {
+        state.handle_endpoint_result(
+            "boot-1",
+            id,
+            Ok(remote_branches(
+                "guided",
+                &[("main", 100, Some("/code/guided"))],
+                fetch.then_some("couldn't fetch origin: offline"),
+            )),
+        );
+    }
+    let text = screen_text(&mut state);
+    assert!(
+        text.contains("showing the branches already fetched"),
+        "{text}"
+    );
+    assert!(text.contains("open checkout"), "{text}");
+    assert!(
+        state.visible_endpoint_notice.is_none(),
+        "the dialog shows the failure itself"
+    );
+
+    let submit = state.handle_input_bytes(b"\r");
+    let [ClientShellAction::Endpoint { request, .. }] = &submit.actions[..] else {
+        panic!("expected space.worktree.open, got {:?}", submit.actions);
+    };
+    assert!(matches!(
+        &request.method,
+        crate::api::schema::Method::SpaceWorktreeOpen(params)
+            if params.path == "/code/guided" && params.space_id == "space_knowledge"
+    ));
+    state.handle_endpoint_result(
+        "boot-1",
+        &request.id,
+        Err(ClientShellEndpointError {
+            code: Some("worktree_open_failed".into()),
+            message: "workspace disappeared".into(),
+        }),
+    );
+    assert!(matches!(
+        &state.overlay,
+        Some(ClientShellOverlay::SpaceWorktree(dialog))
+            if !dialog.creating && dialog.error.as_deref() == Some("workspace disappeared")
+    ));
+
+    // Tab moves to the next repo, which is fetched once; coming back only
+    // re-lists.
+    let next = state.handle_input_bytes(b"\t");
+    let requests = remote_branch_requests(&next);
+    assert_eq!(
+        requests
+            .iter()
+            .map(|(_, repo, fetch)| (repo.as_str(), *fetch))
+            .collect::<Vec<_>>(),
+        [("pyshiftup", false), ("pyshiftup", true)]
+    );
+    let back = state.handle_input_bytes(b"\x1b[Z");
+    let requests = remote_branch_requests(&back);
+    assert_eq!(
+        requests
+            .iter()
+            .map(|(_, repo, fetch)| (repo.as_str(), *fetch))
+            .collect::<Vec<_>>(),
+        [("guided", false)]
+    );
+
+    // ctrl+t goes back to the new branch tab.
+    state.handle_input_bytes(b"\x14");
+    assert!(matches!(
+        &state.overlay,
+        Some(ClientShellOverlay::SpaceWorktree(dialog))
+            if dialog.tab == SpaceWorktreeTab::NewBranch
+                && dialog.selected_repo.as_deref() == Some("guided")
+    ));
+}

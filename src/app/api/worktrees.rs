@@ -875,6 +875,101 @@ mod tests {
         let _ = std::fs::remove_dir_all(repo);
     }
 
+    #[tokio::test]
+    async fn space_worktree_checkout_uses_the_branch_as_is() {
+        let repo = create_committed_repo("space-worktree-checkout-repo");
+        let output = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&repo)
+            .args(["branch", "ben/feature"])
+            .output()
+            .unwrap();
+        assert!(output.status.success());
+        let worktree_root = unique_temp_path("space-worktree-checkout-root");
+        let mut app = test_app();
+        app.state.worktree_directory = worktree_root.clone();
+        app.state.worktree_path_template = crate::worktree::resolve_space_path_template(
+            crate::worktree::DEFAULT_SPACE_PATH_TEMPLATE,
+            &worktree_root,
+        );
+        app.state.normalize_spaces();
+        let space_id = app.state.create_space("knowledge").unwrap();
+        app.state.repos = vec![crate::repos::Repo {
+            name: "pyshiftup".into(),
+            root: repo.display().to_string(),
+            base_branch: crate::workspace::git_branch(&repo).expect("repo branch"),
+            remote: None,
+            settings: crate::api::schema::RepoSettings {
+                branch_prefix: "ben/".into(),
+                ..Default::default()
+            },
+        }];
+        let respond = |app: &mut App, method| {
+            let (respond_to, response_rx) = response_channel();
+            let request = Request {
+                id: "req".into(),
+                method,
+            };
+            assert!(app.handle_deferred_worktree_api_request(request, respond_to, false));
+            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+            loop {
+                if let Ok(response) = response_rx.try_recv() {
+                    return response;
+                }
+                assert!(std::time::Instant::now() < deadline, "no response");
+                match app.event_rx.try_recv() {
+                    Ok(event) => app.handle_internal_event(event),
+                    Err(_) => std::thread::sleep(std::time::Duration::from_millis(20)),
+                }
+            }
+        };
+
+        let no_remote = respond(
+            &mut app,
+            crate::api::schema::Method::RepoRemoteBranches(
+                crate::api::schema::RepoRemoteBranchesParams {
+                    repo: "pyshiftup".into(),
+                    fetch: true,
+                },
+            ),
+        );
+        assert!(no_remote.contains("repo_has_no_remote"), "{no_remote}");
+
+        let response = respond(
+            &mut app,
+            crate::api::schema::Method::SpaceWorktreeCheckout(
+                crate::api::schema::SpaceWorktreeCheckoutParams {
+                    space_id: space_id.clone(),
+                    repo: "pyshiftup".into(),
+                    branch: "ben/feature".into(),
+                    focus: false,
+                },
+            ),
+        );
+        let success: SuccessResponse =
+            serde_json::from_str(&response).unwrap_or_else(|err| panic!("{response}: {err}"));
+        let ResponseResult::SpaceWorktreeCreated(info) = success.result else {
+            panic!("expected space_worktree_created, got {response}");
+        };
+        // Named without the prefix, so the prefix isn't doubled either.
+        let expected = worktree_root.join("knowledge/pyshiftup/feature");
+        assert_eq!(Path::new(&info.worktree.path), expected);
+        assert_eq!(info.worktree.branch.as_deref(), Some("ben/feature"));
+        assert_eq!(
+            info.sync.branch_source,
+            crate::api::schema::WorktreeBranchSource::Local
+        );
+        assert_eq!(app.state.workspaces[0].space_id, space_id);
+
+        for (_, runtime) in app.terminal_runtimes.drain() {
+            runtime.shutdown();
+        }
+        let remove = crate::worktree::build_worktree_remove_command(&repo, &expected, true, false);
+        crate::worktree::run_worktree_command(&remove).unwrap();
+        let _ = std::fs::remove_dir_all(worktree_root);
+        let _ = std::fs::remove_dir_all(repo);
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn space_worktree_create_applies_repo_settings() {

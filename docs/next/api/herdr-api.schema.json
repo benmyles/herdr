@@ -4035,6 +4035,23 @@
           ],
           "type": "object"
         },
+        "RepoRemoteBranchesParams": {
+          "description": "Lists the branches on a repo's remote, most recently committed first.",
+          "properties": {
+            "fetch": {
+              "default": false,
+              "description": "Fetch the remote first. A failed fetch still lists the branches\nalready known, with `fetch_error` set.",
+              "type": "boolean"
+            },
+            "repo": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "repo"
+          ],
+          "type": "object"
+        },
         "RepoSettings": {
           "description": "What Herdr does around each worktree it creates from a repo.",
           "properties": {
@@ -4280,6 +4297,30 @@
           },
           "required": [
             "space_id"
+          ],
+          "type": "object"
+        },
+        "SpaceWorktreeCheckoutParams": {
+          "description": "Checks out an existing branch, local or remote-only, as a new worktree\nfor a space. The branch is used as-is, without the repo's branch prefix.",
+          "properties": {
+            "branch": {
+              "type": "string"
+            },
+            "focus": {
+              "default": false,
+              "type": "boolean"
+            },
+            "repo": {
+              "type": "string"
+            },
+            "space_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "space_id",
+            "repo",
+            "branch"
           ],
           "type": "object"
         },
@@ -5588,6 +5629,22 @@
         {
           "properties": {
             "method": {
+              "const": "space.worktree.checkout",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/SpaceWorktreeCheckoutParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
               "const": "repo.list",
               "type": "string"
             },
@@ -5657,6 +5714,22 @@
             },
             "params": {
               "$ref": "#/schemas/request/$defs/RepoSettingsSetParams"
+            }
+          },
+          "required": [
+            "method",
+            "params"
+          ],
+          "type": "object"
+        },
+        {
+          "properties": {
+            "method": {
+              "const": "repo.remote_branches",
+              "type": "string"
+            },
+            "params": {
+              "$ref": "#/schemas/request/$defs/RepoRemoteBranchesParams"
             }
           },
           "required": [
@@ -10013,6 +10086,37 @@
           ],
           "type": "string"
         },
+        "RemoteBranchInfo": {
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "checkout_path": {
+              "description": "Where a local branch of the same name is checked out, if anywhere.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "committed_at": {
+              "description": "Committer date of the branch tip, in Unix seconds.",
+              "format": "int64",
+              "type": "integer"
+            },
+            "name": {
+              "description": "Branch name without the remote, e.g. `feature/login`.",
+              "type": "string"
+            },
+            "subject": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "committed_at"
+          ],
+          "type": "object"
+        },
         "RepoInfo": {
           "description": "A repo registered on this endpoint for creating worktrees from a space.",
           "properties": {
@@ -10287,6 +10391,43 @@
               "required": [
                 "type",
                 "repos"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "branches": {
+                  "items": {
+                    "$ref": "#/schemas/success_response/$defs/RemoteBranchInfo"
+                  },
+                  "type": "array"
+                },
+                "fetch_error": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "remote": {
+                  "type": "string"
+                },
+                "repo": {
+                  "type": "string"
+                },
+                "truncated": {
+                  "description": "Set when only the newest branches are listed.",
+                  "type": "boolean"
+                },
+                "type": {
+                  "const": "repo_remote_branches",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "repo",
+                "remote",
+                "branches"
               ],
               "type": "object"
             },
